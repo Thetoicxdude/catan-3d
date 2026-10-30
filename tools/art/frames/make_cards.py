@@ -1,4 +1,4 @@
-# Card faces from the six frame templates (src/frame1-6.webp, supplied by the project owner): each frame is cropped to the card, its
+# Card faces from the frame templates (src/frame*.webp, supplied by the project owner): each frame is cropped to the card, its
 # corners cut round, and the card's art is set into the arched window behind the frame's bevel.
 # The name strip at the bottom keeps the frame's parchment; the name itself is set in HTML.
 #   python3 make_cards.py <out dir>
@@ -15,7 +15,9 @@ os.makedirs(OUT, exist_ok=True)
 BOX = (102, 104, 663, 922)  # the card inside each 765x1024 template
 W, H = BOX[2] - BOX[0], BOX[3] - BOX[1]  # 561 x 818
 RADIUS = 27
-FRAME = {'wood': 1, 'wool': 2, 'grain': 3, 'brick': 4, 'ore': 5}
+# frame templates: 7 bronze (lumber), 2 verdigris (wool), 3 gold (grain), 4 red (brick), 5 silver (ore),
+# 6 iridescent (development cards); 1 (dark green) was lumber's first frame
+FRAME = {'wood': 7, 'wool': 2, 'grain': 3, 'brick': 4, 'ore': 5}
 DEV = ['dev_knight', 'dev_road', 'dev_plenty', 'dev_monopoly', 'dev_vp']
 GRADE = {'grain': (1.22, 0.035), 'wool': (1.05, 0.0), 'ore': (1.0, 0.0), 'brick': (1.04, 0.0), 'wood': (1.06, 0.0)}
 SIZES = {'': 480, '_s': 160}

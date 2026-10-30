@@ -198,11 +198,12 @@ float cobble(vec2 p) {
     const g = GEO.edges[e];
     return new THREE.Vector3(g.x, this.terrain.heightAt(g.x, g.z), g.z);
   }
-  setScale(s, roadW) {
+  setScale(s, roadW, settled = true) {
     this.scale = s;
     this.farU.value = Math.min(1, Math.max(0, (s - 1.2) / 1.1));
     for (const b of this.buildings.values()) if (!b.anim) b.mesh.scale.setScalar(s);
     // yards follow the ground, so they are rebuilt (not scaled) when the zoom changes a lot
+    if (!settled) return;
     if (this.models && Math.abs(s - this.yardScale) > 0.12) {
       this.yardScale = s;
       for (const [v, b] of this.buildings) {

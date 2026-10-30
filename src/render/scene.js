@@ -13,7 +13,7 @@ import { StrategyCamera, ZOOM_MIN, ZOOM_MAX } from './camera.js';
 import { Markers } from './markers.js';
 import { Labels } from './labels.js';
 import { GLSL_NOISE } from './noise.js';
-import { resIcon, icon } from '../ui/icons.js';
+import { resCard, icon, RES_NAMES } from '../ui/icons.js';
 
 // number tokens stay large enough to read at every zoom
 const TOKEN_SCALE = (zh) => Math.min(1.15, Math.max(0.8, 92 / zh));
@@ -159,31 +159,6 @@ function waterMaterial(terrain) {
   });
 }
 
-function cloudMaterial() {
-  return new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    uniforms: { uTime: { value: 0 }, uCloud: { value: 0 }, uSunDir: { value: SUN.clone() } },
-    vertexShader: /* glsl */ `
-      varying vec3 vWPos;
-      void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vWPos = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`,
-    fragmentShader: /* glsl */ `
-      uniform float uTime, uCloud;
-      uniform vec3 uSunDir;
-      varying vec3 vWPos;
-      ${GLSL_NOISE}
-      void main() {
-        vec2 p = vWPos.xz;
-        float c = cloudField(p, uTime);
-        float a = smoothstep(0.46, 0.74, c);
-        float lit = cloudField(p + uSunDir.xz * 6.0, uTime);
-        vec3 col = mix(vec3(0.97, 0.98, 1.0), vec3(0.72, 0.76, 0.82), smoothstep(0.55, 0.85, lit) * 0.6);
-        gl_FragColor = vec4(pow(col, vec3(2.2)), a * uCloud * 0.85);
-        #include <colorspace_fragment>
-      }`,
-    toneMapped: false,
-  });
-}
 
 // image-based lighting: a small sky dome (zenith blue, hazy horizon, warm sun, earthy ground bounce)
 // prefiltered into a PMREM environment for every PBR material on the map
@@ -219,13 +194,16 @@ function skyEnvironment(renderer) {
 }
 
 export class MapView {
-  constructor(container) {
+  constructor(container, quality = 'high') {
     this.container = container;
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'map-canvas';
     container.appendChild(this.canvas);
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, powerPreference: 'high-performance' });
-    this.dprCap = Math.min(window.devicePixelRatio || 1, 1.75);
+    // with post-processing (medium and high) SMAA smooths the edges, so the canvas itself needs no
+    // multisampling; low quality draws straight to the canvas and keeps it
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: quality === 'low', powerPreference: 'high-performance' });
+    // resolution ceiling: full sharpness on strong graphics, one pixel per CSS pixel on integrated ones
+    this.dprCap = Math.min(window.devicePixelRatio || 1, quality === 'high' ? 1.75 : 1);
     this.renderer.setPixelRatio(this.dprCap);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -269,6 +247,7 @@ export class MapView {
     this.canvas.style.width = w + 'px';
     this.canvas.style.height = h + 'px';
     this.camera.setAspect(w / h);
+    this.camera.setRect(r);
     this.labels.resize(w, h);
     this.size = { w, h };
   }
@@ -327,11 +306,6 @@ export class MapView {
     scene.add(water);
     this.water = water;
 
-    const clouds = new THREE.Mesh(new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2), cloudMaterial());
-    clouds.position.y = 62;
-    clouds.renderOrder = 10;
-    scene.add(clouds);
-    this.clouds = clouds;
 
     this.floraArgs = [this.terrain, state.board, seed, quality];
     const pack = assetStatus.pack;
@@ -477,13 +451,20 @@ export class MapView {
       hidden: true,
     });
     this.robberShown = -1;
+    // harbours: the card they take (or "any") and the rate, large enough to read from afar
     for (const a of this.harbors.anchors) {
       const el = document.createElement('div');
-      el.className = 'harbor-badge';
-      const ratio = a.harbor.type === 'any' ? '3:1' : '2:1';
-      el.innerHTML = `<span>${ratio}</span>${a.harbor.type === 'any' ? '' : resIcon(a.harbor.type, 14)}`;
-      el.title = a.harbor.type === 'any' ? '港口：任意資源 3 換 1' : '港口：此資源 2 換 1';
-      this.labels.add(el, a.pos, { scale: (zh) => Math.min(1.1, Math.max(0.5, 70 / zh)) });
+      const type = a.harbor.type;
+      if (type === 'any') {
+        el.className = 'harbor-badge any';
+        el.innerHTML = `<span class="hb-any">${icon('trade', 16)}</span><b>3:1</b><em>任意</em>`;
+        el.title = '港口：任意 3 張相同資源換 1 張';
+      } else {
+        el.className = 'harbor-badge';
+        el.innerHTML = `${resCard(type, { w: 24, name: false })}<b>2:1</b><em>${RES_NAMES[type]}</em>`;
+        el.title = `港口：${RES_NAMES[type]} 2 張換 1 張任意資源`;
+      }
+      this.labels.add(el, a.pos, { scale: (zh) => Math.min(1.12, Math.max(0.82, 100 / zh)) });
     }
     this.buildNationLabels();
   }
@@ -554,7 +535,7 @@ export class MapView {
   pickCandidate(cx, cy, touch) {
     const spec = this.interaction;
     if (!spec) return null;
-    const r = this.canvas.getBoundingClientRect();
+    const r = this.camera.screenRect();
     if (spec.kind === 'hex') {
       const g = this.camera.groundAt(cx, cy);
       if (!g) return null;
@@ -736,7 +717,7 @@ export class MapView {
   toScreen(v) {
     const p = v.clone().project(this.camera.cam);
     if (p.z > 1) return null;
-    const r = this.canvas.getBoundingClientRect();
+    const r = this.camera.screenRect();
     return { x: (p.x * 0.5 + 0.5) * r.width + r.left, y: (-p.y * 0.5 + 0.5) * r.height + r.top };
   }
   hexScreen(id) {
@@ -798,11 +779,15 @@ export class MapView {
     this.time += dt;
     const t = this.time;
     const camMoved = this.camera.update(dt);
+    // the camera counts as moving until it has rested for a moment: moving frames skip the costly
+    // extras (AO, SMAA, shadow refits, road and yard rebuilds), which come back once it settles
+    if (camMoved) this.lastMoveAt = this.time;
+    const moving = this.time - (this.lastMoveAt == null ? -1 : this.lastMoveAt) < 0.2;
     const H = this.camera.h;
     const EQ = this.camera.equivH();
     const zoom01 = Math.min(1, (EQ - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN));
     const paper = smooth(150, 205, EQ);
-    const cloud = smooth(62, 105, EQ) * (1 - smooth(140, 180, EQ));
+    const cloud = 0; // no cloud layer: it hid the board when zoomed out a little
 
     // map-mode transitions
     for (const k of Object.keys(this.modeT)) {
@@ -828,9 +813,6 @@ export class MapView {
     this.scene.fog.far = fogFar;
     wu.uFogNear.value = fogNear;
     wu.uFogFar.value = fogFar;
-    this.clouds.material.uniforms.uTime.value = t;
-    this.clouds.material.uniforms.uCloud.value = cloud;
-    this.clouds.visible = cloud > 0.01;
 
     // production glows
     const ga = U.uGlowA.value;
@@ -848,7 +830,7 @@ export class MapView {
 
     const s = Math.min(2.4, Math.max(1, 1 + (H - 46) / 78));
     const rw = Math.min(2.1, Math.max(1, 1 + (H - 60) / 100));
-    this.pieces.setScale(s, rw);
+    this.pieces.setScale(s, rw, !moving);
     const busy = this.pieces.update(t, dt);
     this.flora.update(t, dt);
     this.harbors.update(t);
@@ -861,7 +843,7 @@ export class MapView {
 
     // the shadow map is cached; re-render it only when pieces change or animate, or when the
     // camera moves enough that the shadow frustum is refitted to the visible area
-    this.fitShadow();
+    if (!moving) this.fitShadow();
     if (busy) this.shadowDirty = Math.max(this.shadowDirty, 1);
     if (this.shadowDirty > 0) {
       this.renderer.shadowMap.needsUpdate = true;
@@ -870,6 +852,7 @@ export class MapView {
     this.labels.update(this.camera.cam, H, dt, paper);
     if (this.post) {
       this.post.setZoom(paper, zoom01);
+      this.post.setMotion(moving, dt);
       this.post.render(dt);
     } else this.renderer.render(this.scene, this.camera.cam);
     this.renderer.autoClear = false;
@@ -879,13 +862,13 @@ export class MapView {
 
     // adaptive resolution
     this.frameTimes.push(dt);
-    if (this.frameTimes.length > 90) {
+    if (this.frameTimes.length > 45) {
       const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
       this.frameTimes = [];
       const pr = this.renderer.getPixelRatio();
       let np = pr;
-      if (avg > 1 / 32 && pr > 0.8) np = Math.max(0.75, pr - 0.25);
-      else if (avg < 1 / 55 && pr < this.dprCap) np = Math.min(this.dprCap, pr + 0.25);
+      if (avg > 1 / 38 && pr > 0.8) np = Math.max(0.75, pr - 0.25);
+      else if (avg < 1 / 57 && pr < this.dprCap) np = Math.min(this.dprCap, pr + 0.25);
       if (np !== pr) {
         this.renderer.setPixelRatio(np);
         if (this.post) this.post.setSize(this.size.w, this.size.h, np);
@@ -898,7 +881,7 @@ export class MapView {
   fitShadow() {
     const sc = this.sun.shadow.camera;
     const inv = sc.matrixWorldInverse;
-    const r = this.canvas.getBoundingClientRect();
+    const r = this.camera.screenRect();
     const v = new THREE.Vector3();
     const FULL = 66;
     let x0 = Infinity;
@@ -956,7 +939,7 @@ export class MapView {
 
   viewportGround() {
     // ground-plane quad visible on screen (for the minimap)
-    const r = this.canvas.getBoundingClientRect();
+    const r = this.camera.screenRect();
     const pts = [
       [r.left, r.top],
       [r.right, r.top],

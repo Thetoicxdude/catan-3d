@@ -162,6 +162,14 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   border-bottom: 1px solid var(--line); background: rgba(0, 0, 0, 0.2);
 }
 .ol-head small { font-family: var(--font-num); letter-spacing: 0.08em; color: var(--ink-faint); font-size: 12px; }
+/* the bank: a card per resource and the development deck, each with what is left */
+.bank { border-bottom: 1px solid var(--line); }
+.bank .bk-row { display: flex; justify-content: space-between; gap: 4px; padding: 12px 14px 9px 10px; }
+.bank .bk-card { --w: 31px; }
+.bank .bk-card.low .cnt { color: #ffb19f; border-color: #c96a55; }
+.bank .bk-card.zero { filter: grayscale(0.85) brightness(0.6); }
+.bank .bk-card.bump { animation: bankbump 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) 1; }
+@keyframes bankbump { 35% { transform: translateY(-3px) scale(1.18); } }
 .nation {
   position: relative; display: grid; grid-template-columns: 34px 1fr auto; gap: 2px 9px; align-items: center;
   padding: 8px 12px 8px 12px; border-bottom: 1px solid rgba(199, 166, 96, 0.12);

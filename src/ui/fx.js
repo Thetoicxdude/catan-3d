@@ -127,7 +127,7 @@ export class Fx {
           { offset: 0.14, transform: `translate(-50%, -50%) translate(${dx * 0.02}px, -46px) scale(1.25) rotate(${rot * 0.7}deg)`, opacity: 1 },
           { offset: 0.24, transform: `translate(-50%, -50%) translate(${dx * 0.05}px, -52px) scale(1.12) rotate(${rot * 0.5}deg)`, opacity: 1 },
           { offset: 0.62, transform: `translate(-50%, -50%) translate(${dx * 0.55}px, ${dy * 0.55 - lift}px) scale(0.95) rotate(${rot * 0.15}deg)`, opacity: 1 },
-          { transform: `translate(-50%, -50%) translate(${dx}px, ${dy}px) scale(${c.small ? 0.8 : 0.7}) rotate(0deg)`, opacity: 0.9 },
+          { transform: `translate(-50%, -50%) translate(${dx}px, ${dy}px) scale(${c.end != null ? c.end : c.small ? 0.8 : 0.7}) rotate(0deg)`, opacity: 0.9 },
         ],
         { duration: dur, delay: c.delay || 0, easing: 'cubic-bezier(.4,.05,.3,1)', fill: 'both' },
       );

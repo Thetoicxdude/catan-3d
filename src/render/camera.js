@@ -102,8 +102,17 @@ export class StrategyCamera {
     return out;
   }
 
+  // the canvas' screen rectangle, kept by the map view on resize: reading it from the DOM every frame
+  // forced a style and layout pass right after the labels moved
+  setRect(r) {
+    this.rect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+  }
+  screenRect() {
+    return this.rect || this.canvas.getBoundingClientRect();
+  }
+
   groundAt(clientX, clientY, clampFar = 0) {
-    const r = this.canvas.getBoundingClientRect();
+    const r = this.screenRect();
     const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
     this.ray.setFromCamera(ndc, this.cam);
     const p = new THREE.Vector3();

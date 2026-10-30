@@ -46,6 +46,9 @@ export class Hud {
     this.logCount = 0;
     // cards still flying towards the hand are not counted yet: the number ticks up on arrival
     this.pending = { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
+    // the same for cards on their way back into the bank
+    this.bankPending = { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
+    this.bankShown = null;
     this.shown = null;
     this.build();
     this.fx = new Fx(root);
@@ -71,6 +74,45 @@ export class Hud {
   chipCenter(res) {
     const r = this.chips[res].getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+  // the bank's card for a resource (or the deck); with the panel folded away, its toggle corner
+  bankPoint(res) {
+    const c = !this.outliner.classList.contains('closed') && this.bankCards[res];
+    if (c) {
+      const r = c.getBoundingClientRect();
+      if (r.width > 0) return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
+    return { x: window.innerWidth - 40, y: 70 };
+  }
+  // cards on their way into the bank: the count goes up as each one lands
+  holdBank(res, n = 1) {
+    if (!(res in this.bankPending)) return;
+    this.bankPending[res] += n;
+    this.paintBank();
+  }
+  landBank(res) {
+    if (!(res in this.bankPending)) return;
+    this.bankPending[res] = Math.max(0, this.bankPending[res] - 1);
+    this.paintBank();
+    const c = this.bankCards[res];
+    c.classList.remove('bump');
+    void c.offsetWidth;
+    c.classList.add('bump');
+  }
+  paintBank() {
+    if (!this.bankShown) return;
+    for (const res of RES) {
+      const n = Math.max(0, this.bankShown[res] - this.bankPending[res]);
+      const c = this.bankCards[res];
+      c.querySelector('.cnt').textContent = n;
+      c.classList.toggle('low', n <= 3);
+      c.classList.toggle('zero', n === 0);
+      c.title = `銀行：${RES_NAMES[res]} 剩 ${n} 張`;
+    }
+    const d = this.bankCards.dev;
+    d.querySelector('.cnt').textContent = this.bankShown.dev;
+    d.classList.toggle('zero', this.bankShown.dev === 0);
+    d.title = `發展卡堆：剩 ${this.bankShown.dev} 張`;
   }
   // where cards for another nation go: its row in the outliner, or off the top of the screen
   nationPoint(p) {
@@ -149,6 +191,23 @@ export class Hud {
     // outliner
     this.outliner = el('aside', 'outliner panel');
     if (window.innerWidth <= 760) this.outliner.classList.add('closed');
+    // the bank on top: what is left of each resource and of the development deck
+    this.bankEl = el('div', 'bank');
+    this.bankEl.innerHTML = `<div class="ol-head"><span>銀行</span><small>BANK</small></div><div class="bk-row"></div>`;
+    const bkRow = this.bankEl.querySelector('.bk-row');
+    this.bankCards = {};
+    for (const res of RES) {
+      const c = el('div', `bk-card rcard rc-${res}`);
+      c.innerHTML = '<b class="cnt num">19</b>';
+      bkRow.appendChild(c);
+      this.bankCards[res] = c;
+    }
+    const deck = el('div', 'bk-card rcard dcard dc-back');
+    deck.innerHTML = '<b class="cnt num">25</b>';
+    bkRow.appendChild(deck);
+    this.bankCards.dev = deck;
+    this.olBody = el('div', 'ol-body');
+    this.outliner.append(this.bankEl, this.olBody);
     r.appendChild(this.outliner);
 
     // log
@@ -410,8 +469,9 @@ export class Hud {
         </div>`;
       })
       .join('');
-    const bank = RES.map((r) => `${RES_NAMES[r]} ${v.bank[r]}`).join('、');
-    this.outliner.innerHTML = `<div class="ol-head"><span>諸國</span><small title="銀行剩餘：${bank}；發展卡 ${v.devDeckCount} 張">卡堆 ${v.devDeckCount}</small></div>${rows}`;
+    this.olBody.innerHTML = `<div class="ol-head"><span>諸國</span></div>${rows}`;
+    this.bankShown = { ...v.bank, dev: v.devDeckCount };
+    this.paintBank();
   }
 
   renderActions(ctx) {

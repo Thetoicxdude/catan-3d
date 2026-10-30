@@ -52,10 +52,15 @@
   mix-blend-mode: multiply;
 }
 .harbor-badge {
-  display: flex; align-items: center; gap: 3px; padding: 2px 7px 2px 8px; border-radius: 10px;
-  background: rgba(26, 34, 40, 0.86); border: 1px solid #b89b5e; color: #f1e6c8;
-  font-family: var(--font-num); font-weight: 700; font-size: 14px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 5px; border-radius: 9px; white-space: nowrap;
+  background: rgba(18, 25, 30, 0.9); border: 1.5px solid #c8a862; color: #f3e7c6;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
 }
+.harbor-badge .rcard { --w: 24px; filter: none; }
+.harbor-badge b { font-family: var(--font-num); font-weight: 700; font-size: 21px; line-height: 1; }
+.harbor-badge em { font-style: normal; font-family: var(--font-body); font-weight: 700; font-size: 13px; color: #e9dcbb; }
+.harbor-badge.any { padding-left: 6px; }
+.harbor-badge .hb-any { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: rgba(199, 166, 96, 0.22); color: var(--brass-hi); }
 .float {
   font-family: var(--font-num); font-weight: 700; font-size: 20px; color: #fff4d6;
   display: flex; align-items: center; gap: 3px;

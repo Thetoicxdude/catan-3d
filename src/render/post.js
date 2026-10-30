@@ -3,10 +3,14 @@
 // Overlays (placement markers) are drawn afterwards, untouched by the grade.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { N8AOPass } from 'n8ao';
+
+// resolution of the moving-camera frames, relative to the still ones
+const MOTION_SCALE = 0.65;
 
 const GradeShader = {
   uniforms: {
@@ -45,6 +49,15 @@ export class PostFX {
     this.composer = new EffectComposer(renderer);
     this.composer.setPixelRatio(pr);
     this.composer.setSize(size.x, size.y);
+    // While the camera moves, frames go through a lighter chain instead: the scene at reduced
+    // resolution (scaled up on the way to the screen), no AO, no SMAA. Moving frames are the ones that
+    // must be quick, and the eye can't pick out contact shadows or edge steps in motion.
+    this.motion = new EffectComposer(renderer);
+    this.motion.setPixelRatio(pr * MOTION_SCALE);
+    this.motion.setSize(size.x, size.y);
+    this.motion.addPass(new RenderPass(scene, camera));
+    this.motion.addPass(new OutputPass());
+    this.motion.addPass(new ShaderPass(GradeShader));
     this.ao = new N8AOPass(scene, camera, size.x * pr, size.y * pr);
     const cfg = this.ao.configuration;
     cfg.gammaCorrection = false;
@@ -66,18 +79,30 @@ export class PostFX {
   setSize(w, h, pr) {
     this.composer.setPixelRatio(pr);
     this.composer.setSize(w, h);
+    this.motion.setPixelRatio(pr * MOTION_SCALE);
+    this.motion.setSize(w, h);
   }
 
-  // AO fades out on the far, paper-map zoom levels (the pass also renders the scene: keep it on)
+  // AO fades out on the far, paper-map zoom levels, and fades back in after the camera stops
   setZoom(paper, zoom01) {
-    this.ao.configuration.intensity = Math.max(0.0001, 2.2 * (1 - paper) * (1 - 0.35 * zoom01));
+    this.aoTarget = 2.2 * (1 - paper) * (1 - 0.35 * zoom01);
+  }
+
+  setMotion(moving, dt) {
+    if (moving !== this.moving) {
+      this.moving = moving;
+      if (!moving) this.aoFade = 0;
+    }
+    if (!moving) this.aoFade = Math.min(1, (this.aoFade == null ? 1 : this.aoFade) + dt / 0.3);
+    this.ao.configuration.intensity = Math.max(0.0001, (this.aoTarget == null ? 2.2 : this.aoTarget) * (this.aoFade == null ? 1 : this.aoFade));
   }
 
   render(dt) {
-    this.composer.render(dt);
+    (this.moving ? this.motion : this.composer).render(dt);
   }
 
   dispose() {
     this.composer.dispose();
+    this.motion.dispose();
   }
 }

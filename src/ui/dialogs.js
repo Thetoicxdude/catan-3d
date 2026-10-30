@@ -473,6 +473,7 @@ export class Dialogs {
           b.type = 'button';
           b.addEventListener('click', () => {
             settings[key] = val;
+            if (key === 'quality') settings.qualityPicked = true; // chosen by hand: no more automatic default
             onChange(settings, key);
             render();
           });
@@ -485,10 +486,6 @@ export class Dialogs {
         ['normal', '普通'],
         ['fast', '快'],
         ['turbo', '極快'],
-      ]);
-      seg('鏡頭跟隨', 'follow', [
-        [true, '跟隨電腦行動'],
-        [false, '不跟隨'],
       ]);
       seg('畫面品質', 'quality', [
         ['high', '高'],

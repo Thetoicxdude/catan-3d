@@ -13,6 +13,7 @@ import {
   playableDev,
   totalVP,
   RES,
+  COSTS,
 } from '../engine/engine.js';
 import { GEO } from '../engine/geometry.js';
 import { aiAct } from '../ai/ai.js';
@@ -130,7 +131,7 @@ export class Game {
       const now = performance.now();
       if ((moved && now - this.lastMini > 90) || now - this.lastMini > 1500) {
         this.lastMini = now;
-        this.hud.drawMinimap(this.view(), this.players, this.map.viewportGround());
+        this.hud.drawMinimap(this.lastView || this.view(), this.players, this.map.viewportGround());
       }
     };
     this.keyHandler = (e) => this.onKey(e);
@@ -178,6 +179,7 @@ export class Game {
   ctx(extra = {}) {
     const busy = this.client && this.net.busy && this.net.busy();
     const view = this.view();
+    this.lastView = view; // the minimap redraws from this while the camera moves
     let thinking = this.thinking;
     if (this.client && view.phase !== 'over') {
       const others = actorsNow(view).filter((p) => p !== this.viewer);
@@ -282,20 +284,11 @@ export class Game {
   present(action, red) {
     const view = this.view();
     this.map.sync(view, red, true);
-    const actor = action ? action.p : red.length ? red[0].p : -1;
-    const fromAI = actor !== this.viewer && actor != null && actor >= 0;
+    // the camera stays where the player put it: nothing here moves it
     for (const e of red) {
       const d = describe(e, this.players, this.viewer, view);
       if (d.log) this.hud.log(d.log, { hl: d.hl, sep: d.sep });
       if (d.toast) this.hud.toast(d.toast.title, d.toast.text, d.toast.icon);
-      if (fromAI && this.settings.follow) {
-        if (e.type === 'build') {
-          if (e.vertex != null) this.map.focusVertex(e.vertex);
-          else if (e.edge != null) this.map.focusEdge(e.edge);
-        }
-        if (e.type === 'robber') this.map.focusHex(e.to);
-      }
-      if (e.type === 'robber' && !fromAI) this.map.focusHex(e.to);
     }
     this.presentFx(red, view);
     if (this.mode && !this.modeValid()) this.mode = null;
@@ -340,6 +333,20 @@ export class Game {
       } else if (e.type === 'build') {
         sfx.build(e.what);
         if (e.what !== 'road') setTimeout(() => fx.medal(this.hud.vpTarget(e.p, me), '+1'), 260);
+        // what it cost goes back to the bank (opening pieces and Road Building roads are free)
+        if (!e.setup && !e.free) this.payBank(e.p, COSTS[e.what], me);
+      } else if (e.type === 'discard') {
+        this.payBank(e.p, e.cards, me);
+      } else if (e.type === 'bankTrade') {
+        this.payBank(e.p, { [e.give]: e.ratio }, me);
+        const get = this.planCards([{ res: e.get, p: e.p, from: this.hud.bankPoint(e.get) }], me);
+        setTimeout(() => !this.destroyed && fx.cards(get()), 320 + 90 * e.ratio);
+      } else if (e.type === 'trade') {
+        // both sides of an accepted offer cross over
+        const list = [];
+        for (const [res, n] of Object.entries(e.give || {})) for (let i = 0; i < n; i++) list.push({ res, p: e.to, from: this.cardPoint(e.from, res, me) });
+        for (const [res, n] of Object.entries(e.get || {})) for (let i = 0; i < n; i++) list.push({ res, p: e.from, from: this.cardPoint(e.to, res, me) });
+        if (list.length) fx.cards(this.planCards(list, me)());
       } else if (e.type === 'longestRoad' || e.type === 'largestArmy') {
         if (e.to < 0) continue;
         const road = e.type === 'longestRoad';
@@ -361,20 +368,50 @@ export class Game {
           fx.cards([{ res: r, from, to: this.hud.nationPoint(e.p), delay: 0, small: true }]);
           fx.plus(from.x, from.y + 26, '−1', 'loss');
         }
-      } else if (e.type === 'playDev' && e.p === me && e.card === 'yearOfPlenty') {
-        const c = { x: window.innerWidth / 2, y: window.innerHeight * 0.42 };
-        fx.cards(this.planCards(e.res.map((res) => ({ res, p: me, from: c })), me)());
+      } else if (e.type === 'playDev' && e.card === 'yearOfPlenty' && e.res) {
+        fx.cards(this.planCards(e.res.map((res) => ({ res, p: e.p, from: this.hud.bankPoint(res) })), me)());
       } else if (e.type === 'playDev' && e.card === 'monopoly' && e.taken) {
         const list = [];
         for (const [q, n] of Object.entries(e.taken)) for (let i = 0; i < n; i++) list.push({ res: e.res, p: e.p, from: this.hud.nationPoint(+q) });
         fx.cards(this.planCards(list, me)());
-      } else if (e.type === 'buyDev' && e.p === me && e.card && DEV_INFO[e.card]) {
+      } else if (e.type === 'buyDev') {
+        this.payBank(e.p, COSTS.dev, me);
+        if (e.p !== me || !e.card || !DEV_INFO[e.card]) continue;
         const info = DEV_INFO[e.card];
         const note = e.card === 'victoryPoint' ? '已秘密計入你的分數' : '下回合起可以使用（可在擲骰前打出）';
         fx.devReveal({ type: e.card, name: info.name, desc: info.desc, note }, this.hud.top.querySelector('.stat.devs'));
       } else if (e.type === 'turnStart' && e.p === me) sfx.turn();
       else if (e.type === 'gameOver') sfx.fanfare(true);
     }
+  }
+
+  // where a player's card of `res` leaves from: the viewer's own card in the hand, else the nation's row
+  cardPoint(p, res, me) {
+    return p === me ? this.hud.chipCenter(res) : this.hud.nationPoint(p);
+  }
+
+  // cards spent on a build, a development card, a discard or a bank trade fly back into the bank
+  payBank(p, cost, me) {
+    if (!cost || this.destroyed) return;
+    const list = [];
+    let k = 0;
+    for (const [res, n] of Object.entries(cost)) {
+      for (let i = 0; i < n; i++) {
+        const from = this.cardPoint(p, res, me);
+        this.hud.holdBank(res, 1);
+        list.push({
+          res,
+          from: { x: from.x + (Math.random() - 0.5) * 12, y: from.y + (Math.random() - 0.5) * 8 },
+          to: this.hud.bankPoint(res),
+          delay: k * 95,
+          small: p !== me,
+          end: p === me ? 0.52 : 1,
+          onArrive: () => this.hud.landBank(res),
+        });
+        k++;
+      }
+    }
+    if (list.length) this.hud.fx.cards(list);
   }
 
   // Reserve the viewer's incoming cards now (so the counters don't jump ahead) and return a
@@ -674,12 +711,11 @@ export class Game {
         const why = v.pending.reason === 'knight' ? '騎士出征' : '擲出 7，強盜出沒';
         banner = { html: `${why}：點選一塊<b>有白色圓圈的地形</b>安置強盜，並搶奪旁邊國家的一張牌`, urgent: true };
         hint = { text: '移動強盜：點選有圓圈的地形', urgent: true };
-        // make sure this is noticed: a dispatch and a view of the whole island (once per robber move)
+        // make sure this is noticed (once per robber move); the camera is left alone
         const key = 'robber:' + v.turn + ':' + v.pending.reason;
         if (this.robberNotice !== key) {
           this.robberNotice = key;
           this.hud.toast(why, '點選地圖上有白色圓圈的地形安置強盜。完成之前不能結束回合。', 'robber', 5200);
-          this.map.focus(0, 5, this.map.camera.fitIsland(1.05));
         }
       } else banner = { html: `${P(v.current)} 正在移動強盜…`, wait: true };
     } else if (v.pending && v.pending.type === 'steal') {

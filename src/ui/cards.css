@@ -3,7 +3,7 @@
    (assets/cards/card_*.webp, made by tools/art/frames/make_cards.py). The English name is set on the
    frame's parchment strip in Fraktur; counts sit on a token in the top corner, clear of the name.
    .rc-mini is the inline miniature (the art alone, ringed in the frame's colour) for logs and badges. */
-.rc-wood  { --rc: #4b552b; --ring: #3f7a52; --card: url(assets/cards/card_wood_s.webp);  --card-l: url(assets/cards/card_wood.webp);  --thumb: url(assets/cards/wood_s.webp); }
+.rc-wood  { --rc: #5a4330; --ring: #a07a55; --card: url(assets/cards/card_wood_s.webp);  --card-l: url(assets/cards/card_wood.webp);  --thumb: url(assets/cards/wood_s.webp); }
 .rc-wool  { --rc: #66773f; --ring: #5aa893; --card: url(assets/cards/card_wool_s.webp);  --card-l: url(assets/cards/card_wool.webp);  --thumb: url(assets/cards/wool_s.webp); }
 .rc-grain { --rc: #b4852f; --ring: #d8b24e; --card: url(assets/cards/card_grain_s.webp); --card-l: url(assets/cards/card_grain.webp); --thumb: url(assets/cards/grain_s.webp); }
 .rc-brick { --rc: #8b3b1f; --ring: #b8454b; --card: url(assets/cards/card_brick_s.webp); --card-l: url(assets/cards/card_brick.webp); --thumb: url(assets/cards/brick_s.webp); }

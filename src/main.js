@@ -18,7 +18,8 @@ function loadSettings() {
   const d = defaultSettings();
   try {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
-    if (s && typeof s === 'object') return { ...d, ...s, seats: Array.isArray(s.seats) && s.seats.length === 3 ? s.seats : d.seats };
+    // quality follows the device unless the player has picked one in the settings
+    if (s && typeof s === 'object') return { ...d, ...s, quality: s.qualityPicked ? s.quality || d.quality : d.quality, seats: Array.isArray(s.seats) && s.seats.length === 3 ? s.seats : d.seats };
   } catch {
     /* storage unavailable */
   }
@@ -88,7 +89,7 @@ function buildMap(state, players, quality) {
     return map;
   }
   if (map) map.dispose();
-  map = new MapView(mapEl);
+  map = new MapView(mapEl, quality);
   map.build(state, players, quality);
   map.start();
   mapKey = key;

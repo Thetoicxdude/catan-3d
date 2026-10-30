@@ -12,9 +12,32 @@ export const PALETTE = [
 ];
 export const AI_NAMES = ['北境公國', '蒼藍聯邦', '琥珀公國', '白楊共和國', '翡翠王國', '紫晶帝國', '赤沙酋長國', '銀港自由市', '霧峰同盟'];
 
+// What the graphics chip can carry: integrated graphics (laptop APUs, Intel, phones) get medium quality,
+// software rendering low. Checked once.
+let tierCache = null;
+export function gpuTier() {
+  if (tierCache) return tierCache;
+  tierCache = 'high';
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl2') || c.getContext('webgl');
+    if (!gl) return (tierCache = 'low');
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const r = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+    const lose = gl.getExtension('WEBGL_lose_context');
+    if (lose) lose.loseContext();
+    if (/SwiftShader|llvmpipe|Software|Basic Render/i.test(r)) tierCache = 'low';
+    else if (/Intel|UHD|Iris|Radeon\(TM\) Graphics|Radeon Graphics|Vega \d+ Graphics|Mali|Adreno|PowerVR/i.test(r)) tierCache = 'medium';
+  } catch {
+    tierCache = 'medium';
+  }
+  return tierCache;
+}
+
 export function defaultSettings() {
   const mobile = typeof window !== 'undefined' && (window.innerWidth < 760 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
   const weak = typeof navigator !== 'undefined' && navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
+  const tier = typeof document !== 'undefined' ? gpuTier() : 'high';
   return {
     name: '曙光王國',
     color: '#c8372d',
@@ -27,9 +50,8 @@ export function defaultSettings() {
     numbers: 'balanced',
     target: 10,
     speed: 'normal',
-    follow: true,
     sound: true,
-    quality: mobile ? 'low' : weak ? 'medium' : 'high',
+    quality: mobile || tier === 'low' ? 'low' : weak || tier === 'medium' ? 'medium' : 'high',
   };
 }
 
