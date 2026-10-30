@@ -781,16 +781,17 @@ const TERRAIN_FRAG_POST = /* glsl */ `
 
   if (uPaper > 0.001) {
     float lam = clamp(dot(normalize(vWNrm), normalize(uSunDir)), 0.0, 1.0);
-    float shade = 0.70 + 0.42 * lam;
-    vec3 parch = vec3(0.93, 0.88, 0.75) * (0.94 + 0.06 * fbm2(p * 0.55));
+    float shade = 0.64 + 0.38 * lam;
+    float grain = 0.93 + 0.07 * fbm2(p * 0.55);
+    vec3 parch = toLin(vec3(0.84, 0.78, 0.64)) * grain;
     // a strategy-map colour per terrain, strong enough to tell every province apart from far away:
     // forest deep green, hills terracotta, pasture fresh green, fields wheat gold, mountains slate, desert sand
     vec3 tint = vW0.x * vec3(0.27, 0.45, 0.25) + vW0.y * vec3(0.80, 0.45, 0.28) + vW0.z * vec3(0.58, 0.79, 0.36)
               + vW1.x * vec3(0.95, 0.78, 0.30) + vW1.y * vec3(0.55, 0.57, 0.63) + vW1.z * vec3(0.91, 0.83, 0.62);
     float tw = vW0.x + vW0.y + vW0.z + vW1.x + vW1.y + vW1.z;
     // (picked as display colours: this pass works in linear light)
-    tint = tw > 0.01 ? toLin(tint / tw) : parch;
-    vec3 paper = mix(parch, tint, 0.88) * shade;
+    tint = tw > 0.01 ? toLin(tint / tw) * grain : parch;
+    vec3 paper = mix(parch, tint, 0.94) * shade;
     float stip = step(0.86, hash12(floor(p * 1.7))) * vW0.x;
     paper = mix(paper, vec3(0.30, 0.38, 0.24), stip * 0.45);
     float pl = 1.0 - smoothstep(0.0, 0.32, ed);

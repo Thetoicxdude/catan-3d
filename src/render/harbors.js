@@ -313,7 +313,13 @@ export function buildHarbors(board, terrain, models = null, timeU = { value: 0 }
       group.add(ship);
       ships.push({ ship, ph: Math.random() * 6, roll: 0.04 });
     }
-    anchors.push({ harbor: hb, pos: new THREE.Vector3(e.x + n.x * (start + L * 0.55), 2.2, e.z + n.z * (start + L * 0.55)) });
+    // the badge floats out at sea past the pier and its ship (so it never hides them), with a line
+    // back to the stretch of coast the harbour serves
+    anchors.push({
+      harbor: hb,
+      pos: new THREE.Vector3(e.x + n.x * (start + L + 4.4), 1.2, e.z + n.z * (start + L + 4.4)),
+      shore: new THREE.Vector3(e.x + n.x * s0, 0.5, e.z + n.z * s0),
+    });
   });
   function update(t) {
     timeU.value = t;

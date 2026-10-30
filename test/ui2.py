@@ -28,6 +28,7 @@ async def main():
         await page.route('**/*', route)
         await page.goto('http://127.0.0.1:8765/dist/index.test.html')
         await page.wait_for_selector('.menu-screen', timeout=60000)
+        await page.click('[data-k="single"]')
         await page.click('text=開始戰役')
         await page.wait_for_function('window.__game && window.__game.state', timeout=60000)
         await page.evaluate('window.__autoHuman = true; __game.schedule()')

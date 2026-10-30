@@ -6,11 +6,11 @@ export const PALETTE = [
   { hex: '#c8372d', name: '赤' },
   { hex: '#2f6fd0', name: '蒼' },
   { hex: '#e8892b', name: '琥珀' },
-  { hex: '#ece6d6', name: '白' },
+  { hex: '#17a9bd', name: '碧' },
   { hex: '#3f9a4a', name: '翠' },
   { hex: '#8a5cc2', name: '紫' },
 ];
-export const AI_NAMES = ['北境公國', '蒼藍聯邦', '琥珀公國', '白楊共和國', '翡翠王國', '紫晶帝國', '赤沙酋長國', '銀港自由市', '霧峰同盟'];
+export const AI_NAMES = ['北境公國', '蒼藍聯邦', '琥珀公國', '碧海共和國', '翡翠王國', '紫晶帝國', '赤沙酋長國', '銀港自由市', '霧峰同盟'];
 
 // What the graphics chip can carry: integrated graphics (laptop APUs, Intel, phones) get medium quality,
 // software rendering low. Checked once.
@@ -45,7 +45,7 @@ export function defaultSettings() {
     seats: [
       { name: '蒼藍聯邦', kind: 'ai', level: 'normal' },
       { name: '琥珀公國', kind: 'ai', level: 'normal' },
-      { name: '白楊共和國', kind: 'ai', level: 'normal' },
+      { name: '碧海共和國', kind: 'ai', level: 'normal' },
     ],
     numbers: 'balanced',
     target: 10,
@@ -58,7 +58,8 @@ export function defaultSettings() {
 export function seatColors(s) {
   const used = [s.color];
   return s.seats.slice(0, s.opponents).map((seat) => {
-    let c = seat.color && !used.includes(seat.color) ? seat.color : null;
+    // a colour saved before the palette changed (the old white) gives way to a current one
+    let c = seat.color && PALETTE.some((p) => p.hex === seat.color) && !used.includes(seat.color) ? seat.color : null;
     if (!c) c = PALETTE.map((p) => p.hex).find((h) => !used.includes(h));
     used.push(c);
     return c;
@@ -87,7 +88,8 @@ function el(tag, cls, html) {
 }
 
 // which version of the site is running (written by the build; helps when reporting a problem)
-function buildLabel() {
+// the deployed version (self-hosted site), as plain text
+export function buildInfo() {
   const b = typeof window !== 'undefined' ? window.__build : null;
   if (!b || !b.sha) return '';
   let when = '';
@@ -97,17 +99,21 @@ function buildLabel() {
     /* no Intl */
   }
   const branch = b.branch && b.branch !== 'main' ? `・${b.branch}` : '';
-  return `<p class="credits build">版本 ${String(b.sha).replace(/[^0-9a-z]/gi, '').slice(0, 7)}${branch.replace(/[<>&"]/g, '')}${when ? `・${when}` : ''}</p>`;
+  return `版本 ${String(b.sha).replace(/[^0-9a-z]/gi, '').slice(0, 7)}${branch}${when ? `・${when}` : ''}`;
+}
+function buildLabel() {
+  const t = buildInfo();
+  return t ? `<p class="credits build">${esc(t)}</p>` : '';
 }
 
-export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules, onReroll, onChange, onOnline }) {
+// The single-player setup: nation, opponents, number layout, victory points and the island.
+export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules, onReroll, onChange, onOnline, onBack }) {
   const scr = el('div', 'menu-screen');
   scr.innerHTML = `
     <div class="title-block">
-      <div class="eyebrow">Island Campaign · 3D Strategy Map</div>
-      <h1>卡坦島<span>3D 戰略版</span></h1>
-      <p>在立體戰略地圖上開拓、交易、築城。率先取得勝利分數的國家，將統一整座島嶼。</p>
-      <p class="credits">寫實素材：植物、岩石、地表掃描、城堡、碼頭與帆船來自 <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>，中世紀木構房屋來自 Blend Swap 的 Daniel74，動畫農場動物來自 <a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a>（皆為 CC0）。</p>${buildLabel()}
+      <div class="eyebrow">Single Player · Island Campaign</div>
+      <h1>單人遊戲<span>卡坦島 3D 戰略版</span></h1>
+      <p>和電腦對手，或同一台裝置上的朋友輪流，在立體戰略地圖上開拓、交易、築城。率先取得勝利分數的國家，將統一整座島嶼。</p>${buildLabel()}
     </div>
     <div class="setup-card panel">
       <div class="modal-head"><h3>新戰役</h3></div>
@@ -256,6 +262,13 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
   };
   render();
 
+  if (onBack) {
+    const back = el('button', 'btn', '返回');
+    back.type = 'button';
+    back.dataset.k = 'back';
+    back.addEventListener('click', onBack);
+    foot.appendChild(back);
+  }
   const rules = el('button', 'btn', '規則說明');
   rules.type = 'button';
   rules.addEventListener('click', onRules);

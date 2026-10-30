@@ -33,6 +33,10 @@ async def main():
         await page.screenshot(path=f'{SP}/ui4-{tag}-menu.png', timeout=120000)
         sw = await page.evaluate('document.documentElement.scrollWidth')
         print('scrollWidth', sw)
+        await page.click('[data-k="single"]')
+        await page.wait_for_timeout(800)
+        await page.screenshot(path=f'{SP}/ui4-{tag}-setup.png', timeout=120000)
+        print('scrollWidth setup', await page.evaluate('document.documentElement.scrollWidth'))
         if not mobile:
             # make seat 2 a human for hot-seat
             await page.select_option('#seat-kind-0', 'human')
@@ -71,7 +75,7 @@ async def main():
             await page.click('.modal .btn.primary:has-text("回到主選單")')
             await page.wait_for_selector('.menu-screen', timeout=60000)
             await page.wait_for_timeout(1500)
-            print('has continue', await page.evaluate("!!document.querySelector('.menu-screen') && [...document.querySelectorAll('.menu-screen .btn')].some(b=>b.textContent.includes('繼續上一局'))"))
+            print('has continue', await page.evaluate("!!document.querySelector('.menu-screen') && [...document.querySelectorAll('.menu-screen [data-k=continue]')].some(b=>!b.hidden && b.textContent.includes('繼續上一局'))"))
             await page.click('text=繼續上一局')
             await page.wait_for_function('window.__game && window.__game.state', timeout=60000)
             await page.wait_for_timeout(1500)

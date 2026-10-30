@@ -30,6 +30,7 @@ async def main():
         await page.wait_for_timeout(4000)
         await page.screenshot(path=f'{SP}/ui-menu.png')
         print('menu ok')
+        await page.click('[data-k="single"]')
         await page.click('text=開始戰役')
         await page.wait_for_function('window.__game && window.__game.state', timeout=60000)
         await page.wait_for_timeout(6000)

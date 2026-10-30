@@ -26,18 +26,17 @@ async def main():
         names = ['甲國', '乙國', '丙國', '丁國', '戊國']
         for i in range(N):
             pg = await ctx.new_page()
-            NOA = 'window.__noAssets = true; ' if os.environ.get('NOASSETS') else ''
+            NOA = '' if os.environ.get('ASSETS') else 'window.__noAssets = true; '  # UI-flow test: skip the asset pack
             await pg.add_init_script(NOA + f"window.__mapFps = 0.1; {ROOMJS} window.__mmSeconds = {SECS}; localStorage.setItem('catan3d-settings-v1', JSON.stringify({{speed:'turbo', follow:false, quality:'low', name: '{names[i]}'}}));")
             pg.on('pageerror', lambda e, i=i: logs.append(f'[p{i} pageerror] {e}'))
             pg.on('console', lambda m, i=i: logs.append(f'[p{i} {m.type}] {m.text}') if m.type == 'error' else None)
             await pg.goto('http://127.0.0.1:8765/dist/index.test.html')
             await pg.wait_for_selector('.menu-screen', timeout=60000)
-            await pg.click('text=線上對戰')
-            await pg.wait_for_selector('text=快速配對', timeout=20000)
+            await pg.wait_for_selector('[data-k="match"]', timeout=20000)
             pages.append(pg)
         # everyone presses quick match at about the same time (clicked together: in this software-rendered
         # test browser a single click can take several seconds, longer than the test's short countdown)
-        await asyncio.gather(*[pg.click('.online-card.quick .btn.primary', timeout=90000) for pg in pages])
+        await asyncio.gather(*[pg.click('[data-k="match"]', timeout=90000) for pg in pages])
         t0 = time.time()
         shot = False
         while time.time() - t0 < 120:

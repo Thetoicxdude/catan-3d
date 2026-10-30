@@ -141,13 +141,13 @@ function waterMaterial(terrain) {
           col *= 1.0 - 0.3 * cs * uCloud;
         }
         if (uPaper > 0.001) {
-          vec3 pw = mix(vec3(0.64, 0.77, 0.84), vec3(0.47, 0.62, 0.74), smoothstep(0.0, 13.0, cd));
+          vec3 pw = mix(vec3(0.46, 0.63, 0.74), vec3(0.27, 0.43, 0.58), smoothstep(0.0, 13.0, cd));
           float lines = 0.0;
           if (cd > 0.0 && cd < 10.0) {
             float f = abs(fract(cd * 0.38) - 0.5);
             lines = (1.0 - smoothstep(0.0, 0.07, f)) * (1.0 - smoothstep(2.0, 10.0, cd));
           }
-          pw = mix(pw, vec3(0.30, 0.45, 0.58), lines * 0.5);
+          pw = mix(pw, vec3(0.20, 0.33, 0.47), lines * 0.5);
           col = mix(col, pw, uPaper);
         }
         float dist = length(cameraPosition - vWPos);
@@ -451,22 +451,44 @@ export class MapView {
       hidden: true,
     });
     this.robberShown = -1;
-    // harbours: the card they take (or "any") and the rate, large enough to read from afar
+    // harbours: a token with the resource (or every colour for "any") and the rate, out at sea past the
+    // pier, with a line to the coast it serves; it shrinks with the map when zoomed out
+    this.harborLabels = [];
+    const hbScale = (zh) => Math.min(1.05, Math.max(0.55, 105 / zh));
     for (const a of this.harbors.anchors) {
       const el = document.createElement('div');
       const type = a.harbor.type;
-      if (type === 'any') {
-        el.className = 'harbor-badge any';
-        el.innerHTML = `<span class="hb-any">${icon('trade', 16)}</span><b>3:1</b><em>任意</em>`;
-        el.title = '港口：任意 3 張相同資源換 1 張';
-      } else {
-        el.className = 'harbor-badge';
-        el.innerHTML = `${resCard(type, { w: 24, name: false })}<b>2:1</b><em>${RES_NAMES[type]}</em>`;
-        el.title = `港口：${RES_NAMES[type]} 2 張換 1 張任意資源`;
-      }
-      this.labels.add(el, a.pos, { scale: (zh) => Math.min(1.12, Math.max(0.82, 100 / zh)) });
+      const any = type === 'any';
+      el.className = 'harbor-badge' + (any ? ' any' : ` rc-${type}`);
+      el.innerHTML = `<i class="hb-tail"></i><span class="hb-ico"></span><b>${any ? '3:1' : '2:1'}</b>`;
+      el.title = any ? '港口：任意 3 張相同資源換 1 張' : `港口：${RES_NAMES[type]} 2 張換 1 張任意資源`;
+      const it = this.labels.add(el, a.pos, { scale: hbScale });
+      this.harborLabels.push({ it, el, shore: a.shore, scale: hbScale });
     }
     this.buildNationLabels();
+  }
+
+  // each harbour badge's line runs from the badge to its shore point, in screen space
+  updateHarborTails(zoomH) {
+    if (!this.harborLabels) return;
+    const cam = this.camera.cam;
+    const { w, h } = this.size;
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    for (const hl of this.harborLabels) {
+      if (!hl.it.visible) continue;
+      a.copy(hl.it.pos).project(cam);
+      b.copy(hl.shore).project(cam);
+      const dx = ((b.x - a.x) / 2) * w;
+      const dy = (-(b.y - a.y) / 2) * h;
+      const s = hl.scale(zoomH);
+      const len = Math.hypot(dx, dy) / s;
+      const key = `${Math.round(len)}:${Math.atan2(dy, dx).toFixed(2)}`;
+      if (key === hl.key) continue;
+      hl.key = key;
+      hl.el.style.setProperty('--tl', len.toFixed(1) + 'px');
+      hl.el.style.setProperty('--ta', Math.atan2(dy, dx).toFixed(3) + 'rad');
+    }
   }
 
   buildNationLabels() {
@@ -850,6 +872,7 @@ export class MapView {
       this.shadowDirty = Math.max(0, this.shadowDirty - 1);
     }
     this.labels.update(this.camera.cam, H, dt, paper);
+    this.updateHarborTails(H);
     if (this.post) {
       this.post.setZoom(paper, zoom01);
       this.post.setMotion(moving, dt);

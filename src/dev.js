@@ -13,7 +13,7 @@ const players = [
   { name: '赤焰王國', color: '#c8372d', kind: 'ai', ai: { level: 'normal' } },
   { name: '蒼藍聯邦', color: '#2f6fd0', kind: 'ai', ai: { level: 'normal' } },
   { name: '琥珀公國', color: '#e8892b', kind: 'ai', ai: { level: 'normal' } },
-  { name: '白楊共和國', color: '#ece6d6', kind: 'ai', ai: { level: 'normal' } },
+  { name: '碧海共和國', color: '#17a9bd', kind: 'ai', ai: { level: 'normal' } },
 ];
 const st = createGame({ seed, players });
 const rnd = makeRng(seed);

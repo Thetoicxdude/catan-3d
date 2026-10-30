@@ -40,6 +40,7 @@ async def main():
         await page.route('**/*', route)
         await page.goto('http://127.0.0.1:8765/dist/index.test.html')
         await page.wait_for_selector('.menu-screen', timeout=60000)
+        await page.click('[data-k="single"]')
         await page.click('text=開始戰役')
         await page.wait_for_function('window.__game && window.__game.state', timeout=60000)
         await page.evaluate(JS_HELPERS)
@@ -81,6 +82,8 @@ async def main():
         print('rolled', st)
         # resolve a seven if it happened
         if st['pending'] and st['pending']['type'] == 'robber':
+            # the dice stay on screen for a moment before the robber move is offered
+            await page.wait_for_function("__game.map.interaction && __game.map.interaction.ids.length > 3", timeout=20000)
             hx = await G("__game.map.interaction.ids[3]")
             pos = await G(f"__scr('h', {hx})")
             await page.mouse.click(pos['x'], pos['y']); await page.wait_for_timeout(600)

@@ -29,6 +29,10 @@ const RATE_MAX = 600; // messages per socket per window (pings don't count: they
 // (browser timer throttling), so the limit is generous: this sweep only clears half-open sockets.
 const STALE_MS = 150000;
 const SWEEP_MS = 30000;
+// The home screen keeps every visitor in the lobby. A room where nobody has changed their presence
+// for a while (people only watching) is swept less often, so it can sleep between the sweeps.
+const QUIET_SWEEP_MS = 120000;
+const QUIET_AFTER_MS = 300000;
 
 export default {
   async fetch(request, env) {
@@ -305,7 +309,16 @@ export class PresenceRoom extends DurableObject {
 
   async armSweep() {
     try {
-      if ((await this.ctx.storage.getAlarm()) == null) await this.ctx.storage.setAlarm(Date.now() + SWEEP_MS);
+      if ((await this.ctx.storage.getAlarm()) != null) return;
+      const now = Date.now();
+      let busy = false;
+      for (const r of (await this.load()).values()) {
+        if (now - (r.updatedAt || 0) < QUIET_AFTER_MS) {
+          busy = true;
+          break;
+        }
+      }
+      await this.ctx.storage.setAlarm(now + (busy ? SWEEP_MS : QUIET_SWEEP_MS));
     } catch (e) {
       console.warn('room alarm unavailable', e);
     }

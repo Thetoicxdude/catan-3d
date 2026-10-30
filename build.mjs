@@ -21,7 +21,7 @@ const res = await build({
   legalComments: 'none',
 });
 const js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
-const css = ['src/ui/styles.css', 'src/ui/map.css', 'src/ui/cards.css']
+const css = ['src/ui/styles.css', 'src/ui/map.css', 'src/ui/cards.css', 'src/ui/home.css']
   .map((f) => {
     try {
       return readFileSync(f, 'utf8');

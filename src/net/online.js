@@ -132,9 +132,10 @@ function seatRows(seats, me, opts = {}) {
 // ───────────────────────── host ─────────────────────────
 
 export class HostSession {
-  constructor({ app, settings, onStart, onLeave, toast, official = false, quiet = false, onLobby = null, seconds = 60 }) {
+  constructor({ app, settings, onStart, onLeave, toast, official = false, quiet = false, onLobby = null, seconds = 60, mapSeed = null }) {
     this.app = app;
     this.settings = settings;
+    this.mapSeed = mapSeed; // official rooms list their island, so the home screen can show it
     this.onStart = onStart;
     this.onLeave = onLeave;
     this.toast = toast || (() => {});
@@ -406,6 +407,7 @@ export class HostSession {
     const rem = this.remaining();
     // the room listing in the lobby only changes with seats and phase: send it only when it does
     const listing = { code: this.code, nm: this.seats[0].name, n: this.seats.length, f: open, st: this.phase, off: this.official ? 1 : 0, ts: this.createdAt };
+    if (this.mapSeed != null) listing.ms = this.mapSeed >>> 0;
     const lk = JSON.stringify(listing);
     if (lk !== this.listingKey || (rem != null && Date.now() - (this.listingAt || 0) > 5000)) {
       this.listingKey = lk;
@@ -755,9 +757,10 @@ export class ClientSession {
 // 4 players, or after the countdown with computer players in the empty seats.
 
 export class MatchSession {
-  constructor({ app, settings, toast, onHostStart, onClientGame, onLeave, seconds = 60 }) {
+  constructor({ app, settings, toast, onHostStart, onClientGame, onLeave, seconds = 60, mapSeed = null }) {
     this.app = app;
     this.settings = settings;
+    this.mapSeed = mapSeed;
     this.toast = toast || (() => {});
     this.onHostStart = onHostStart;
     this.onClientGame = onClientGame;
@@ -873,11 +876,12 @@ export class MatchSession {
     await this.lobby.presence({ mm: null });
     this.host = new HostSession({
       app: this.app,
-      settings: { ...this.settings, target: 10 },
+      settings: { ...this.settings, target: 10, numbers: 'balanced' },
       toast: this.toast,
       official: true,
       quiet: true,
       seconds: this.seconds,
+      mapSeed: this.mapSeed,
       onLobby: () => this.render(),
       onStart: async (players, net) => {
         this.state = 'playing';
@@ -982,7 +986,8 @@ export class MatchSession {
       if (this.lobbyView) {
         seats = this.lobbyView.seats;
         if (this.lobbyView.rem != null) rem = Math.max(0, this.lobbyView.rem - (Date.now() - this.lobbyView.at));
-        status = this.lobbyView.seat >= 0 ? '已加入官方房間' : '這個房間已滿，正在找下一個房間…';
+        // the host seats a newcomer within a moment; only after that is "no seat" a full room
+        status = this.lobbyView.seat >= 0 ? '已加入官方房間' : Date.now() - this.joinedAt < 4000 ? '正在取得席位…' : '這個房間已滿，正在找下一個房間…';
       } else status = '正在加入官方房間…';
     }
     const searching = this.peers().filter((p) => p.presence.mm && !p.presence.mm.in).length;
@@ -1000,9 +1005,13 @@ export class MatchSession {
 
 // ───────────────────────── entry screen ─────────────────────────
 
-export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack }) {
+// joinOnly: the home screen's "join a room" (a room code, or one of the open rooms)
+export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack, joinOnly = false }) {
   const scr = el('div', 'menu-screen online-screen');
-  scr.innerHTML = `<div class="title-block"><div class="eyebrow">Online Campaign</div><h1>線上對戰<span>與朋友爭奪卡坦島</span></h1><p>一位玩家建立房間當主持人，其他人輸入房間代碼加入。每個人只看得到自己的手牌，空位由電腦補上。</p></div>
+  scr.innerHTML = joinOnly
+    ? `<div class="title-block"><div class="eyebrow">Join a Room</div><h1>加入房間<span>與朋友爭奪卡坦島</span></h1><p>輸入朋友給你的房間代碼，或從下方挑一個開放中的房間。每個人只看得到自己的手牌，空位由電腦補上。</p></div>
+    <div class="setup-card panel"><div class="modal-head"><h3>加入房間</h3></div><div class="modal-body"></div><div class="modal-foot"></div></div>`
+    : `<div class="title-block"><div class="eyebrow">Online Campaign</div><h1>線上對戰<span>與朋友爭奪卡坦島</span></h1><p>一位玩家建立房間當主持人，其他人輸入房間代碼加入。每個人只看得到自己的手牌，空位由電腦補上。</p></div>
     <div class="setup-card panel"><div class="modal-head"><h3>線上對戰</h3></div><div class="modal-body"></div><div class="modal-foot"></div></div>`;
   const body = scr.querySelector('.modal-body');
   const foot = scr.querySelector('.modal-foot');
@@ -1030,7 +1039,7 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
     }
     const lobby = wrap(sup.room);
     body.innerHTML = '';
-    if (onMatch) {
+    if (onMatch && !joinOnly) {
       const quick = el('div', 'online-card quick');
       quick.innerHTML = `<div class="row-label">官方房間</div><p class="lead">自動配對到開放中的官方房間。滿 4 人立即開戰，或 60 秒後由電腦補滿空位。</p><p class="lead mm-online"></p>`;
       quick.appendChild(btn(`${icon('people', 16)} 快速配對`, 'primary', () => {
@@ -1039,15 +1048,17 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
       }));
       body.appendChild(quick);
     }
-    const host = el('div', 'online-card');
-    host.innerHTML = `<div class="row-label">建立房間</div><p class="lead">以「${esc(settings.name)}」的身分開房，使用目前的對手數量與勝利分數設定。</p>`;
-    host.appendChild(btn(`${icon('people', 16)} 建立房間`, 'primary', () => {
-      cleanup();
-      onHost();
-    }));
-    body.appendChild(host);
+    if (!joinOnly) {
+      const host = el('div', 'online-card');
+      host.innerHTML = `<div class="row-label">建立房間</div><p class="lead">以「${esc(settings.name)}」的身分開房，使用目前的對手數量與勝利分數設定。</p>`;
+      host.appendChild(btn(`${icon('people', 16)} 建立房間`, 'primary', () => {
+        cleanup();
+        onHost();
+      }));
+      body.appendChild(host);
+    }
     const join = el('div', 'online-card');
-    join.innerHTML = `<div class="row-label">加入房間</div><div class="join-row"><input type="text" id="join-code" maxlength="12" placeholder="輸入房間代碼" autocomplete="off" spellcheck="false" aria-label="房間代碼"></div>`;
+    join.innerHTML = `<div class="row-label">${joinOnly ? '房間代碼' : '加入房間'}</div><div class="join-row"><input type="text" id="join-code" maxlength="12" placeholder="輸入房間代碼" autocomplete="off" spellcheck="false" aria-label="房間代碼"></div>`;
     const input = join.querySelector('input');
     const go = btn('加入', 'primary', () => {
       const c = normCode(input.value);
@@ -1061,6 +1072,7 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
     input.addEventListener('keydown', (e) => e.key === 'Enter' && go.click());
     join.querySelector('.join-row').appendChild(go);
     body.appendChild(join);
+    if (joinOnly && window.innerWidth > 760) input.focus({ preventScroll: true });
     const listBox = el('div', 'online-card');
     listBox.innerHTML = `<div class="row-label">開放中的房間</div><div class="room-list"><p class="lead">目前沒有開放中的房間。</p></div>`;
     body.appendChild(listBox);

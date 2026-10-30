@@ -145,6 +145,8 @@ export class Game {
     if (this.state.phase === 'setup') this.map.focus(0, 5, this.map.camera.fitIsland(1.12));
     this.hud.log(`戰役開始：${this.players.map((p, i) => `<span class="who" style="color:${p.color}">${i === this.viewer ? '你' : esc(p.name)}</span>`).join('、')}`, { hl: true });
     if (this.state.phase === 'setup') this.hud.log('開局：依序放置村莊與道路（第二輪順序相反）。', {});
+    // hot seat: when another player at this device moves first, hand the device over before anything else
+    this.pickViewer();
     this.refresh();
     this.schedule();
     this.focusHome();

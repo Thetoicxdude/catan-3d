@@ -3,9 +3,11 @@ import { createGame } from './engine/engine.js';
 import { randomSeed } from './engine/rng.js';
 import { MapView } from './render/scene.js';
 import { Game, loadSave, clearSave } from './game/game.js';
-import { showMenu, defaultSettings, playersFromSettings } from './ui/menu.js';
+import { showMenu, defaultSettings, playersFromSettings, PALETTE, buildInfo } from './ui/menu.js';
+import { showHome } from './ui/home.js';
 import { Dialogs } from './ui/dialogs.js';
 import { HostSession, ClientSession, MatchSession, showOnlineEntry, rememberedRoom, forgetRoom } from './net/online.js';
+import { getRoom, wrap, selfHosted } from './net/room.js';
 import { icon } from './ui/icons.js';
 import { setSfx } from './ui/sfx.js';
 
@@ -19,7 +21,11 @@ function loadSettings() {
   try {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
     // quality follows the device unless the player has picked one in the settings
-    if (s && typeof s === 'object') return { ...d, ...s, quality: s.qualityPicked ? s.quality || d.quality : d.quality, seats: Array.isArray(s.seats) && s.seats.length === 3 ? s.seats : d.seats };
+    if (s && typeof s === 'object') {
+      const seats = Array.isArray(s.seats) && s.seats.length === 3 ? s.seats.map((x) => (x && x.name === '白楊共和國' ? { ...x, name: '碧海共和國' } : x)) : d.seats;
+      const color = PALETTE.some((p) => p.hex === s.color) ? s.color : d.color;
+      return { ...d, ...s, color, quality: s.qualityPicked ? s.quality || d.quality : d.quality, seats };
+    }
   } catch {
     /* storage unavailable */
   }
@@ -133,49 +139,118 @@ async function showPreview(reroll) {
   map.onFrame = (dt) => drift && drift(dt);
 }
 
+// dialogs over the menus (rules, settings)
+let menuDlg = null;
+function menuDialogs() {
+  if (!menuDlg) {
+    const layer = document.createElement('div');
+    layer.className = 'modal-layer';
+    layer.style.zIndex = 80;
+    app.appendChild(layer);
+    menuDlg = new Dialogs(layer);
+  }
+  return menuDlg;
+}
+
+function closeMenus() {
+  if (menu) {
+    menu.close();
+    menu = null;
+  }
+  if (onlineScreen) {
+    onlineScreen.close();
+    onlineScreen = null;
+  }
+  if (menuDlg) menuDlg.close(true);
+}
+
+// The home screen watches the lobby live (players online, the official room filling up) wherever
+// that needs no permission: on our own room server and with the test rooms. In claude.ai the lobby
+// opens only when the player asks for online play.
+let lobbyView = null;
+async function homeLobby() {
+  if (!selfHosted() && !window.__mockRoom) return undefined;
+  const room = await getRoom();
+  if (!room) return null;
+  if (!lobbyView) lobbyView = wrap(room);
+  return lobbyView;
+}
+
+function onSettingsChange(s) {
+  settings = s;
+  saveSettings(s);
+}
+
 function openMenu() {
-  if (menu) menu.close();
+  closeMenus();
   if (map) map.holdAssets(false);
-  const save = loadSave();
-  menu = showMenu(app, {
+  menu = showHome(app, {
     settings,
-    hasSave: !!save,
-    onChange: (s) => {
-      settings = s;
-      saveSettings(s);
+    hasSave: !!loadSave(),
+    seed: previewSeed,
+    seconds: window.__mmSeconds || 60,
+    version: buildInfo(),
+    getLobby: homeLobby,
+    onChange: onSettingsChange,
+    onSingle: () => openSetup(),
+    onCreate: () => {
+      closeMenus();
+      if (map) map.holdAssets(true);
+      hostRoom(null);
     },
-    onReroll: (newSeed) => showPreview(newSeed),
-    onRules: () => {
-      const layer = document.createElement('div');
-      layer.className = 'modal-layer';
-      layer.style.zIndex = 80;
-      app.appendChild(layer);
-      const d = new Dialogs(layer);
-      const h = d.rules();
-      h.onClose = () => layer.remove();
+    onJoin: () => openJoin(),
+    onMatch: () => {
+      closeMenus();
+      if (map) map.holdAssets(true);
+      matchRoom();
     },
     onContinue: () => {
       const save = loadSave();
       if (save && save.net) hostRoom(save);
       else startGame(save);
     },
-    onStart: () => startGame(null),
-    onOnline: () => openOnline(),
+    onRules: () => menuDialogs().rules(),
+    onSettings: () =>
+      menuDialogs().settings({ ...settings }, (s, key) => {
+        // in place: the home screen keeps editing this same object (name, colour)
+        Object.assign(settings, s);
+        saveSettings(settings);
+        setSfx(settings.sound !== false);
+        // the preview island is redrawn in the new quality straight away (same quality: kept as is)
+        if (key === 'quality' && !game) showPreview(false);
+      }),
   });
 }
 
-function openOnline() {
-  if (menu) {
-    menu.close();
-    menu = null;
-  }
+// single player: opponents, numbers, victory points and the island, over the live preview
+function openSetup() {
+  closeMenus();
+  menu = showMenu(app, {
+    settings,
+    hasSave: false,
+    onChange: onSettingsChange,
+    onReroll: (newSeed) => showPreview(newSeed),
+    onRules: () => menuDialogs().rules(),
+    onStart: () => startGame(null),
+    onBack: () => openMenu(),
+  });
+}
+
+// join a friend's room: a room code, or one of the open rooms
+function openJoin() {
+  closeMenus();
   if (map) map.holdAssets(true);
   onlineScreen = showOnlineEntry(app, {
     settings,
-    onHost: () => hostRoom(null),
-    onJoin: (code) => joinRoom(code),
-    onMatch: () => matchRoom(),
-    onBack: () => openMenu(),
+    joinOnly: true,
+    onJoin: (code) => {
+      onlineScreen = null;
+      joinRoom(code);
+    },
+    onBack: () => {
+      onlineScreen = null;
+      openMenu();
+    },
   });
 }
 
@@ -220,15 +295,17 @@ async function hostRoom(save) {
   }
 }
 
-async function startOnlineHost(players, net) {
+async function startOnlineHost(players, net, official = false) {
   drift = null;
   loading(true, '佈置戰場');
   await nextFrame();
-  const preview = createGame({ seed: previewSeed, players, targetVP: settings.target, board: { numbers: settings.numbers } });
+  // official rooms play the standard game (10 points, balanced numbers) on the island they listed
+  const gs = official ? { ...settings, target: 10, numbers: 'balanced' } : settings;
+  const preview = createGame({ seed: previewSeed, players, targetVP: gs.target, board: { numbers: gs.numbers } });
   buildMap(preview, players, settings.quality);
   map.onFrame = null;
   map.holdAssets(false);
-  game = new Game({ app, map, settings, players, seed: previewSeed, net, onExit: () => exitOnline() });
+  game = new Game({ app, map, settings: gs, players, seed: previewSeed, net, onExit: () => exitOnline() });
   hookGame();
   loading(false);
   game.start();
@@ -259,7 +336,8 @@ async function matchRoom() {
     settings,
     toast,
     seconds: window.__mmSeconds || 60,
-    onHostStart: (players, net) => startOnlineHost(players, net),
+    mapSeed: previewSeed,
+    onHostStart: (players, net) => startOnlineHost(players, net, true),
     onClientGame: (view, players, net) => startClientGame(view, players, net),
     onLeave: () => {
       session = null;
@@ -313,7 +391,9 @@ async function exitOnline() {
 
 function hookGame() {
   game.onSettings = (s) => {
-    settings = { ...settings, ...s };
+    // in-game settings never carry a game's own rules back to the menus (an official game plays to 10)
+    const { target, numbers, opponents, seats, ...rest } = s;
+    settings = { ...settings, ...rest };
     saveSettings(settings);
   };
   window.__game = game;
