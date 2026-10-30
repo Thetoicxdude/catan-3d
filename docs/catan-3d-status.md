@@ -2,7 +2,8 @@
 
 線上可玩的卡坦島（基本版規則），地圖採鋼鐵雄心式的立體俯視戰略地圖。
 - claude.ai 版：https://claude.ai/artifact/HDKAKcGeLm5mr9pntYCbmN
-- 自架版：Cloudflare Workers（免費方案），程式碼放在 GitHub，推送到 main 自動部署（設定步驟見 repo 的 README）。
+- 自架版（正式）：https://catan-3d.yaoyuanou-ab0.workers.dev （Cloudflare Workers 免費方案）
+- 程式碼：https://github.com/Thetoicxdude/catan-3d ，推送到 main 約 2～3 分鐘後自動上線；其他分支有預覽網址（`<版本>-catan-3d.yaoyuanou-ab0.workers.dev`）。標題畫面左下角顯示目前版本。
 
 ## 已完成
 
