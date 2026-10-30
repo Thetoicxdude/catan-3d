@@ -73,8 +73,10 @@ if (out === 'dist/index.html') {
       return '';
     }
   };
+  // a build started by hand from the dashboard may pass a branch name instead of a commit
+  const isSha = (x) => /^[0-9a-f]{7,40}$/i.test(x || '');
   const build = {
-    sha: (process.env.WORKERS_CI_COMMIT_SHA || git('git rev-parse HEAD') || 'dev').slice(0, 7),
+    sha: [process.env.WORKERS_CI_COMMIT_SHA, git('git rev-parse HEAD')].find(isSha)?.slice(0, 7) || 'dev',
     branch: process.env.WORKERS_CI_BRANCH || git('git rev-parse --abbrev-ref HEAD'),
     at: new Date().toISOString(),
   };

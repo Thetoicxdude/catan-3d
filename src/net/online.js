@@ -737,7 +737,9 @@ export class ClientSession {
     const list = scr.querySelector('.seat-list');
     this.ui = {
       render: (seats, seat) => {
-        statusEl.textContent = seat >= 0 ? `你坐在第 ${seat + 1} 席，等待主持人開始戰役…` : '席位已滿，目前在旁觀望。';
+        // before the host has seen us arrive there may still be open seats: we are about to get one
+        const open = seats.some((s) => s.kind === 'open');
+        statusEl.textContent = seat >= 0 ? `你坐在第 ${seat + 1} 席，等待主持人開始戰役…` : open ? '正在取得席位…' : '席位已滿，目前在旁觀望。';
         list.innerHTML = seatRows(seats, this.me());
       },
       status: (t) => (statusEl.textContent = t),
