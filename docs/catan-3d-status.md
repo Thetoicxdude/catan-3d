@@ -1,7 +1,8 @@
 # 卡坦島 3D 戰略版：目前進度
 
 線上可玩的卡坦島（基本版規則），地圖採鋼鐵雄心式的立體俯視戰略地圖。
-遊戲頁面：https://claude.ai/artifact/HDKAKcGeLm5mr9pntYCbmN
+- claude.ai 版：https://claude.ai/artifact/HDKAKcGeLm5mr9pntYCbmN
+- 自架版：Cloudflare Workers（免費方案），程式碼放在 GitHub，推送到 main 自動部署（設定步驟見 repo 的 README）。
 
 ## 已完成
 
@@ -49,17 +50,21 @@
 - 自訂房間：開房、代碼加入、房間列表、斷線重連、觀戰；手牌以 ECDH + AES-GCM 加密。
 - 官方房間（類似 FrontWars）：快速配對；滿 4 人 3 秒後開戰，或 60 秒倒數後由電腦補位。
 - 在線上大廳與快速配對時，寫實素材的解碼與套用會暫停，等開戰或回到主選單才繼續，避免較慢的裝置因為畫面卡住而在配對中掉線。
+- 自架版有自己的房間伺服器（`server/worker.js`，Cloudflare Durable Objects）：與 claude.ai 的 room 功能相同的 presence 模型，伺服器不需要懂規則；支援休眠、同一分頁重連接手、過期連線清除與速率限制。
+- 自架版可以複製邀請連結（`網址#room=代碼`），朋友打開就直接進房；重新整理或換新版本後會自動回到原本的席位。
+- 主持人的狀態更新會合併（每秒最多約 8 次），大廳的房間列表只在內容改變時送出，避免快速對局時訊息量暴增。
 
 ## 已知限制
-- 線上對戰目前使用 claude.ai 的 room 功能；放到自己的網站時需要換成即時伺服器（見下方「自架」）。
+- claude.ai 版的線上對戰使用 claude.ai 的 room 功能（只有分享過的對象能加入）；自架版任何拿到網址的人都能加入。
 - 素材包約 21 MB（背景下載，載入前先用簡化模型）；手機（低畫質）會用半解析度貼圖。
 - 未採用：pine_tree_01、fir_tree_01、pine_sapling_medium（檔案太大，第二輪下載時跳過）；藍花楹（208 MB）。
 
-## 自架（GitHub Pages 的考量）
-- GitHub Pages 只放靜態檔：網站上限 1 GB、每月流量軟上限 100 GB、不可當商業線上服務。這個遊戲首次載入約 22 MB（頁面 0.65 MB＋素材 21 MB），約每月 4,500 次首次完整載入會碰到軟上限（之後重訪多半走瀏覽器快取）。
-- 多人需要伺服器：建議 Cloudflare Pages（靜態；免費方案官方未列靜態流量上限，限 2 萬個檔案、單檔 25 MiB）＋ Workers + Durable Objects（每房一個物件、WebSocket Hibernation）。免費方案每天 10 萬次請求、13,000 GB-s；收到的 WebSocket 訊息每 20 則算 1 次請求，閒置休眠的房間不計時。付費每月 5 美元起，含 100 萬次請求與 40 萬 GB-s。
-- 替代方案：Supabase Realtime（免費 200 個同時連線）、Firebase Realtime Database（免費 100 個同時連線）。
-- 規則引擎是純函式，可直接在伺服器端當權威裁判。
+## 自架（Cloudflare Workers 免費方案）
+- 一個 Worker 同時提供網頁、素材（約 22 MB，靜態檔案請求不計費）與線上房間（Durable Objects，每個房間一個物件，WebSocket Hibernation）。
+- 部署：Workers Builds 連接 GitHub repo，Build command `npm run build`、Deploy command `npx wrangler deploy`；推送到 main 自動部署，其他分支產生預覽網址。標題畫面顯示目前版本（commit）。
+- 免費額度：Worker 每天 10 萬次請求；Durable Objects 每天 10 萬次請求、13,000 GB-s、寫入 10 萬列；收到的 WebSocket 訊息每 20 則算 1 次請求，送出的訊息與 ping 不計；Workers Builds 每月 3,000 分鐘。
+- 本機開發：`npm run dev`（http://127.0.0.1:8787，含房間伺服器）；`node test/rooms.mjs` 測協定，`ROOMS=ws python3 test/online.py` 讓線上測試走真正的房間伺服器。
+- 素材製作腳本放在 `tools/art/`（參考用，原始素材未放進 repo）。
 
 ## 素材來源（全部 CC0）
 - Poly Haven（https://polyhaven.com）：植物、岩石、地表、城堡、碼頭、帆船、道具、照片材質。
