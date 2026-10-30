@@ -1,0 +1,140 @@
+/* ───────── resource cards ─────────
+   Photographic still lifes (rendered from CC0 scans, see assets/cards) on ivory card stock.
+   .rcard is a full card (frame, art, name banner); .rc-mini is the inline miniature used in
+   logs, costs and badges. Each resource carries its art and a matching fallback colour. */
+.rc-wood  { --rc: #4b552b; --art: url(assets/cards/wood.webp);  --thumb: url(assets/cards/wood_s.webp); }
+.rc-brick { --rc: #8b3b1f; --art: url(assets/cards/brick.webp); --thumb: url(assets/cards/brick_s.webp); }
+.rc-wool  { --rc: #66773f; --art: url(assets/cards/wool.webp);  --thumb: url(assets/cards/wool_s.webp); }
+.rc-grain { --rc: #b4852f; --art: url(assets/cards/grain.webp); --thumb: url(assets/cards/grain_s.webp); }
+.rc-ore   { --rc: #474e58; --art: url(assets/cards/ore.webp);   --thumb: url(assets/cards/ore_s.webp); }
+/* development cards */
+.dc-knight       { --art: url(assets/cards/dev_knight.webp); }
+.dc-roadBuilding { --art: url(assets/cards/dev_road.webp); }
+.dc-yearOfPlenty { --art: url(assets/cards/dev_plenty.webp); }
+.dc-monopoly     { --art: url(assets/cards/dev_monopoly.webp); }
+.dc-victoryPoint { --art: url(assets/cards/dev_vp.webp); }
+
+.rc-mini {
+  display: inline-block; vertical-align: middle; flex: none; border-radius: 2px;
+  background: var(--thumb) center / cover no-repeat, var(--rc);
+  box-shadow: 0 0 0 1px rgba(236, 222, 186, 0.85), 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.rcard {
+  --w: 56px;
+  position: relative; display: inline-block; flex: none; vertical-align: middle;
+  width: var(--w); height: calc(var(--w) * 1.4); box-sizing: border-box;
+  border-radius: calc(var(--w) * 0.085);
+  background: linear-gradient(160deg, #fbf4e0 0%, #e9dbb5 48%, #c9b07c 100%);
+  box-shadow: 0 0 0 1px rgba(28, 20, 9, 0.9), 0 3px 9px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.rcard .art {
+  position: absolute; inset: calc(var(--w) * 0.06); border-radius: calc(var(--w) * 0.045);
+  background: var(--art) center / cover no-repeat, var(--rc);
+  box-shadow: inset 0 0 0 1px rgba(20, 14, 6, 0.65), inset 0 0 calc(var(--w) * 0.22) rgba(0, 0, 0, 0.32);
+}
+/* a faint gloss across the card stock */
+.rcard::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(125deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 38%);
+}
+.rcard .nm {
+  position: absolute; left: calc(var(--w) * 0.06); right: calc(var(--w) * 0.06); bottom: calc(var(--w) * 0.06);
+  padding: calc(var(--w) * 0.09) 0 calc(var(--w) * 0.05) 0.22em; text-align: center; white-space: nowrap;
+  font-family: var(--font-display); font-weight: 900; font-size: max(10px, calc(var(--w) * 0.19)); letter-spacing: 0.22em;
+  line-height: 1; color: #f8ecd0; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  background: linear-gradient(180deg, rgba(16, 11, 6, 0) 0%, rgba(16, 11, 6, 0.86) 55%);
+  border-radius: 0 0 calc(var(--w) * 0.045) calc(var(--w) * 0.045);
+}
+.rcard .cnt {
+  position: absolute; right: calc(var(--w) * -0.14); top: calc(var(--w) * -0.14); z-index: 1;
+  min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px;
+  display: grid; place-items: center; font-family: var(--font-num); font-weight: 700; font-size: 15px; line-height: 1;
+  color: #fff3d2; background: linear-gradient(180deg, #3d3326, #15110b); border: 1px solid var(--brass);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+}
+
+/* ── the hand in the top bar: cards hang from the bar, counts on brass tokens ── */
+.tb-res { display: flex; gap: 9px; flex: none; align-self: flex-start; padding-top: 6px; }
+.res-chip.rcard {
+  --w: 44px; cursor: default; margin-bottom: -16px; z-index: 1;
+  transition: filter 0.3s, transform 0.15s;
+}
+.res-chip.rcard:hover { transform: translateY(2px) scale(1.06); z-index: 2; }
+.res-chip.rcard .n {
+  position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); z-index: 1;
+  min-width: 26px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px;
+  display: grid; place-items: center;
+  font-family: var(--font-num); font-weight: 700; font-size: 17px; line-height: 1; color: #fff3d2;
+  background: linear-gradient(180deg, #3d3326, #15110b); border: 1px solid var(--brass);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+}
+.res-chip.rcard.zero { filter: grayscale(0.9) brightness(0.5) contrast(0.9); }
+.res-chip.rcard.zero .n { color: var(--ink-faint); border-color: #5c5236; }
+.res-chip.rcard.flash { animation: cardflash 0.9s ease-out; }
+.res-chip.rcard.drain { animation: carddrain 0.9s ease-out; }
+@keyframes cardflash {
+  0% { box-shadow: 0 0 0 2px #ffe7a6, 0 0 20px 6px rgba(255, 214, 120, 0.85); }
+}
+@keyframes carddrain {
+  0% { box-shadow: 0 0 0 2px #ff9a86, 0 0 18px 5px rgba(226, 96, 78, 0.8); transform: translateY(3px); }
+}
+.res-chip.rcard.gain { animation: cardgain 0.55s cubic-bezier(0.2, 1.7, 0.4, 1) 1; }
+.res-chip.rcard.gain .n { animation: numpop 0.55s cubic-bezier(0.2, 1.8, 0.4, 1) 1; }
+@keyframes cardgain {
+  0% { transform: scale(1); box-shadow: 0 0 0 1px rgba(28, 20, 9, 0.9), 0 0 0 0 rgba(255, 214, 120, 0.95); }
+  35% { transform: translateY(3px) scale(1.2) rotate(-3deg); box-shadow: 0 0 0 2px #ffe7a6, 0 0 24px 8px rgba(255, 214, 120, 0.7); }
+  100% { transform: scale(1); }
+}
+@keyframes numpop { 0% { transform: translateX(-50%) scale(1); } 35% { transform: translateX(-50%) scale(1.45); color: #ffe08a; } 100% { transform: translateX(-50%) scale(1); } }
+
+/* ── flying cards (production, trades, steals) ── */
+.fx-card.rcard { --w: 60px; position: absolute; left: 0; top: 0; padding: 0; will-change: transform, opacity; }
+.fx-card.rcard.small { --w: 30px; }
+.fx-card.rcard .shine {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none; mix-blend-mode: screen;
+  background: linear-gradient(110deg, transparent 35%, rgba(255, 246, 214, 0.75) 48%, transparent 62%) no-repeat;
+  background-size: 260% 100%; background-position: 130% 0; animation: cardshine 0.75s ease-out 0.08s both;
+}
+.fx-card.rcard:not(.small) { filter: drop-shadow(0 0 12px rgba(255, 214, 130, 0.55)); }
+@keyframes cardshine { to { background-position: -40% 0; } }
+
+/* ── pickers in dialogs ── */
+.res-pick .rcard { --w: 48px; margin-bottom: 2px; }
+.res-pick.on .rcard { box-shadow: 0 0 0 2px var(--brass-hi), 0 0 14px rgba(234, 208, 142, 0.6); }
+.res-pick:disabled .rcard { filter: grayscale(0.85) brightness(0.6); }
+.act .cost .rc-mini { margin: 0 1px; }
+
+@media (max-width: 760px) {
+  .tb-res { align-self: auto; justify-content: center; gap: 12px; padding-top: 2px; padding-bottom: 10px; }
+  .res-chip.rcard { --w: 36px; flex: none; margin-bottom: 0; }
+  .res-chip.rcard .n { font-size: 15px; height: 20px; min-width: 22px; bottom: -9px; }
+  .res-pick .rcard { --w: 40px; }
+}
+
+/* ── a bought development card turns over, then files into the hand ── */
+.fx-dev { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); perspective: 900px; z-index: 5; pointer-events: none; }
+.fx-dev .flip { position: relative; width: 210px; height: 300px; transform-style: preserve-3d; }
+.fx-dev .face { position: absolute; inset: 0; border-radius: 14px; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-sizing: border-box; }
+.fx-dev .back {
+  transform: rotateY(180deg); display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 40%, #6b5130 0%, #3a2a16 60%, #22180c 100%);
+  box-shadow: inset 0 0 0 2px #c7a660, inset 0 0 0 7px #2a1e10, inset 0 0 0 8px rgba(199, 166, 96, 0.6), 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+.fx-dev .back span { font-family: var(--font-display); font-weight: 900; font-size: 26px; letter-spacing: 0.3em; padding-left: 0.3em; color: #f1dca6; text-shadow: 0 2px 0 #1a1208; }
+.fx-dev .front {
+  display: flex; flex-direction: column; gap: 8px; padding: 16px 16px 14px; color: var(--parchment-ink);
+  background: linear-gradient(180deg, #f6ecd2, #e3d3ad);
+  box-shadow: inset 0 0 0 1px #8f7444, inset 0 0 0 5px rgba(255, 250, 235, 0.5), 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 44px rgba(246, 210, 120, 0.4);
+}
+.fx-dev .art {
+  height: 112px; margin: -6px -6px 0; border-radius: 8px;
+  background: var(--art) center 46% / cover no-repeat, #3a2c1d;
+  box-shadow: inset 0 0 0 1px rgba(40, 28, 14, 0.6), inset 0 -16px 22px rgba(0, 0, 0, 0.25);
+}
+.fx-dev h4 { margin: 0; text-align: center; font-family: var(--font-display); font-weight: 900; font-size: 22px; letter-spacing: 0.14em; padding-left: 0.14em; }
+.fx-dev p { margin: 0; flex: 1; font-size: 12.5px; line-height: 1.5; color: #5b4731; }
+.fx-dev .when { text-align: center; font-size: 12px; font-weight: 700; color: #6d4210; padding: 6px 8px; border-radius: 6px; background: rgba(199, 166, 96, 0.28); }
+
+/* card miniatures inside log lines and offers */
+.cards-inline .c { gap: 3px; padding: 2px 6px 2px 3px; }

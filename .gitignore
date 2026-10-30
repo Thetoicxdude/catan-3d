@@ -1,0 +1,7 @@
+node_modules/
+dist/
+site/
+.wrangler/
+.dev.vars
+*.log
+__pycache__/

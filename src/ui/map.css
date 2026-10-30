@@ -1,0 +1,66 @@
+/* ───── map overlay labels ───── */
+.map-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; contain: strict; }
+/* every overlay label sits in a wrapper pinned to the layer's top-left corner and placed only by its
+   inline transform; the child selector outranks the component rules below, so none of them can put a
+   wrapper back into normal flow. The label inside (token, badge) may be positioned and animated freely. */
+.map-labels > .ml { position: absolute; left: 0; top: 0; right: auto; bottom: auto; margin: 0; will-change: transform; transform-origin: 50% 50%; }
+.token {
+  width: 58px; height: 58px; border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #fbf4de 0%, #eadcb6 58%, #cfbb8b 100%);
+  border: 2px solid #5b4731;
+  box-shadow: 0 2px 0 #3a2c1c, 0 5px 12px rgba(10, 8, 4, 0.5);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: var(--font-num); color: #2b2118;
+}
+.token b { font-size: 30px; line-height: 0.92; font-weight: 700; }
+.token i { display: flex; gap: 2.5px; margin-top: 4px; }
+.token u { display: block; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.token.hot { color: #b3261e; border-color: #7a2a1e; }
+.token.blocked { filter: grayscale(0.7) brightness(0.8); }
+.token { position: relative; } /* anchors the robber pin (.rob) */
+.token.pulse { animation: tokpulse 1.5s cubic-bezier(0.2, 1.4, 0.4, 1) 1; }
+/* the token's wrapper carries the position, so the token itself can scale in place */
+@keyframes tokpulse {
+  0% { scale: 1; box-shadow: 0 0 0 0 rgba(255, 214, 120, 0.95), 0 5px 12px rgba(10, 8, 4, 0.5); }
+  18% { scale: 1.55; box-shadow: 0 0 0 10px rgba(255, 214, 120, 0.55), 0 0 30px 8px rgba(255, 200, 90, 0.75); }
+  45% { scale: 1.2; }
+  100% { scale: 1; box-shadow: 0 0 0 34px rgba(255, 214, 120, 0), 0 5px 12px rgba(10, 8, 4, 0.5); }
+}
+/* the robber: no figure on the map, a badge on the occupied province instead */
+.token.robbed { background: radial-gradient(circle at 36% 30%, #d2ccc0 0%, #aaa296 60%, #898175 100%); color: #574f47; border-color: #3d352d; }
+.token .rob, .robber-badge {
+  position: absolute; right: -12px; top: -12px; width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center; color: #fff1ea; filter: none;
+  background: radial-gradient(circle at 35% 30%, #e8604c, #8e1b13 72%); border: 1.5px solid #ffd2c6;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), 0 0 0 3px rgba(226, 96, 78, 0.35);
+  animation: robring 2.2s ease-in-out infinite;
+}
+.robber-badge { position: relative; right: auto; top: auto; width: 38px; height: 38px; }
+.robber-badge.drop, .token .rob.drop { animation: robdrop 0.7s cubic-bezier(0.2, 1.5, 0.4, 1) 1, robring 2.2s ease-in-out 0.7s infinite; }
+@keyframes robring { 0%, 100% { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), 0 0 0 3px rgba(226, 96, 78, 0.35); } 50% { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), 0 0 0 7px rgba(226, 96, 78, 0.12); } }
+@keyframes robdrop { 0% { translate: 0 -40px; scale: 1.6; opacity: 0; } 60% { translate: 0 2px; scale: 0.95; opacity: 1; } 100% { translate: 0 0; scale: 1; } }
+.province-name {
+  font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.28em;
+  color: #4a3826; text-shadow: 0 0 6px rgba(244, 233, 205, 0.95), 0 0 2px rgba(244, 233, 205, 1);
+  white-space: nowrap;
+}
+.nation-name {
+  font-family: var(--font-display); font-weight: 900; font-size: 30px; letter-spacing: 0.5em;
+  white-space: nowrap; padding-left: 0.5em;
+  color: var(--nc, #fff);
+  text-shadow: 0 0 1px rgba(25, 16, 8, 0.9), 0 1px 0 rgba(25, 16, 8, 0.6), 0 0 14px rgba(244, 233, 205, 0.55);
+  mix-blend-mode: multiply;
+}
+.harbor-badge {
+  display: flex; align-items: center; gap: 3px; padding: 2px 7px 2px 8px; border-radius: 10px;
+  background: rgba(26, 34, 40, 0.86); border: 1px solid #b89b5e; color: #f1e6c8;
+  font-family: var(--font-num); font-weight: 700; font-size: 14px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.float {
+  font-family: var(--font-num); font-weight: 700; font-size: 20px; color: #fff4d6;
+  display: flex; align-items: center; gap: 3px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+}
+.float span { background: var(--pc, #333); border-radius: 6px; padding: 0 5px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+.float .ico { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7)); }
+.float.loss span { background: #7a1d18; }

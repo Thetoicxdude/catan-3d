@@ -1,0 +1,24 @@
+{
+  "name": "catan-3d",
+  "version": "1.0.0",
+  "description": "卡坦島 3D 戰略版：立體地圖、電腦對手與線上多人（Cloudflare Workers + Durable Objects）",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs && wrangler dev",
+    "deploy": "node build.mjs && wrangler deploy",
+    "test": "node test/unit.mjs && node test/codec.mjs && node test/sim.mjs"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "esbuild": "^0.24.0",
+    "n8ao": "^2.0.1",
+    "postprocessing": "^6.39.5",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.156.0"
+  },
+  "private": true
+}
