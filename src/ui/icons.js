@@ -2,21 +2,33 @@
 // for actions and map modes.
 
 export const RES_NAMES = { wood: '木材', brick: '磚塊', wool: '羊毛', grain: '小麥', ore: '礦石' };
+// the names printed on the cards themselves (the game's original English card names)
+export const RES_EN = { wood: 'Lumber', brick: 'Brick', wool: 'Wool', grain: 'Grain', ore: 'Ore' };
+export const DEV_EN = { knight: 'Knight', roadBuilding: 'Road Building', yearOfPlenty: 'Year of Plenty', monopoly: 'Monopoly', victoryPoint: 'Victory Point' };
 export const TERRAIN_NAMES = { forest: '森林', hills: '丘陵', pasture: '牧場', fields: '農田', mountains: '山脈', desert: '沙漠' };
 
-// A miniature of the resource card (its photographic art on card stock), sized by height.
+// A miniature of the resource card (its art ringed in the card's frame colour), sized by height.
 export function resIcon(res, size = 20) {
   const w = Math.round(size * 0.74);
   return `<span class="ico rc-mini rc-${res}" style="width:${w}px;height:${size}px" aria-hidden="true"></span>`;
 }
 
-// A full resource card: art, ivory frame, name banner and an optional count token.
-// Its size comes from CSS (--w) unless w is given.
-export function resCard(res, { w = null, name = true, count = null, cls = '' } = {}) {
-  const nm = name ? `<span class="nm">${RES_NAMES[res] || ''}</span>` : '';
+// A card face: the frame with its art, the English name on the parchment strip, and an optional
+// count token in the top corner (clear of the name). Its size comes from CSS (--w) unless w is
+// given; `lg` picks the large image for cards shown big.
+function face(kind, en, label, { w = null, count = null, cls = '', name = true, lg = false } = {}) {
+  const nm = name ? `<span class="nm">${en}</span>` : '';
   const cnt = count != null ? `<b class="cnt num">${count}</b>` : '';
-  const st = w ? ` style="--w:${w}px"` : '';
-  return `<span class="rcard rc-${res}${cls ? ' ' + cls : ''}"${st} role="img" aria-label="${RES_NAMES[res] || res}"><span class="art"></span>${nm}${cnt}</span>`;
+  const st = ` style="--n:${Math.max(4, en.length)}${w ? `;--w:${w}px` : ''}"`;
+  return `<span class="rcard ${kind}${lg ? ' lg' : ''}${cls ? ' ' + cls : ''}"${st} role="img" aria-label="${label}" title="${label}">${nm}${cnt}</span>`;
+}
+
+export function resCard(res, opts = {}) {
+  return face(`rc-${res}`, RES_EN[res] || res, RES_NAMES[res] || res, opts);
+}
+
+export function devCard(type, label, opts = {}) {
+  return face(`dcard dc-${type}`, DEV_EN[type] || 'Development', label, opts);
 }
 
 const A = {

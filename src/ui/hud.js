@@ -14,7 +14,7 @@ import {
   handSize,
   tradeRatios,
 } from '../engine/engine.js';
-import { resIcon, icon, dieFace, RES_NAMES } from './icons.js';
+import { resCard, icon, dieFace, RES_NAMES, RES_EN } from './icons.js';
 import { Fx } from './fx.js';
 import { sfx } from './sfx.js';
 import { flagURL } from './flags.js';
@@ -22,6 +22,13 @@ import { esc, cardsText } from './text.js';
 
 const RES = ['wood', 'brick', 'wool', 'grain', 'ore'];
 const RES_HEX = { wood: '#2f6b2f', brick: '#b5532c', wool: '#8fcf4f', grain: '#e8c547', ore: '#8d8d96' };
+// what the build buttons build; their cost shows over the button on hover (long press on touch)
+const BUILD = {
+  road: { name: '道路', en: 'Road', fx: '連接你的村莊與城市。連續最長、至少 5 條的道路得 2 分。', cost: COSTS.road, piece: 'roads', unit: '條' },
+  settlement: { name: '村莊', en: 'Settlement', fx: '+1 勝利分數。相鄰地形擲出點數時產出 1 張資源。', cost: COSTS.settlement, piece: 'settlements', unit: '座' },
+  city: { name: '城市', en: 'City', fx: '由村莊升級：再 +1 勝利分數，產出加倍。', cost: COSTS.city, piece: 'cities', unit: '座' },
+  dev: { name: '發展卡', en: 'Development', fx: '抽 1 張：騎士、道路建設、豐收之年、壟斷或分數卡。', cost: COSTS.dev },
+};
 const TERRAIN_HEX = { forest: '#2f6b2f', hills: '#b5532c', pasture: '#8fcf4f', fields: '#e8c547', mountains: '#8d8d96', desert: '#d9c48e' };
 
 function el(tag, cls, html) {
@@ -117,9 +124,11 @@ export class Hud {
     this.resBox = this.top.querySelector('.tb-res');
     this.chips = {};
     for (const res of RES) {
-      // each resource is a card hanging from the bar, its count on a brass token
+      // each resource is a card hanging from the bar, its count on a token in the card's top corner
       const c = el('div', `res-chip rcard rc-${res}`);
-      c.innerHTML = `<span class="art"></span><b class="n num">0</b>`;
+      c.style.setProperty('--n', String(Math.max(4, RES_EN[res].length)));
+      c.title = RES_NAMES[res];
+      c.innerHTML = `<span class="nm">${RES_EN[res]}</span><b class="n num">0</b>`;
       this.resBox.appendChild(c);
       this.chips[res] = c;
     }
@@ -174,8 +183,8 @@ export class Hud {
       const [k, ic, label, key, cost] = a;
       const b = el('button', 'act');
       b.type = 'button';
-      const costHtml = cost ? `<span class="cost">${Object.entries(cost).map(([res, n]) => resIcon(res, 15).repeat(n)).join('')}</span>` : '';
-      b.innerHTML = `<span class="key">${key}</span>${icon(ic, 24)}<span class="lbl">${label}</span>${costHtml}`;
+      b.innerHTML = `<span class="key">${key}</span>${icon(ic, 28)}<span class="lbl">${label}</span>`;
+      if (cost) b.setAttribute('aria-label', `${label}（${Object.entries(cost).map(([res, n]) => RES_NAMES[res] + (n > 1 ? '×' + n : '')).join('＋')}）`);
       // unavailable actions stay clickable so they can explain why they are unavailable
       b.addEventListener('click', () => {
         if (b.classList.contains('off')) this.flashHint(b.dataset.why || '現在不能這樣做');
@@ -183,6 +192,7 @@ export class Hud {
       });
       this.bar.appendChild(b);
       this.btns[k] = b;
+      if (cost) this.costPop(b, k);
     }
     r.appendChild(this.bar);
     this.hint = el('div', 'nexthint');
@@ -414,7 +424,8 @@ export class Hud {
       b.classList.toggle('off', !enabled);
       b.setAttribute('aria-disabled', enabled ? 'false' : 'true');
       b.dataset.why = enabled ? '' : title || '現在不能這樣做';
-      b.title = title || '';
+      if (BUILD[k]) b.removeAttribute('title');
+      else b.title = title || '';
       b.classList.toggle('on', !!extra.on);
       b.classList.toggle('primary', !!extra.primary);
       b.classList.toggle('glow', !!extra.glow);
@@ -463,6 +474,90 @@ export class Hud {
     const canEnd = myTurn && v.rolled && !v.pending;
     set('end', canEnd, canEnd ? '結束回合（Space）' : !myTurn ? turnWhy() : v.pending ? pendingWhy() : '請先擲骰');
     this.bar.style.visibility = v.phase === 'over' ? 'hidden' : '';
+    this.popCtx = { res: pl ? pl.res : null, pieces: pl ? pl.pieces : null, deck: v.devDeckCount };
+    if (this.popFor) this.renderPop();
+  }
+
+  // the cost card of a build button: on hover or keyboard focus, or a long press on a touch screen
+  costPop(b, k) {
+    let timer = null;
+    let pressed = false;
+    const show = () => {
+      this.popFor = k;
+      this.renderPop();
+    };
+    const hide = () => {
+      if (this.popFor !== k) return;
+      this.popFor = null;
+      this.renderPop();
+    };
+    b.addEventListener('pointerenter', (e) => e.pointerType !== 'touch' && show());
+    b.addEventListener('pointerleave', (e) => e.pointerType !== 'touch' && hide());
+    b.addEventListener('focus', () => b.matches(':focus-visible') && show());
+    b.addEventListener('blur', hide);
+    b.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') return;
+      pressed = false;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        pressed = true;
+        show();
+      }, 420);
+    });
+    const release = (e) => {
+      if (e.pointerType !== 'touch') return;
+      clearTimeout(timer);
+      if (pressed) setTimeout(hide, 1800);
+    };
+    b.addEventListener('pointerup', release);
+    b.addEventListener('pointercancel', release);
+    // a long press only shows the cost; it doesn't also build
+    b.addEventListener(
+      'click',
+      (e) => {
+        if (!pressed) return;
+        pressed = false;
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      },
+      true,
+    );
+    b.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  renderPop() {
+    if (this.pop) {
+      this.pop.remove();
+      this.pop = null;
+    }
+    const k = this.popFor;
+    const info = BUILD[k];
+    this.bar.classList.toggle('popping', !!(info && this.popCtx));
+    if (!info || !this.popCtx) return;
+    const { res, pieces, deck } = this.popCtx;
+    const needs = Object.entries(info.cost)
+      .map(([r, n]) => {
+        const have = res ? res[r] : null;
+        const short = have != null && have < n;
+        return `<div class="need${short ? ' short' : ''}">${resCard(r, { count: n > 1 ? '×' + n : null })}<small>${have != null ? `持有 ${have}` : ''}</small></div>`;
+      })
+      .join('');
+    const b = this.btns[k];
+    const why = b.dataset.why;
+    const left = info.piece && pieces ? `還剩 ${pieces[info.piece]} ${info.unit}` : k === 'dev' && deck != null ? `卡堆剩 ${deck} 張` : '';
+    const ok = `可以${k === 'dev' ? '購買' : k === 'city' ? '升級' : '建造'}${left ? '・' + left : ''}`;
+    const pop = el('div', 'cost-pop');
+    pop.setAttribute('role', 'tooltip');
+    pop.innerHTML = `<div class="hd"><b>${info.name}</b><i>${info.en}</i></div><div class="fx">${info.fx}</div><div class="row">${needs}</div><div class="st${why ? ' bad' : ''}">${why ? esc(why) : ok}</div>`;
+    this.bar.appendChild(pop);
+    this.pop = pop;
+    if (getComputedStyle(pop).position !== 'fixed') {
+      // above the button, kept inside the window
+      pop.style.left = b.offsetLeft + b.offsetWidth / 2 + 'px';
+      const r = pop.getBoundingClientRect();
+      const shift = Math.max(0, 8 - r.left) - Math.max(0, r.right - (window.innerWidth - 8));
+      if (shift) pop.style.left = b.offsetLeft + b.offsetWidth / 2 + shift + 'px';
+    }
   }
 
   renderBanner(b) {

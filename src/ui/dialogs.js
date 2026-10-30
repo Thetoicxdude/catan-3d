@@ -1,7 +1,7 @@
 // Modal dialogs: discard, steal, trade (bank & players), incoming offers, development cards,
 // Year of Plenty / Monopoly pickers, game over, rules and settings.
 import { RES, tradeRatios, playableDev, handSize, publicVP, legalRoadEdges } from '../engine/engine.js';
-import { resIcon, resCard, icon, RES_NAMES } from './icons.js';
+import { resIcon, resCard, devCard, icon, RES_NAMES } from './icons.js';
 import { flagURL } from './flags.js';
 import { esc, cardsHtml, DEV_INFO, rulesHtml } from './text.js';
 
@@ -349,7 +349,7 @@ export class Dialogs {
         if (!g) continue;
         const info = DEV_INFO[type];
         const card = el('div', 'dev-card' + (type !== 'victoryPoint' && !playable.has(type) ? ' dim' : ''));
-        card.innerHTML = `<div class="art dc-${type}"><span class="cnt num">×${g.n}</span></div><h4>${info.name}</h4><p>${info.desc}</p>`;
+        card.innerHTML = `${devCard(type, info.name, { count: '×' + g.n, lg: true })}<h4>${info.name}</h4><p>${info.desc}</p>`;
         if (type === 'victoryPoint') card.appendChild(el('div', 'note', '已自動計入你的分數'));
         else {
           const b = button('使用', 'primary', () => onPlay(type));

@@ -1,92 +1,81 @@
-/* ───────── resource cards ─────────
-   Photographic still lifes (rendered from CC0 scans, see assets/cards) on ivory card stock.
-   .rcard is a full card (frame, art, name banner); .rc-mini is the inline miniature used in
-   logs, costs and badges. Each resource carries its art and a matching fallback colour. */
-.rc-wood  { --rc: #4b552b; --art: url(assets/cards/wood.webp);  --thumb: url(assets/cards/wood_s.webp); }
-.rc-brick { --rc: #8b3b1f; --art: url(assets/cards/brick.webp); --thumb: url(assets/cards/brick_s.webp); }
-.rc-wool  { --rc: #66773f; --art: url(assets/cards/wool.webp);  --thumb: url(assets/cards/wool_s.webp); }
-.rc-grain { --rc: #b4852f; --art: url(assets/cards/grain.webp); --thumb: url(assets/cards/grain_s.webp); }
-.rc-ore   { --rc: #474e58; --art: url(assets/cards/ore.webp);   --thumb: url(assets/cards/ore_s.webp); }
-/* development cards */
-.dc-knight       { --art: url(assets/cards/dev_knight.webp); }
-.dc-roadBuilding { --art: url(assets/cards/dev_road.webp); }
-.dc-yearOfPlenty { --art: url(assets/cards/dev_plenty.webp); }
-.dc-monopoly     { --art: url(assets/cards/dev_monopoly.webp); }
-.dc-victoryPoint { --art: url(assets/cards/dev_vp.webp); }
+/* ───────── cards ─────────
+   Each card face is one image: the frame template with the card's art set into its arched window
+   (assets/cards/card_*.webp, made by tools/art/frames/make_cards.py). The English name is set on the
+   frame's parchment strip in Fraktur; counts sit on a token in the top corner, clear of the name.
+   .rc-mini is the inline miniature (the art alone, ringed in the frame's colour) for logs and badges. */
+.rc-wood  { --rc: #4b552b; --ring: #3f7a52; --card: url(assets/cards/card_wood_s.webp);  --card-l: url(assets/cards/card_wood.webp);  --thumb: url(assets/cards/wood_s.webp); }
+.rc-wool  { --rc: #66773f; --ring: #5aa893; --card: url(assets/cards/card_wool_s.webp);  --card-l: url(assets/cards/card_wool.webp);  --thumb: url(assets/cards/wool_s.webp); }
+.rc-grain { --rc: #b4852f; --ring: #d8b24e; --card: url(assets/cards/card_grain_s.webp); --card-l: url(assets/cards/card_grain.webp); --thumb: url(assets/cards/grain_s.webp); }
+.rc-brick { --rc: #8b3b1f; --ring: #b8454b; --card: url(assets/cards/card_brick_s.webp); --card-l: url(assets/cards/card_brick.webp); --thumb: url(assets/cards/brick_s.webp); }
+.rc-ore   { --rc: #474e58; --ring: #b9bcc0; --card: url(assets/cards/card_ore_s.webp);   --card-l: url(assets/cards/card_ore.webp);   --thumb: url(assets/cards/ore_s.webp); }
+/* development cards share the iridescent frame */
+.dc-knight       { --card: url(assets/cards/card_dev_knight_s.webp);   --card-l: url(assets/cards/card_dev_knight.webp); }
+.dc-roadBuilding { --card: url(assets/cards/card_dev_road_s.webp);     --card-l: url(assets/cards/card_dev_road.webp); }
+.dc-yearOfPlenty { --card: url(assets/cards/card_dev_plenty_s.webp);   --card-l: url(assets/cards/card_dev_plenty.webp); }
+.dc-monopoly     { --card: url(assets/cards/card_dev_monopoly_s.webp); --card-l: url(assets/cards/card_dev_monopoly.webp); }
+.dc-victoryPoint { --card: url(assets/cards/card_dev_vp_s.webp);       --card-l: url(assets/cards/card_dev_vp.webp); }
+.dc-back         { --card: url(assets/cards/card_dev_back_s.webp);     --card-l: url(assets/cards/card_dev_back.webp); }
 
 .rc-mini {
   display: inline-block; vertical-align: middle; flex: none; border-radius: 2px;
   background: var(--thumb) center / cover no-repeat, var(--rc);
-  box-shadow: 0 0 0 1px rgba(236, 222, 186, 0.85), 0 1px 2px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 1.5px var(--ring, #e8dcb8), 0 1px 3px rgba(0, 0, 0, 0.65);
 }
 
 .rcard {
   --w: 56px;
+  --n: 6; /* letters in the name: long names set smaller */
   position: relative; display: inline-block; flex: none; vertical-align: middle;
-  width: var(--w); height: calc(var(--w) * 1.4); box-sizing: border-box;
-  border-radius: calc(var(--w) * 0.085);
-  background: linear-gradient(160deg, #fbf4e0 0%, #e9dbb5 48%, #c9b07c 100%);
-  box-shadow: 0 0 0 1px rgba(28, 20, 9, 0.9), 0 3px 9px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  width: var(--w); height: calc(var(--w) * 1.458); box-sizing: border-box;
+  border-radius: calc(var(--w) * 0.048);
+  background: var(--card) center / 100% 100% no-repeat;
+  filter: drop-shadow(0 calc(var(--w) * 0.04) calc(var(--w) * 0.07) rgba(0, 0, 0, 0.55));
 }
-.rcard .art {
-  position: absolute; inset: calc(var(--w) * 0.06); border-radius: calc(var(--w) * 0.045);
-  background: var(--art) center / cover no-repeat, var(--rc);
-  box-shadow: inset 0 0 0 1px rgba(20, 14, 6, 0.65), inset 0 0 calc(var(--w) * 0.22) rgba(0, 0, 0, 0.32);
-}
-/* a faint gloss across the card stock */
-.rcard::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: linear-gradient(125deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 38%);
-}
+.rcard.lg { background-image: var(--card-l); }
+/* the name on the parchment strip */
 .rcard .nm {
-  position: absolute; left: calc(var(--w) * 0.06); right: calc(var(--w) * 0.06); bottom: calc(var(--w) * 0.06);
-  padding: calc(var(--w) * 0.09) 0 calc(var(--w) * 0.05) 0.22em; text-align: center; white-space: nowrap;
-  font-family: var(--font-display); font-weight: 900; font-size: max(10px, calc(var(--w) * 0.19)); letter-spacing: 0.22em;
-  line-height: 1; color: #f8ecd0; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
-  background: linear-gradient(180deg, rgba(16, 11, 6, 0) 0%, rgba(16, 11, 6, 0.86) 55%);
-  border-radius: 0 0 calc(var(--w) * 0.045) calc(var(--w) * 0.045);
+  position: absolute; left: 8.2%; width: 83.8%; top: 80.4%; height: 13.9%;
+  display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap;
+  padding-top: calc(var(--w) * 0.012); box-sizing: border-box;
+  font-family: var(--font-fraktur); font-weight: 400; line-height: 1;
+  font-size: min(calc(var(--w) * 0.2), calc(var(--w) * 1.55 / var(--n)));
+  color: #24170b; text-shadow: 0 1px 0 rgba(255, 244, 214, 0.6);
 }
-.rcard .cnt {
-  position: absolute; right: calc(var(--w) * -0.14); top: calc(var(--w) * -0.14); z-index: 1;
-  min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px;
-  display: grid; place-items: center; font-family: var(--font-num); font-weight: 700; font-size: 15px; line-height: 1;
-  color: #fff3d2; background: linear-gradient(180deg, #3d3326, #15110b); border: 1px solid var(--brass);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+/* the count: a token on the top corner of the frame, never over the name */
+.rcard .cnt, .res-chip.rcard .n {
+  position: absolute; z-index: 1; top: calc(var(--w) * -0.09); right: calc(var(--w) * -0.13);
+  min-width: max(19px, calc(var(--w) * 0.38)); height: max(19px, calc(var(--w) * 0.38)); padding: 0 4px;
+  box-sizing: border-box; border-radius: 999px; display: grid; place-items: center;
+  font-family: var(--font-num); font-weight: 700; font-size: max(12px, calc(var(--w) * 0.25)); line-height: 1;
+  color: #fff3d2; background: radial-gradient(circle at 35% 30%, #4d4030 0%, #1b150d 72%);
+  border: 1.5px solid var(--brass-hi); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
 }
 
-/* ── the hand in the top bar: cards hang from the bar, counts on brass tokens ── */
-.tb-res { display: flex; gap: 9px; flex: none; align-self: flex-start; padding-top: 6px; }
+/* ── the hand in the top bar: cards hang from the bar ── */
+.tb-res { display: flex; gap: 13px; flex: none; align-self: flex-start; padding: 9px 6px 0 2px; }
 .res-chip.rcard {
-  --w: 44px; cursor: default; margin-bottom: -16px; z-index: 1;
+  --w: 64px; cursor: default; margin-bottom: -48px; z-index: 1;
   transition: filter 0.3s, transform 0.15s;
 }
-.res-chip.rcard:hover { transform: translateY(2px) scale(1.06); z-index: 2; }
-.res-chip.rcard .n {
-  position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); z-index: 1;
-  min-width: 26px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px;
-  display: grid; place-items: center;
-  font-family: var(--font-num); font-weight: 700; font-size: 17px; line-height: 1; color: #fff3d2;
-  background: linear-gradient(180deg, #3d3326, #15110b); border: 1px solid var(--brass);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
-}
-.res-chip.rcard.zero { filter: grayscale(0.9) brightness(0.5) contrast(0.9); }
+.res-chip.rcard:hover { transform: translateY(3px) scale(1.12); z-index: 3; }
+.res-chip.rcard.zero { filter: grayscale(0.8) brightness(0.72) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5)); }
 .res-chip.rcard.zero .n { color: var(--ink-faint); border-color: #5c5236; }
 .res-chip.rcard.flash { animation: cardflash 0.9s ease-out; }
 .res-chip.rcard.drain { animation: carddrain 0.9s ease-out; }
 @keyframes cardflash {
-  0% { box-shadow: 0 0 0 2px #ffe7a6, 0 0 20px 6px rgba(255, 214, 120, 0.85); }
+  0% { filter: drop-shadow(0 0 2px #ffe7a6) drop-shadow(0 0 12px rgba(255, 214, 120, 0.9)); }
 }
 @keyframes carddrain {
-  0% { box-shadow: 0 0 0 2px #ff9a86, 0 0 18px 5px rgba(226, 96, 78, 0.8); transform: translateY(3px); }
+  0% { filter: drop-shadow(0 0 2px #ff9a86) drop-shadow(0 0 10px rgba(226, 96, 78, 0.85)); transform: translateY(3px); }
 }
 .res-chip.rcard.gain { animation: cardgain 0.55s cubic-bezier(0.2, 1.7, 0.4, 1) 1; }
 .res-chip.rcard.gain .n { animation: numpop 0.55s cubic-bezier(0.2, 1.8, 0.4, 1) 1; }
 @keyframes cardgain {
-  0% { transform: scale(1); box-shadow: 0 0 0 1px rgba(28, 20, 9, 0.9), 0 0 0 0 rgba(255, 214, 120, 0.95); }
-  35% { transform: translateY(3px) scale(1.2) rotate(-3deg); box-shadow: 0 0 0 2px #ffe7a6, 0 0 24px 8px rgba(255, 214, 120, 0.7); }
+  0% { transform: scale(1); }
+  35% { transform: translateY(3px) scale(1.18) rotate(-3deg); filter: drop-shadow(0 0 3px #ffe7a6) drop-shadow(0 0 14px rgba(255, 214, 120, 0.8)); }
   100% { transform: scale(1); }
 }
-@keyframes numpop { 0% { transform: translateX(-50%) scale(1); } 35% { transform: translateX(-50%) scale(1.45); color: #ffe08a; } 100% { transform: translateX(-50%) scale(1); } }
+@keyframes numpop { 0% { transform: scale(1); } 35% { transform: scale(1.45); color: #ffe08a; } 100% { transform: scale(1); } }
 
 /* ── flying cards (production, trades, steals) ── */
 .fx-card.rcard { --w: 60px; position: absolute; left: 0; top: 0; padding: 0; will-change: transform, opacity; }
@@ -100,41 +89,61 @@
 @keyframes cardshine { to { background-position: -40% 0; } }
 
 /* ── pickers in dialogs ── */
-.res-pick .rcard { --w: 48px; margin-bottom: 2px; }
-.res-pick.on .rcard { box-shadow: 0 0 0 2px var(--brass-hi), 0 0 14px rgba(234, 208, 142, 0.6); }
+.res-pick .rcard { --w: 56px; margin-bottom: 2px; }
+.res-pick.on .rcard { filter: drop-shadow(0 0 2px var(--brass-hi)) drop-shadow(0 0 9px rgba(234, 208, 142, 0.75)); }
 .res-pick:disabled .rcard { filter: grayscale(0.85) brightness(0.6); }
-.act .cost .rc-mini { margin: 0 1px; }
+
+/* ── build costs: shown on hover / long press over the build buttons ── */
+.actionbar.popping { z-index: 40; }
+.cost-pop {
+  position: absolute; z-index: 30; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%);
+  min-width: 220px; padding: 12px 14px 12px; pointer-events: none; text-align: left; white-space: normal;
+  color: var(--ink); background: linear-gradient(180deg, #2b3237, #1a1f22); border: 1px solid var(--brass);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 240, 200, 0.08);
+  animation: popin 0.14s ease-out;
+}
+.cost-pop::after {
+  content: ""; position: absolute; left: 50%; bottom: -7px; width: 12px; height: 12px; transform: translateX(-50%) rotate(45deg);
+  background: #1a1f22; border-right: 1px solid var(--brass); border-bottom: 1px solid var(--brass);
+}
+@keyframes popin { from { opacity: 0; transform: translate(-50%, 6px); } }
+.cost-pop .hd { display: flex; align-items: baseline; gap: 8px; }
+.cost-pop .hd b { font-family: var(--font-display); font-weight: 900; font-size: 17px; letter-spacing: 0.1em; color: var(--brass-hi); }
+.cost-pop .hd i { font-style: normal; font-family: var(--font-fraktur); font-size: 17px; color: var(--ink-dim); }
+.cost-pop .fx { margin: 3px 0 10px; font-size: 12.5px; color: var(--ink-dim); }
+.cost-pop .row { display: flex; gap: 12px; justify-content: center; padding: 6px 4px 2px; }
+.cost-pop .need { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.cost-pop .need .rcard { --w: 64px; }
+.cost-pop .need.short .rcard { filter: saturate(0.35) brightness(0.78); }
+.cost-pop .need small { font-size: 11.5px; color: var(--ok); white-space: nowrap; }
+.cost-pop .need.short small { color: #f08a78; }
+.cost-pop .st { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-dim); }
+.cost-pop .st.bad { color: #f2b36b; }
 
 @media (max-width: 760px) {
-  .tb-res { align-self: auto; justify-content: center; gap: 12px; padding-top: 2px; padding-bottom: 10px; }
-  .res-chip.rcard { --w: 36px; flex: none; margin-bottom: 0; }
-  .res-chip.rcard .n { font-size: 15px; height: 20px; min-width: 22px; bottom: -9px; }
-  .res-pick .rcard { --w: 40px; }
+  .tb-res { align-self: auto; justify-content: center; gap: 13px; padding: 6px 0 10px; }
+  .res-chip.rcard { --w: 44px; flex: none; margin-bottom: 0; }
+  .res-pick .rcard { --w: 46px; }
+  .cost-pop { position: fixed; left: 50%; bottom: calc(86px + var(--safe-b)); }
 }
 
-/* ── a bought development card turns over, then files into the hand ── */
-.fx-dev { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); perspective: 900px; z-index: 5; pointer-events: none; }
-.fx-dev .flip { position: relative; width: 210px; height: 300px; transform-style: preserve-3d; }
-.fx-dev .face { position: absolute; inset: 0; border-radius: 14px; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-sizing: border-box; }
-.fx-dev .back {
-  transform: rotateY(180deg); display: grid; place-items: center;
-  background: radial-gradient(circle at 50% 40%, #6b5130 0%, #3a2a16 60%, #22180c 100%);
-  box-shadow: inset 0 0 0 2px #c7a660, inset 0 0 0 7px #2a1e10, inset 0 0 0 8px rgba(199, 166, 96, 0.6), 0 24px 60px rgba(0, 0, 0, 0.6);
+/* ── development cards: a bought card turns over, its name and rule below, then files into the hand ── */
+.fx-dev {
+  position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 14px; perspective: 900px;
 }
-.fx-dev .back span { font-family: var(--font-display); font-weight: 900; font-size: 26px; letter-spacing: 0.3em; padding-left: 0.3em; color: #f1dca6; text-shadow: 0 2px 0 #1a1208; }
-.fx-dev .front {
-  display: flex; flex-direction: column; gap: 8px; padding: 16px 16px 14px; color: var(--parchment-ink);
-  background: linear-gradient(180deg, #f6ecd2, #e3d3ad);
-  box-shadow: inset 0 0 0 1px #8f7444, inset 0 0 0 5px rgba(255, 250, 235, 0.5), 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 44px rgba(246, 210, 120, 0.4);
+.fx-dev .flip { position: relative; width: 220px; height: calc(220px * 1.458); transform-style: preserve-3d; }
+.fx-dev .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.fx-dev .face .rcard { --w: 220px; filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 30px rgba(246, 210, 120, 0.35)); }
+.fx-dev .back { transform: rotateY(180deg); }
+.fx-dev .cap {
+  width: 300px; box-sizing: border-box; padding: 12px 16px 12px; text-align: center; color: var(--parchment-ink);
+  background: linear-gradient(180deg, #f6ecd2, #e3d3ad); border: 1px solid #8f7444; border-radius: 6px;
+  box-shadow: inset 0 0 0 3px rgba(255, 250, 235, 0.5), 0 18px 40px rgba(0, 0, 0, 0.55);
 }
-.fx-dev .art {
-  height: 112px; margin: -6px -6px 0; border-radius: 8px;
-  background: var(--art) center 46% / cover no-repeat, #3a2c1d;
-  box-shadow: inset 0 0 0 1px rgba(40, 28, 14, 0.6), inset 0 -16px 22px rgba(0, 0, 0, 0.25);
-}
-.fx-dev h4 { margin: 0; text-align: center; font-family: var(--font-display); font-weight: 900; font-size: 22px; letter-spacing: 0.14em; padding-left: 0.14em; }
-.fx-dev p { margin: 0; flex: 1; font-size: 12.5px; line-height: 1.5; color: #5b4731; }
-.fx-dev .when { text-align: center; font-size: 12px; font-weight: 700; color: #6d4210; padding: 6px 8px; border-radius: 6px; background: rgba(199, 166, 96, 0.28); }
+.fx-dev h4 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 900; font-size: 21px; letter-spacing: 0.14em; padding-left: 0.14em; }
+.fx-dev p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: #5b4731; text-align: left; }
+.fx-dev .when { font-size: 12px; font-weight: 700; color: #6d4210; padding: 6px 8px; border-radius: 6px; background: rgba(199, 166, 96, 0.28); }
 
 /* card miniatures inside log lines and offers */
 .cards-inline .c { gap: 3px; padding: 2px 6px 2px 3px; }

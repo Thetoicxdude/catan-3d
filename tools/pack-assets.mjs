@@ -61,8 +61,11 @@ for (const t of tiles) for (const f of Object.values(t.maps)) fs.copyFileSync(pa
 // resource and development card art (Cycles still lifes from the scans above; see assetwork/cards)
 const CARDS = '/home/claude/assetwork/cards/pack';
 fs.mkdirSync(path.join(OUT, 'cards'), { recursive: true });
-for (const r of ['wood', 'brick', 'wool', 'grain', 'ore']) for (const f of [`${r}.webp`, `${r}_s.webp`]) fs.copyFileSync(path.join(CARDS, f), path.join(OUT, 'cards', f));
-for (const d of ['knight', 'road', 'plenty', 'monopoly', 'vp']) fs.copyFileSync(path.join(CARDS, `dev_${d}.webp`), path.join(OUT, 'cards', `dev_${d}.webp`));
+// close crops for inline miniatures
+for (const r of ['wood', 'brick', 'wool', 'grain', 'ore']) fs.copyFileSync(path.join(CARDS, `${r}_s.webp`), path.join(OUT, 'cards', `${r}_s.webp`));
+// card faces: the art set into the frame templates (tools/art/frames/make_cards.py)
+const FACES = process.argv[4] || '/home/claude/assetwork/frames/out/cards';
+for (const f of fs.readdirSync(FACES)) if (/^card_.*\.webp$/.test(f)) fs.copyFileSync(path.join(FACES, f), path.join(OUT, 'cards', f));
 
 const files = [];
 const walk = (dir) => {

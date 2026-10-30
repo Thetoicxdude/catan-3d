@@ -1,6 +1,6 @@
 // Screen-space game feel: tumbling 3D dice, resource cards arcing from the island into the hand,
 // victory-point medals and big announcements. Pure DOM + Web Animations; sounds from sfx.js.
-import { icon } from './icons.js';
+import { icon, devCard, RES_EN } from './icons.js';
 import { sfx } from './sfx.js';
 
 // cube rotation that brings each face to the front (face n sits where the CSS below puts it)
@@ -110,7 +110,8 @@ export class Fx {
   // list: [{res, from:{x,y}, to:{x,y}, delay, small, onArrive}]
   cards(list) {
     for (const c of list) {
-      const card = el('div', `fx-card rcard rc-${c.res}${c.small ? ' small' : ''}`, `<span class="art"></span><i class="shine"></i>`);
+      const card = el('div', `fx-card rcard rc-${c.res}${c.small ? ' small' : ''}`, `${c.small ? '' : `<span class="nm">${RES_EN[c.res] || ''}</span>`}<i class="shine"></i>`);
+      card.style.setProperty('--n', String(Math.max(4, (RES_EN[c.res] || '').length)));
       card.style.left = c.from.x + 'px';
       card.style.top = c.from.y + 'px';
       this.layer.appendChild(card);
@@ -142,7 +143,8 @@ export class Fx {
   // played, then shrinks into `target` (the hand's development-card counter).
   devReveal({ type, name, desc, note }, target) {
     const box = el('div', 'fx-dev');
-    box.innerHTML = `<div class="flip"><div class="face back"><span>發展卡</span></div><div class="face front"><div class="art dc-${type}"></div><h4></h4><p></p><div class="when"></div></div></div>`;
+    box.innerHTML = `<div class="flip"><div class="face back">${devCard('back', '發展卡', { lg: true })}</div><div class="face front">${devCard(type, name, { lg: true })}</div></div><div class="cap"><h4></h4><p></p><div class="when"></div></div>`;
+    box.querySelector('.back .nm').textContent = 'Development';
     box.querySelector('h4').textContent = name;
     box.querySelector('p').textContent = desc;
     box.querySelector('.when').textContent = note;
@@ -153,8 +155,14 @@ export class Fx {
       [{ transform: 'rotateY(180deg) scale(0.6)' }, { offset: 0.55, transform: 'rotateY(-12deg) scale(1.05)' }, { transform: 'rotateY(0deg) scale(1)' }],
       { duration: slow ? 650 : 1, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'both' },
     );
+    box.querySelector('.cap').animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], {
+      duration: slow ? 320 : 1,
+      delay: slow ? 420 : 0,
+      easing: 'ease-out',
+      fill: 'both',
+    });
     sfx.whoosh();
-    const hold = slow ? 1900 : 1200;
+    const hold = slow ? 2200 : 1200;
     setTimeout(() => {
       const r = target && target.getBoundingClientRect();
       const tx = r && r.width ? r.left + r.width / 2 - window.innerWidth / 2 : 0;
