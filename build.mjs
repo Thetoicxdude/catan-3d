@@ -44,6 +44,7 @@ ${css}
 ${js}
 </script>
 `;
+mkdirSync(dirname(out), { recursive: true }); // a fresh clone has no dist/ yet
 writeFileSync(out, page);
 // local test wrapper (the artifact host adds its own skeleton)
 // the exact document skeleton the artifact host wraps the page in (copied from the published page),
