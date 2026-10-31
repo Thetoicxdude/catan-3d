@@ -708,6 +708,8 @@ export class HostSession {
 
   async leave() {
     if (this.leaving) return this.leaving;
+    // stepped down: the room channel is the player session's now
+    if (this.demoted && !this.afterHandover) return undefined;
     this.leaving = (async () => {
       // the others play on: hand the campaign to one of them first
       if (this.phase === 'play' && !this.demoted && this.handover('leave')) {
@@ -1177,6 +1179,8 @@ export class ClientSession {
 
   async leave() {
     if (this.closed && this.left) return;
+    // this page took the campaign over: the room channel is the host session's now
+    if (this.taking) return;
     this.left = true;
     this.stop();
     forgetRoom();

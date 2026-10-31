@@ -6,7 +6,7 @@
     "build": "node build.mjs",
     "dev": "node build.mjs && wrangler dev",
     "deploy": "node build.mjs && wrangler deploy",
-    "test": "node test/unit.mjs && node test/codec.mjs && node test/sim.mjs"
+    "test": "node test/unit.mjs && node test/codec.mjs && node test/clock.mjs && node test/accounts.mjs && node test/sim.mjs"
   },
   "author": "",
   "license": "UNLICENSED",

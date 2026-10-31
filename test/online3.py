@@ -94,19 +94,38 @@ async def main():
         await spec.wait_for_function('window.__game && window.__game.client', timeout=240000)
         print('spectator in after %.0fs' % (time.time() - t_spec))
         print('spectator viewer', await spec.evaluate('__game.viewer'), 'banner', await spec.evaluate("document.querySelector('.banner') && document.querySelector('.banner').innerText"))
-        t0 = time.time(); steps = {}; checks = 0; mism = 0
+        ROLE = "(() => { const g = window.__game; if (!g || g.destroyed) return 'none'; return g.client ? 'client' : (g.net ? 'host' : 'local'); })()"
+        AUTO = "(() => { if (!window.__autoHuman && window.__game) { window.__autoHuman = true; __game.schedule(); } })()"
+        # the campaign may change hands (a page that stops answering is taken over): follow whoever hosts
+        async def roles():
+            hp = cp = None
+            for pg in (host, client):
+                try: r = await pg.evaluate(ROLE)
+                except Exception: r = 'none'
+                if r == 'host': hp = pg
+                elif r == 'client': cp = pg
+            return hp, cp
+        t0 = time.time(); steps = {}; checks = 0; mism = 0; swaps = 0; last = None
         while time.time() - t0 < float(os.environ.get('SECS', '300')):
-            r = await client.evaluate(CLIENT_STEP)
+            hp, cp = await roles()
+            if not hp or not cp:
+                await host.wait_for_timeout(300)
+                continue
+            if last is not None and hp is not last: swaps += 1
+            last = hp
+            await hp.evaluate(AUTO)
+            r = await cp.evaluate(CLIENT_STEP)
             steps[r] = steps.get(r, 0) + 1
             if r == 'over': break
             if steps.get('wait', 0) % 40 == 0:
-                # compare the client's own hand with the host's truth
-                cmp = await client.evaluate('(() => { const v = __game.view(); return {seq: v.seq, res: v.players[__game.viewer].res, dev: v.players[__game.viewer].dev.length, seat: __game.viewer}; })()')
-                truth = await host.evaluate(f'(() => {{ const s = __game.state; return {{seq: s.seq, res: s.players[{cmp["seat"]}].res, dev: s.players[{cmp["seat"]}].dev.length}}; }})()')
+                # compare the player's own hand with the host's truth
+                cmp = await cp.evaluate('(() => { const v = __game.view(); return {seq: v.seq, res: v.players[__game.viewer].res, dev: v.players[__game.viewer].dev.length, seat: __game.viewer}; })()')
+                truth = await hp.evaluate(f'(() => {{ const s = __game.state; return {{seq: s.seq, res: s.players[{cmp["seat"]}].res, dev: s.players[{cmp["seat"]}].dev.length}}; }})()')
                 if cmp['seq'] == truth['seq']:
                     checks += 1
                     if cmp['res'] != truth['res'] or cmp['dev'] != truth['dev']: mism += 1; print('MISMATCH', cmp, truth)
-            await client.wait_for_timeout(120)
+            await cp.wait_for_timeout(120)
+        print('host changes during the game:', swaps)
         hs = await host.evaluate('({phase: __game.state.phase, winner: __game.state.winner, turn: __game.state.turn, seq: __game.state.seq})')
         cs = await client.evaluate('({phase: __game.state.phase, winner: __game.state.winner, turn: __game.state.turn, seq: __game.state.seq})')
         print('host', hs, 'client', cs)
