@@ -10,7 +10,8 @@ SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots
 os.makedirs(SP, exist_ok=True)
 SITE = os.environ.get('SITE', 'http://127.0.0.1:8787/')
 KEY = json.load(open(os.path.join(os.environ['KEYS'], 'keys.json')))
-CLIENT_ID = open(os.path.join(os.path.dirname(__file__), '..', 'server', 'config.js')).read().split("'")[1]
+import re
+CLIENT_ID = re.search(r"GOOGLE_CLIENT_ID = '([^']+)'", open(os.path.join(os.path.dirname(__file__), '..', 'server', 'config.js'), encoding='utf8').read()).group(1)
 STUB = """
 window.__noAssets = true; window.__mapFps = 0.2; window.__autoHuman = true;
 localStorage.setItem('catan3d-settings-v1', JSON.stringify({ speed: 'turbo', quality: 'low', qualityPicked: true, opponents: 1, target: 8, name: '測試王國' }));
