@@ -454,7 +454,39 @@ export function showHome(app, opts) {
   const paintArt = () => drawBoardArt(canvas, artSeed == null ? null : officialBoard(artSeed));
   const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => paintArt()) : null;
   if (ro) ro.observe(canvas);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => !closed && paintArt());
+
+  // ── the board as large as the screen allows: all the room between the title row and the hand of
+  //    cards, at the frame's own proportions (phones: the full width, see home.css) ──
+  const RATIO = 958 / 521;
+  const topEl = scr.querySelector('.hm-top');
+  const mainEl = scr.querySelector('.hm-main');
+  const handEl = scr.querySelector('.hm-hand');
+  const px = (v) => parseFloat(v) || 0;
+  const fit = () => {
+    if (closed) return;
+    if (window.innerWidth <= 760) {
+      boardEl.style.width = '';
+      return;
+    }
+    const sc = getComputedStyle(scr);
+    const mc = getComputedStyle(mainEl);
+    const availH = scr.clientHeight - px(sc.paddingTop) - px(sc.paddingBottom) - topEl.offsetHeight - px(mc.paddingTop) - px(mc.paddingBottom) - px(mc.rowGap) - handEl.offsetHeight;
+    const availW = scr.clientWidth - px(sc.paddingLeft) - px(sc.paddingRight);
+    const w = Math.floor(Math.max(300, Math.min(availW, availH * RATIO)));
+    if (boardEl.style.width !== w + 'px') boardEl.style.width = w + 'px';
+  };
+  const fitRo = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => fit()) : null;
+  if (fitRo) {
+    fitRo.observe(scr);
+    fitRo.observe(topEl);
+    fitRo.observe(handEl);
+  } else window.addEventListener('resize', fit);
+  if (document.fonts && document.fonts.ready)
+    document.fonts.ready.then(() => {
+      if (closed) return;
+      fit();
+      paintArt();
+    });
 
   // ── the official room, live ──
   const live = scr.querySelector('.hm-live');
@@ -578,6 +610,7 @@ export function showHome(app, opts) {
   };
 
   paintId();
+  fit();
   paintArt();
   paint();
   const timer = setInterval(tick, 250);
@@ -615,6 +648,8 @@ export function showHome(app, opts) {
       clearInterval(timer);
       for (const u of unsubs) if (u) u();
       if (ro) ro.disconnect();
+      if (fitRo) fitRo.disconnect();
+      else window.removeEventListener('resize', fit);
       scr.remove();
     },
   };
