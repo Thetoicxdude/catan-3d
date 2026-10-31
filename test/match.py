@@ -26,6 +26,7 @@ async def main():
         names = ['甲國', '乙國', '丙國', '丁國', '戊國']
         for i in range(N):
             pg = await ctx.new_page()
+            pg.set_default_navigation_timeout(180000)  # the other pages keep this software-rendered browser busy
             NOA = '' if os.environ.get('ASSETS') else 'window.__noAssets = true; '  # UI-flow test: skip the asset pack
             await pg.add_init_script(NOA + f"window.__mapFps = 0.1; {ROOMJS} window.__mmSeconds = {SECS}; localStorage.setItem('catan3d-settings-v1', JSON.stringify({{speed:'turbo', follow:false, quality:'low', name: '{names[i]}'}}));")
             pg.on('pageerror', lambda e, i=i: logs.append(f'[p{i} pageerror] {e}'))
@@ -42,9 +43,10 @@ async def main():
         while time.time() - t0 < 120:
             st = []
             for pg in pages:
-                st.append(await pg.evaluate("""(() => { const g = window.__game; const m = document.querySelector('.match-screen');
-                  return { game: !!(g && g.state), seat: g ? g.viewer : null, code: m ? (m.querySelector('.mm-code')||{}).textContent : null,
-                           count: m ? (m.querySelector('.mm-count b')||{}).textContent : null, status: m ? (m.querySelector('.mm-status')||{}).textContent : null }; })()"""))
+                # matchmaking runs on the home screen: its official-room board shows the phase, seats and countdown
+                st.append(await pg.evaluate("""(() => { const g = window.__game; const m = document.querySelector('.ho-board');
+                  return { game: !!(g && g.state), seat: g ? g.viewer : null, code: m ? m.dataset.match || null : null,
+                           count: m ? m.querySelector('.ho-n').textContent : null, status: m ? m.querySelector('.ho-sec').textContent : null }; })()"""))
             if not shot and all(s['code'] for s in st):
                 shot = True
                 await pages[-1].screenshot(path=f'{SP}/match-lobby.png', timeout=120000)

@@ -192,23 +192,22 @@ function openMenu() {
     version: buildInfo(),
     getLobby: homeLobby,
     onChange: onSettingsChange,
-    onSingle: () => openSetup(),
-    onCreate: () => {
-      closeMenus();
-      if (map) map.holdAssets(true);
-      hostRoom(null);
-    },
-    onJoin: () => openJoin(),
-    onMatch: () => {
-      closeMenus();
-      if (map) map.holdAssets(true);
-      matchRoom();
-    },
-    onContinue: () => {
-      const save = loadSave();
-      if (save && save.net) hostRoom(save);
-      else startGame(save);
-    },
+    // any other way to play leaves the official matchmaking first
+    onSingle: () => stopMatch().then(openSetup),
+    onCreate: () =>
+      stopMatch().then(() => {
+        closeMenus();
+        if (map) map.holdAssets(true);
+        hostRoom(null);
+      }),
+    onJoin: () => stopMatch().then(openJoin),
+    onMatch: () => toggleMatch(),
+    onContinue: () =>
+      stopMatch().then(() => {
+        const save = loadSave();
+        if (save && save.net) hostRoom(save);
+        else startGame(save);
+      }),
     onRules: () => menuDialogs().rules(),
     onSettings: () =>
       menuDialogs().settings({ ...settings }, (s, key) => {
@@ -330,27 +329,60 @@ async function startClientGame(view, players, net) {
 if (window.__mockRoom || window.__testHooks) window.__sess = () => session;
 
 // official rooms: automatic matchmaking (full room or countdown starts the campaign)
-async function matchRoom() {
-  session = new MatchSession({
+// The official room is joined from the home screen and the player stays there while it fills up:
+// the board shows the seats and the countdown, pressing it again leaves. When the room starts, the
+// campaign opens.
+let matching = null;
+async function toggleMatch() {
+  if (matching) {
+    await stopMatch();
+    return;
+  }
+  const m = new MatchSession({
     app,
     settings,
     toast,
     seconds: window.__mmSeconds || 60,
     mapSeed: previewSeed,
-    onHostStart: (players, net) => startOnlineHost(players, net, true),
-    onClientGame: (view, players, net) => startClientGame(view, players, net),
-    onLeave: () => {
-      session = null;
-      openMenu();
+    onState: (st) => matching === m && menu && menu.setMatch && menu.setMatch(st),
+    onHostStart: (players, net) => {
+      matching = null;
+      closeMenus();
+      return startOnlineHost(players, net, true);
+    },
+    onClientGame: (view, players, net) => {
+      matching = null;
+      closeMenus();
+      return startClientGame(view, players, net);
     },
   });
+  matching = m;
+  session = m;
+  // keep the page light while it waits for other players (slow devices could drop out otherwise)
+  if (map) map.holdAssets(true);
+  if (menu && menu.setMatch) menu.setMatch({ phase: 'searching' });
   try {
-    await session.open();
+    await m.open();
+    if (matching === m && menu && menu.attachLobby) menu.attachLobby(m.lobby);
   } catch (e) {
     toast('無法配對', e.message || String(e), 'cross');
-    session = null;
-    openMenu();
+    if (matching === m) {
+      matching = null;
+      if (session === m) session = null;
+      if (menu && menu.setMatch) menu.setMatch(null);
+      if (map) map.holdAssets(false);
+    }
   }
+}
+
+async function stopMatch() {
+  const m = matching;
+  if (!m) return;
+  matching = null;
+  if (session === m) session = null;
+  if (menu && menu.setMatch) menu.setMatch(null);
+  if (map) map.holdAssets(false);
+  await m.leave();
 }
 
 async function joinRoom(code) {

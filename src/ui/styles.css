@@ -237,13 +237,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 }
 .minimap canvas { display: block; width: 184px; height: 150px; cursor: pointer; background: #20374a; }
 .mapmodes { display: flex; gap: 4px; }
-.camctl { display: flex; gap: 4px; align-items: center; }
-.camctl button { width: 32px; height: 30px; flex: none; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(199, 166, 96, 0.25); border-radius: 2px; color: var(--ink-dim); cursor: pointer; padding: 0; }
-.camctl button:hover { color: var(--ink); border-color: var(--brass); }
-.camctl .compass { border-radius: 50%; width: 32px; height: 32px; background: radial-gradient(circle at 40% 35%, #3a4247, #1b2023); border-color: var(--brass-lo); color: #e9e1cf; }
-.camctl .needle { display: flex; transition: transform 0.12s linear; }
-.camctl .tilt { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; font-size: 11px; color: var(--ink-faint); }
-.camctl .tilt input { flex: 1; min-width: 64px; accent-color: var(--brass); height: 18px; }
 .mapmodes button { flex: 1; height: 30px; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(199, 166, 96, 0.25); border-radius: 2px; color: var(--ink-dim); cursor: pointer; }
 .mapmodes button:hover { color: var(--ink); border-color: var(--brass); }
 .mapmodes button.on { color: #1f170b; background: var(--brass); border-color: var(--brass-hi); }
@@ -506,7 +499,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .minimap { bottom: calc(84px + var(--safe-b)); }
   .mapmodes { flex-direction: column; }
   .minimap { flex-direction: row-reverse; align-items: flex-end; }
-  .camctl { flex-direction: column; }
   .nexthint { bottom: calc(76px + var(--safe-b)); font-size: 12.5px; padding: 6px 12px; }
   .fab-row { top: calc(var(--tb-h) + var(--safe-t) + 44px); }
   .menu-screen { grid-template-columns: minmax(0, 1fr); align-content: start; }

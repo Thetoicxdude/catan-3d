@@ -37,6 +37,7 @@ async def main():
                 await r.continue_()
         await ctx.route('**/*', route)
         host = await ctx.new_page()
+        host.set_default_navigation_timeout(180000)  # the other pages keep this software-rendered browser busy
         if not os.environ.get('ASSETS'): await host.add_init_script('window.__noAssets = true;')  # UI-flow test: skip the asset pack
         await host.add_init_script(INIT.replace('NAME', '"主持王國"').replace('COLOR', '"#c8372d"'))
         host.on('console', lambda m: logs.append(f'[host {m.type}] {m.text}') if m.type in ('error','warning') else None)
@@ -49,6 +50,7 @@ async def main():
         print('room code', code)
         await host.screenshot(path=f'{SP}/on-host-lobby.png', timeout=120000)
         client = await ctx.new_page()
+        client.set_default_navigation_timeout(180000)  # the other pages keep this software-rendered browser busy
         if not os.environ.get('ASSETS'): await client.add_init_script('window.__noAssets = true;')  # UI-flow test: skip the asset pack
         await client.add_init_script(INIT.replace('NAME', '"小明聯邦"').replace('COLOR', '"#c8372d"'))
         client.on('console', lambda m: logs.append(f'[client {m.type}] {m.text}') if m.type in ('error','warning') else None)
@@ -75,6 +77,7 @@ async def main():
         await host.evaluate('window.__autoHuman = true; __game.schedule()')
         # a third tab joins after the start: it should become a spectator
         spec = await ctx.new_page()
+        spec.set_default_navigation_timeout(180000)  # the other pages keep this software-rendered browser busy
         if not os.environ.get('ASSETS'): await spec.add_init_script('window.__noAssets = true;')  # UI-flow test: skip the asset pack
         await spec.add_init_script(INIT.replace('NAME', '"路人甲"').replace('COLOR', '"#3f9a4a"'))
         # a different person: its own identity key (pages of one test context share localStorage, so without

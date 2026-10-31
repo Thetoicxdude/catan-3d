@@ -10,9 +10,11 @@ import { modelMaterial, part as modelPart } from './models.js';
 
 const RES_COLORS = { wood: '#2f6b2f', brick: '#b5532c', wool: '#8fcf4f', grain: '#e8c547', ore: '#8d8d96', any: '#f3ede0' };
 
-const PIER_S = 0.34; // world units per metre for the pier kit
-const DECK_Y = 0.36; // deck height above the sea
-const SHIP_S = 0.085;
+// the whole harbour (pier, cargo, ship, beacon) at a size that reads from the strategic view
+const HS = 1.6;
+const PIER_S = 0.34 * HS; // world units per metre for the pier kit
+const DECK_Y = 0.36 * HS; // deck height above the sea
+const SHIP_S = 0.085 * HS;
 // pier sections from the land out to sea, with their deck heights (model metres)
 const PIER_RUN = [
   ['section_02', 3.6],
@@ -126,7 +128,7 @@ export function buildHarbors(board, terrain, models = null, timeU = { value: 0 }
       }
     }
     const ang = Math.atan2(n.x, n.z);
-    const L = 5.2;
+    const L = 5.2 * HS;
     const start = s0 - 1.4;
     // local frame: +z points out to sea along the pier, +x to its side
     const local = (lx, lz) => ({ x: e.x + n.x * lz + n.z * lx, z: e.z + n.z * lz - n.x * lx });
@@ -159,10 +161,10 @@ export function buildHarbors(board, terrain, models = null, timeU = { value: 0 }
         const crate = modelPart(models.props, 'wooden_crate_01');
         const bucket = modelPart(models.props, 'wooden_bucket_01');
         const handle = modelPart(models.props, 'bucket_01_handle');
-        if (crate) cargo.push(placed(crate, PIER_S * 0.85, 0.14, DECK_Y, start + 0.55, 0.3 + hi));
-        if (crate && hi % 2) cargo.push(placed(crate, PIER_S * 0.85, 0.12, DECK_Y + 0.27, start + 0.58, 1.1 + hi));
-        if (bucket) cargo.push(placed(bucket, PIER_S * 0.9, -0.22, DECK_Y, start + 1.05, hi));
-        if (handle) cargo.push(placed(handle, PIER_S * 0.9, -0.22, DECK_Y, start + 1.05, hi));
+        if (crate) cargo.push(placed(crate, PIER_S * 0.85, 0.14 * HS, DECK_Y, start + 0.55 * HS, 0.3 + hi));
+        if (crate && hi % 2) cargo.push(placed(crate, PIER_S * 0.85, 0.12 * HS, DECK_Y + 0.27 * HS, start + 0.58 * HS, 1.1 + hi));
+        if (bucket) cargo.push(placed(bucket, PIER_S * 0.9, -0.22 * HS, DECK_Y, start + 1.05 * HS, hi));
+        if (handle) cargo.push(placed(handle, PIER_S * 0.9, -0.22 * HS, DECK_Y, start + 1.05 * HS, hi));
         if (cargo.length) {
           const c = new THREE.Mesh(mergeGeometries(cargo), pm);
           c.position.copy(pier.position);
@@ -186,7 +188,7 @@ export function buildHarbors(board, terrain, models = null, timeU = { value: 0 }
       hull.receiveShadow = true;
       ship.add(hull);
       const side = hi % 2 ? 1 : -1;
-      const sp = local(side * 1.15, start + L - 1.25);
+      const sp = local(side * 1.15 * HS, start + L - 1.25 * HS);
       ship.position.set(sp.x, 0, sp.z);
       ship.rotation.y = ang + (hi % 2 ? 0.05 : -0.05);
       group.add(ship);
@@ -209,9 +211,9 @@ export function buildHarbors(board, terrain, models = null, timeU = { value: 0 }
 
       // ── beacon tower with a signal fire at the 3:1 harbors ──
       if (hb.type === 'any' && models.fort) {
-        const bp = local(1.75, start - 0.55);
+        const bp = local(1.75 * HS, start - 0.55 * HS);
         const gy = Math.max(terrain.heightAt(bp.x, bp.z), 0.05);
-        const TS = 0.085;
+        const TS = 0.085 * HS;
         const tower = new THREE.Mesh(modelPart(models.fort, 'tower_round'), modelMaterial(models.fort));
         tower.scale.setScalar(TS);
         tower.position.set(bp.x, gy - 0.08, bp.z);
@@ -222,13 +224,13 @@ export function buildHarbors(board, terrain, models = null, timeU = { value: 0 }
         const pit = modelPart(models.props, 'stone_fire_pit');
         if (pit) {
           const pm = new THREE.Mesh(pit, modelMaterial(models.props));
-          pm.scale.setScalar(0.32);
+          pm.scale.setScalar(0.32 * HS);
           pm.position.set(bp.x, top, bp.z);
           pm.castShadow = true;
           group.add(pm);
         }
         const fire = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0), fireMat);
-        fire.scale.set(0.5, 0.75, 1);
+        fire.scale.set(0.5 * HS, 0.75 * HS, 1);
         fire.position.set(bp.x, top + 0.04, bp.z);
         fire.renderOrder = 3;
         fire.frustumCulled = false;
@@ -236,10 +238,12 @@ export function buildHarbors(board, terrain, models = null, timeU = { value: 0 }
       }
     } else {
       // ── stand-ins until the models arrive ──
+      // (built at the kit's own size; the mesh is scaled up by HS about the pier's landward end)
+      const L0 = L / HS;
       const parts = [];
-      parts.push(part(new THREE.BoxGeometry(0.95, 0.12, L), '#8a6a48', { z: start + L / 2, y: 0.34 }));
+      parts.push(part(new THREE.BoxGeometry(0.95, 0.12, L0), '#8a6a48', { z: start + L0 / 2, y: 0.34 }));
       for (let k = 0; k <= 4; k++) {
-        const z = start + 0.4 + (k * (L - 0.6)) / 4;
+        const z = start + 0.4 + (k * (L0 - 0.6)) / 4;
         parts.push(part(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 5), '#4a3524', { x: 0.46, y: -0.25, z }));
         parts.push(part(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 5), '#4a3524', { x: -0.46, y: -0.25, z }));
       }
@@ -255,8 +259,9 @@ export function buildHarbors(board, terrain, models = null, timeU = { value: 0 }
         parts.push(part(new THREE.ConeGeometry(0.3, 0.36, 8), '#3a3a3a', { x: lx, y: 3.0, z: lz }));
       }
       const pier = new THREE.Mesh(merge(parts), mat);
-      pier.position.set(e.x, 0, e.z);
+      pier.position.set(e.x + n.x * start * (1 - HS), 0, e.z + n.z * start * (1 - HS));
       pier.rotation.y = ang;
+      pier.scale.setScalar(HS);
       pier.castShadow = true;
       pier.receiveShadow = true;
       group.add(pier);
@@ -308,8 +313,9 @@ export function buildHarbors(board, terrain, models = null, timeU = { value: 0 }
       );
       sail.position.set(0, 1.5, 0.05);
       ship.add(hull, sail);
-      ship.position.set(sx + n.z * 1.2, 0, sz - n.x * 1.2);
+      ship.position.set(sx + n.z * 1.2 * HS, 0, sz - n.x * 1.2 * HS);
       ship.rotation.y = ang;
+      ship.scale.setScalar(HS);
       group.add(ship);
       ships.push({ ship, ph: Math.random() * 6, roll: 0.04 });
     }

@@ -259,20 +259,9 @@ export class Hud {
     this.hint.setAttribute('role', 'status');
     r.appendChild(this.hint);
 
-    // minimap + map modes
+    // minimap + map modes (the camera turns and tilts with the mouse and keys: right-drag, Q/E, Z/X, Home)
     this.mini = el('div', 'minimap panel');
-    this.mini.innerHTML = `<div class="camctl">
-        <button type="button" data-cam="rotl" title="向左旋轉（Q，或按住右鍵左右拖曳）" aria-label="向左旋轉">${icon('rotl', 18)}</button>
-        <button type="button" data-cam="north" class="compass" title="朝北並恢復預設斜度（Home）" aria-label="朝北"><span class="needle">${icon('compass', 22)}</span></button>
-        <button type="button" data-cam="rotr" title="向右旋轉（E，或按住右鍵左右拖曳）" aria-label="向右旋轉">${icon('rotr', 18)}</button>
-        <label class="tilt desk-only" title="地圖斜度（Z／X，或按住右鍵上下拖曳）"><span>斜度</span><input type="range" id="cam-tilt" min="5" max="68" step="1" aria-label="地圖斜度"></label>
-        <button type="button" data-cam="tiltup" class="mobile-only" title="更斜" aria-label="地圖更斜">${icon('tiltDown', 18)}</button>
-        <button type="button" data-cam="tiltdown" class="mobile-only" title="更俯視" aria-label="地圖更俯視">${icon('tiltUp', 18)}</button>
-      </div><canvas width="368" height="300" aria-label="小地圖"></canvas><div class="mapmodes"></div>`;
-    this.mini.querySelectorAll('[data-cam]').forEach((b) => b.addEventListener('click', () => this.h.cam && this.h.cam(b.dataset.cam)));
-    this.tiltInput = this.mini.querySelector('#cam-tilt');
-    this.tiltInput.addEventListener('input', () => this.h.cam && this.h.cam('tilt', Number(this.tiltInput.value)));
-    this.needle = this.mini.querySelector('.compass .needle');
+    this.mini.innerHTML = `<canvas width="368" height="300" aria-label="小地圖"></canvas><div class="mapmodes"></div>`;
     this.miniCanvas = this.mini.querySelector('canvas');
     this.miniCanvas.addEventListener('click', (e) => {
       const rr = this.miniCanvas.getBoundingClientRect();
@@ -314,19 +303,6 @@ export class Hud {
     const n = net.peersOnline ? net.peersOnline() : null;
     this.netChip.innerHTML = `<i></i>線上 · ${esc(String(net.code || '').toUpperCase())}${n ? ` · ${n} 人` : ''}`;
     this.netChip.title = net.role === 'host' ? '你是主持人：規則判定與電腦玩家都在你的頁面上運行' : '已連線到主持人';
-  }
-
-  setCompass(yaw, pitch) {
-    const deg = Math.round((yaw * 180) / Math.PI);
-    if (deg !== this.lastYawDeg) {
-      this.lastYawDeg = deg;
-      this.needle.style.transform = `rotate(${deg}deg)`;
-    }
-    const p = Math.round(pitch);
-    if (p !== this.lastPitch && document.activeElement !== this.tiltInput) {
-      this.lastPitch = p;
-      this.tiltInput.value = String(p);
-    }
   }
 
   setHint(h) {

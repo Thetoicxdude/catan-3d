@@ -757,10 +757,13 @@ export class ClientSession {
 // 4 players, or after the countdown with computer players in the empty seats.
 
 export class MatchSession {
-  constructor({ app, settings, toast, onHostStart, onClientGame, onLeave, seconds = 60, mapSeed = null }) {
+  // onState: the home screen shows the matchmaking itself (no screen of its own); it gets
+  // { phase, code, seats, seat, rem } on every change
+  constructor({ app, settings, toast, onHostStart, onClientGame, onLeave, onState = null, seconds = 60, mapSeed = null }) {
     this.app = app;
     this.settings = settings;
     this.mapSeed = mapSeed;
+    this.onState = onState;
     this.toast = toast || (() => {});
     this.onHostStart = onHostStart;
     this.onClientGame = onClientGame;
@@ -776,13 +779,18 @@ export class MatchSession {
 
   async open() {
     const sup = await onlineSupport();
+    if (this.closed) return; // cancelled while connecting
     if (!sup.ok) throw new Error(supportError(sup.why));
     this.room = sup.room;
     this.lobby = wrap(this.room);
     this.name = cleanName(this.settings.name, '玩家');
     this.qt = Date.now();
-    this.showUI();
+    if (!this.onState) this.showUI();
     await this.lobby.presence({ app: APP, v: V, mm: { t: this.qt, nm: this.name } });
+    if (this.closed) {
+      this.lobby.presence({ mm: null }).catch(() => {});
+      return;
+    }
     this.state = 'searching';
     this.unsub = this.lobby.onPeers(() => this.evaluate());
     this.tick = setInterval(() => {
@@ -829,7 +837,7 @@ export class MatchSession {
       }
       if (this.state === 'joined') {
         // the room filled up before the host gave us a seat: look again
-        if (this.lobbyView && this.lobbyView.seat < 0 && Date.now() - this.joinedAt > 4000 && !this.client.game) {
+        if (this.lobbyView && this.lobbyView.seat < 0 && Date.now() - this.joinedAt > 8000 && !this.client.game) {
           await this.backToSearch(true);
           return;
         }
@@ -889,7 +897,15 @@ export class MatchSession {
         return this.onHostStart(players, net, this);
       },
     });
-    await this.host.open();
+    // left while the room was opening: close it once it is open (leave() skips a room still opening)
+    const h = this.host;
+    this.opening = h;
+    try {
+      await h.open();
+    } finally {
+      this.opening = null;
+    }
+    if (this.closed) await h.leave();
   }
 
   async join(code) {
@@ -915,7 +931,14 @@ export class MatchSession {
         return this.onClientGame(view, players, net, this);
       },
     });
-    await this.client.open();
+    const c = this.client;
+    this.opening = c;
+    try {
+      await c.open();
+    } finally {
+      this.opening = null;
+    }
+    if (this.closed) await c.leave();
   }
 
   async backToSearch(fromEvaluate = false) {
@@ -946,8 +969,8 @@ export class MatchSession {
     } catch {
       /* already gone */
     }
-    if (this.host) await this.host.leave();
-    if (this.client) await this.client.leave();
+    if (this.host && this.host !== this.opening) await this.host.leave();
+    if (this.client && this.client !== this.opening) await this.client.leave();
     this.closeUI();
   }
 
@@ -971,7 +994,8 @@ export class MatchSession {
   }
 
   render() {
-    if (!this.ui) return;
+    if (!this.ui && !this.onState) return;
+    if (this.closed) return;
     let seats = null;
     let rem = null;
     let status = '正在尋找開放中的官方房間…';
@@ -987,10 +1011,15 @@ export class MatchSession {
         seats = this.lobbyView.seats;
         if (this.lobbyView.rem != null) rem = Math.max(0, this.lobbyView.rem - (Date.now() - this.lobbyView.at));
         // the host seats a newcomer within a moment; only after that is "no seat" a full room
-        status = this.lobbyView.seat >= 0 ? '已加入官方房間' : Date.now() - this.joinedAt < 4000 ? '正在取得席位…' : '這個房間已滿，正在找下一個房間…';
+        status = this.lobbyView.seat >= 0 ? '已加入官方房間' : Date.now() - this.joinedAt < 8000 ? '正在取得席位…' : '這個房間已滿，正在找下一個房間…';
       } else status = '正在加入官方房間…';
     }
     const searching = this.peers().filter((p) => p.presence.mm && !p.presence.mm.in).length;
+    if (this.onState) {
+      const seat = this.state === 'hosting' ? 0 : this.lobbyView ? this.lobbyView.seat : -1;
+      this.onState({ phase: this.state, code: code || null, seats, seat, rem, searching });
+      return;
+    }
     const secs = rem == null ? null : Math.ceil(rem / 1000);
     const full = seats && !seats.some((s) => s.kind === 'open');
     this.ui.code.textContent = code ? code.toUpperCase() : '';

@@ -126,8 +126,6 @@ export class Game {
     };
     this.map.canvas.addEventListener('pointerleave', () => this.hud.showTip(null));
     this.map.onFrame = (dt, moved) => {
-      const cam = this.map.camera;
-      this.hud.setCompass(cam.yaw, cam.goalPitch);
       const now = performance.now();
       if ((moved && now - this.lastMini > 90) || now - this.lastMini > 1500) {
         this.lastMini = now;

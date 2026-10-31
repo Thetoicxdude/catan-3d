@@ -66,6 +66,11 @@ for (const r of ['wood', 'brick', 'wool', 'grain', 'ore']) fs.copyFileSync(path.
 // card faces: the art set into the frame templates (tools/art/frames/make_cards.py)
 const FACES = process.argv[4] || '/home/claude/assetwork/frames/out/cards';
 for (const f of fs.readdirSync(FACES)) if (/^card_.*\.webp$/.test(f)) fs.copyFileSync(path.join(FACES, f), path.join(OUT, 'cards', f));
+// home screen art from the same frames (tools/art/frames/make_ui.py)
+const UI = process.argv[5] || '/home/claude/assetwork/frames/out/ui';
+const UI_FILES = ['frame_bronze', 'frame_gold', 'menu_gold', 'menu_bronze', 'menu_verdigris', 'menu_silver', 'parchment'];
+fs.mkdirSync(path.join(OUT, 'ui'), { recursive: true });
+for (const f of UI_FILES) fs.copyFileSync(path.join(UI, `${f}.webp`), path.join(OUT, 'ui', `${f}.webp`));
 
 const files = [];
 const walk = (dir) => {
@@ -78,8 +83,8 @@ const walk = (dir) => {
 walk(OUT);
 const manifest = {
   version: 1,
-  // what the 3D loader fetches (its progress bar); the card art is loaded by the page's CSS
-  files: files.filter((f) => !f.path.startsWith('cards/')).sort((a, b) => a.path.localeCompare(b.path)),
+  // what the 3D loader fetches (its progress bar); the card and menu art is loaded by the page's CSS
+  files: files.filter((f) => !f.path.startsWith('cards/') && !f.path.startsWith('ui/')).sort((a, b) => a.path.localeCompare(b.path)),
   impostors: impMeta,
   terrain: { layers: terrain.layers },
   rocks,
