@@ -1,11 +1,13 @@
-# Two browser pages play a full online campaign through the mock room (host + one remote player).
+# Two browser pages play a full online campaign through the mock room (host + one remote player); first the
+# player's page reloads, later the host's. The host's page hands the campaign to the player's page as it goes,
+# and comes back as a player: the campaign plays on to the end.
 import asyncio, sys, os, json, time, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
 SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')  # screenshots
 os.makedirs(SP, exist_ok=True)
-INIT = """window.__mapFps = 0.15; window.__mockRoom = true;
+INIT = """window.__mapFps = 0.15; window.__mockRoom = true; window.__perf = 100; window.__keySlot = NAME;
 localStorage.setItem('catan3d-settings-v1', JSON.stringify({speed:'turbo', follow:false, quality:'low', name: NAME, color: COLOR, opponents: 3}));"""
 # ROOMS=ws: play over the real room server (`npx wrangler dev --port 8787`) instead of the in-browser mock
 if os.environ.get('ROOMS') == 'ws': INIT = INIT.replace('window.__mockRoom = true;', "window.__rooms = 'ws://127.0.0.1:8787/rooms/';")
@@ -74,34 +76,58 @@ async def main():
         await host.wait_for_function('window.__game && window.__game.state', timeout=60000)
         await client.wait_for_function('window.__game && window.__game.client', timeout=60000)
         print('both in game; client seat', await client.evaluate('__game.viewer'))
-        await host.evaluate('window.__autoHuman = true; __game.schedule()')
-        t0 = time.time(); steps = {}; checks = 0; mism = 0; reloaded_c = False; reloaded_h = False
+        ROLE = "(() => { const g = window.__game; if (!g || g.destroyed) return 'none'; return g.client ? 'client' : (g.net ? 'host' : 'local'); })()"
+        AUTO = "(() => { if (!window.__autoHuman && window.__game) { window.__autoHuman = true; __game.schedule(); } })()"
+        async def roles():
+            hp = cp = None
+            for pg in (host, client):
+                try: r = await pg.evaluate(ROLE)
+                except Exception: r = 'none'
+                if r == 'host': hp = pg
+                elif r == 'client': cp = pg
+            return hp, cp
+        t0 = time.time(); steps = {}; checks = 0; mism = 0; reloaded_c = False; reloaded_h = False; swapped = None
         while time.time() - t0 < float(os.environ.get('SECS', '300')):
-            turn = await host.evaluate('__game.state.turn')
+            hp, cp = await roles()
+            if not hp or not cp:
+                await host.wait_for_timeout(300)
+                continue
+            # the page that hosts plays its own nation by itself; the other plays through the network
+            await hp.evaluate(AUTO)
+            turn = await hp.evaluate('__game.state.turn')
             if not reloaded_c and turn >= 8:
                 reloaded_c = True
-                print('reloading client at turn', turn)
-                await client.reload()
-                await client.wait_for_function('window.__game && window.__game.client', timeout=90000)
-                print('client back; seat', await client.evaluate('__game.viewer'), 'seq', await client.evaluate('__game.state.seq'))
+                print('reloading the player page at turn', turn)
+                await cp.reload()
+                await cp.wait_for_function('window.__game && window.__game.client', timeout=90000)
+                print('player back; seat', await cp.evaluate('__game.viewer'), 'seq', await cp.evaluate('__game.state.seq'))
+                continue
             if not reloaded_h and turn >= 20:
                 reloaded_h = True
-                print('reloading host at turn', turn, 'seq', await host.evaluate('__game.state.seq'))
-                await host.reload()
-                await host.wait_for_function('window.__game && window.__game.state && window.__game.net', timeout=90000)
-                print('host back; seq', await host.evaluate('__game.state.seq'), 'phase', await host.evaluate('__game.state.phase'))
-                await host.evaluate('window.__autoHuman = true; __game.schedule()')
-            r = await client.evaluate(CLIENT_STEP)
+                seq0 = await hp.evaluate('__game.state.seq')
+                print('reloading the host page at turn', turn, 'seq', seq0)
+                old = hp
+                await old.reload()
+                await old.wait_for_function('window.__game && window.__game.state && window.__game.net', timeout=90000)
+                for _ in range(120):
+                    hp2, cp2 = await roles()
+                    if hp2 and cp2: break
+                    await host.wait_for_timeout(500)
+                swapped = hp2 is not None and hp2 is not old
+                print('after the host reload: host is the', 'other page' if swapped else 'same page', '; seq', await hp2.evaluate('__game.state.seq') if hp2 else None)
+                continue
+            r = await cp.evaluate(CLIENT_STEP)
             steps[r] = steps.get(r, 0) + 1
             if r == 'over': break
             if steps.get('wait', 0) % 40 == 0:
-                # compare the client's own hand with the host's truth
-                cmp = await client.evaluate('(() => { const v = __game.view(); return {seq: v.seq, res: v.players[__game.viewer].res, dev: v.players[__game.viewer].dev.length, seat: __game.viewer}; })()')
-                truth = await host.evaluate(f'(() => {{ const s = __game.state; return {{seq: s.seq, res: s.players[{cmp["seat"]}].res, dev: s.players[{cmp["seat"]}].dev.length}}; }})()')
+                # compare the player's own hand with the host's truth
+                cmp = await cp.evaluate('(() => { const v = __game.view(); return {seq: v.seq, res: v.players[__game.viewer].res, dev: v.players[__game.viewer].dev.length, seat: __game.viewer}; })()')
+                truth = await hp.evaluate(f'(() => {{ const s = __game.state; return {{seq: s.seq, res: s.players[{cmp["seat"]}].res, dev: s.players[{cmp["seat"]}].dev.length}}; }})()')
                 if cmp['seq'] == truth['seq']:
                     checks += 1
                     if cmp['res'] != truth['res'] or cmp['dev'] != truth['dev']: mism += 1; print('MISMATCH', cmp, truth)
-            await client.wait_for_timeout(120)
+            await cp.wait_for_timeout(120)
+        print('host page handed over on reload:', swapped)
         hs = await host.evaluate('({phase: __game.state.phase, winner: __game.state.winner, turn: __game.state.turn, seq: __game.state.seq})')
         cs = await client.evaluate('({phase: __game.state.phase, winner: __game.state.winner, turn: __game.state.turn, seq: __game.state.seq})')
         print('host', hs, 'client', cs)

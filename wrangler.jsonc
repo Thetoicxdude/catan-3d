@@ -10,8 +10,14 @@
     "binding": "ASSETS"
   },
   "durable_objects": {
-    "bindings": [{ "name": "ROOMS", "class_name": "PresenceRoom" }]
+    "bindings": [
+      { "name": "ROOMS", "class_name": "PresenceRoom" },
+      { "name": "ACCOUNTS", "class_name": "Accounts" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PresenceRoom"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["PresenceRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["Accounts"] }
+  ],
   "observability": { "enabled": true }
 }

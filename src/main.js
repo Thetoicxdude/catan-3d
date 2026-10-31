@@ -9,6 +9,8 @@ import { Dialogs } from './ui/dialogs.js';
 import { HostSession, ClientSession, MatchSession, showOnlineEntry, rememberedRoom, forgetRoom } from './net/online.js';
 import { getRoom, wrap, selfHosted } from './net/room.js';
 import { icon } from './ui/icons.js';
+import { esc } from './ui/text.js';
+import { reportResult } from './net/account.js';
 import { setSfx } from './ui/sfx.js';
 
 const SETTINGS_KEY = 'catan3d-settings-v1';
@@ -191,6 +193,7 @@ function openMenu() {
     seconds: window.__mmSeconds || 60,
     version: buildInfo(),
     getLobby: homeLobby,
+    dialogs: menuDialogs,
     onChange: onSettingsChange,
     // any other way to play leaves the official matchmaking first
     onSingle: () => stopMatch().then(openSetup),
@@ -267,6 +270,7 @@ async function hostRoom(save) {
       session = null;
       openMenu();
     },
+    onDemoted: (d) => becomeClient(d),
   });
   try {
     await session.open(save ? save.net : null);
@@ -311,18 +315,101 @@ async function startOnlineHost(players, net, official = false) {
   return game;
 }
 
-async function startClientGame(view, players, net) {
+// switched: this page hosted the campaign until now and plays on as a player (adopt: its old HUD)
+async function startClientGame(view, players, net, { adopt = null, switched = false } = {}) {
   drift = null;
-  loading(true, '進入戰場');
-  await nextFrame();
+  if (!switched) {
+    loading(true, '進入戰場');
+    await nextFrame();
+  }
   buildMap(view, players, settings.quality);
   map.onFrame = null;
   map.holdAssets(false);
   game = new Game({ app, map, settings, players, net, onExit: () => exitOnline() });
+  if (adopt) game.hud.adopt(adopt);
   hookGame();
   loading(false);
-  game.start();
+  game.start({ switched });
   return game;
+}
+
+// The campaign moves to this page: the page best able to run it hosts, and when the host's page goes
+// away the next one takes over from the last state it was sent. The map and the battle log stay.
+function becomeHost(t, from) {
+  if (from && from.retire) from.retire();
+  if (matching && matching === from) matching = null;
+  const old = game;
+  const oldHud = old ? old.hud : null;
+  const gs = { ...settings, target: t.target };
+  const hs = new HostSession({
+    app,
+    settings: gs,
+    toast,
+    official: t.official,
+    chat: t.chat,
+    onLeave: () => {
+      session = null;
+      openMenu();
+    },
+    onDemoted: (d) => becomeClient(d),
+  });
+  session = hs;
+  hs.takeover(t);
+  if (old) {
+    old.destroy();
+    if (game === old) game = null;
+  }
+  closeMenus();
+  drift = null;
+  const players = t.state.players.map((p) => ({ name: p.name, color: p.color, kind: p.kind, ai: p.ai }));
+  buildMap(t.state, players, settings.quality);
+  map.onFrame = null;
+  map.holdAssets(false);
+  game = new Game({ app, map, settings: gs, players, saved: { state: t.state }, net: hs.netApi(), onExit: () => exitOnline() });
+  game.hud.adopt(oldHud);
+  hookGame();
+  game.start({ switched: !!old, clockLeft: t.dl == null ? null : Math.max(t.dl, 15000) });
+  hs.resume(game);
+  game.hud.log(t.planned ? '你的電腦接手主持這場戰役：規則判定與電腦玩家改在你的頁面上運行' : `${esc(t.oldHostName || '主持人')} 斷線了，你的電腦接手主持這場戰役`, { hl: true });
+  toast('你現在是主持人', '這場戰役改在你的頁面上運行，請保持這個分頁開著。', 'people');
+}
+
+// Another page runs the campaign now: this page plays on as a player. The game stays on screen,
+// frozen, until the new host's first update arrives.
+function becomeClient(d, from) {
+  if (from && from.retire) from.retire();
+  if (matching && matching === from) matching = null;
+  const old = game;
+  if (old) old.freeze(true, '主持人交接中…');
+  clearSave();
+  const cs = new ClientSession({
+    app,
+    settings,
+    code: d.code,
+    toast,
+    quiet: true,
+    attach: d,
+    chat: d.chat,
+    onGame: (view, players, net) => {
+      const oldHud = old ? old.hud : null;
+      if (old) {
+        old.destroy();
+        if (game === old) game = null;
+      }
+      return startClientGame(view, players, net, { adopt: oldHud, switched: !!old });
+    },
+    onLeave: () => {
+      session = null;
+      openMenu();
+    },
+    onTakeover: (t) => becomeHost(t),
+  });
+  session = cs;
+  cs.open().catch((e) => {
+    console.warn(e);
+    toast('連線中斷', '無法繼續這場戰役。', 'cross');
+    exitOnline();
+  });
 }
 
 // test hook (mock rooms, or tests that switch hooks on)
@@ -355,6 +442,8 @@ async function toggleMatch() {
       closeMenus();
       return startClientGame(view, players, net);
     },
+    onTakeover: (t, from) => becomeHost(t, from),
+    onDemoted: (d, from) => becomeClient(d, from),
   });
   matching = m;
   session = m;
@@ -396,6 +485,7 @@ async function joinRoom(code) {
       session = null;
       openMenu();
     },
+    onTakeover: (t) => becomeHost(t),
   });
   try {
     await session.open();
@@ -412,16 +502,24 @@ async function exitOnline() {
     game.destroy();
     game = null;
   }
-  if (session) {
-    await session.leave();
-    session = null;
-  }
+  // a host first hands the campaign to another player: that finishes in the background
+  const s = session;
+  session = null;
+  if (s) s.leave().catch((e) => console.warn(e));
   previewSeed = randomSeed();
   openMenu();
   showPreview(false);
 }
 
 function hookGame() {
+  const g = game;
+  // a finished campaign goes into the signed-in player's record
+  g.onGameOver = (r) => {
+    if (!r) return;
+    reportResult(r).then((d) => {
+      if (d && d.recorded && d.user && !g.destroyed) g.hud.toast('已記入戰績', `${d.user.name}：${d.user.games} 場 · ${d.user.wins} 勝`, 'vp', 4200);
+    });
+  };
   game.onSettings = (s) => {
     // in-game settings never carry a game's own rules back to the menus (an official game plays to 10)
     const { target, numbers, opponents, seats, ...rest } = s;

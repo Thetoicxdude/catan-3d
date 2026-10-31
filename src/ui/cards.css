@@ -120,11 +120,21 @@
 .cost-pop .st { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-dim); }
 .cost-pop .st.bad { color: #f2b36b; }
 
-@media (max-width: 760px) {
+/* narrower screens: smaller cards, so an online game's room chip and clock fit in the bar */
+@media (max-width: 1180px) {
+  .tb-res { gap: 8px; }
+  .res-chip.rcard { --w: 56px; }
+}
+@media (max-width: 1040px) {
+  .res-chip.rcard { --w: 50px; }
+}
+@media (max-width: 900px) {
   .tb-res { align-self: auto; justify-content: center; gap: 13px; padding: 6px 0 10px; }
   .res-chip.rcard { --w: 44px; flex: none; margin-bottom: 0; }
-  .res-pick .rcard { --w: 46px; }
   .cost-pop { position: fixed; left: 50%; bottom: calc(86px + var(--safe-b)); }
+}
+@media (max-width: 760px) {
+  .res-pick .rcard { --w: 46px; }
 }
 
 /* ── development cards: a bought card turns over, its name and rule below, then files into the hand ── */

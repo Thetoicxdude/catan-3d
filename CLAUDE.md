@@ -7,7 +7,8 @@
 - `npm run dev`：打包後用 wrangler 在 http://127.0.0.1:8787 跑整個網站與房間伺服器。
 - `npm test`：規則單元測試、網路序列化、300 局模擬。
 - `node test/rooms.mjs`：房間伺服器協定（需先 `npm run dev`）。
-- 瀏覽器測試（Playwright，SwiftShader 很慢）：`python3 test/ui1.py`…`ui4.py`、`online.py`、`online2.py`（斷線重連）、`online3.py`（觀戰）、`match.py`（快速配對）。加 `ROOMS=ws` 會改走真正的房間伺服器（需先 `npm run dev`）。截圖存到 `SHOTS` 指定的資料夾。
+- 瀏覽器測試（Playwright，SwiftShader 很慢）：`python3 test/ui1.py`…`ui4.py`、`online.py`、`online2.py`（斷線重連、主持人重新整理時交接）、`online3.py`（觀戰）、`online4.py`（主持人交接與接手、回合時間、聊天、退出由電腦代替）、`match.py`（快速配對）。加 `ROOMS=ws` 會改走真正的房間伺服器（需先 `npm run dev`）。截圖存到 `SHOTS` 指定的資料夾。
+- 帳號：`node test/accounts.mjs`（token 驗證）；完整流程見 `docs/catan-3d-status.md` 的「帳號與戰績」。
 
 ## 部署
 - 推送到 `main` 由 Cloudflare Workers Builds 自動部署（Build `npm run build`、Deploy `npx wrangler deploy`）；其他分支產生預覽網址。
@@ -17,6 +18,8 @@
 ## 架構重點
 - 規則引擎 `src/engine/` 是純函式、seed 可重播；電腦對手在 `src/ai/`。
 - 線上對戰只用 presence：主持人的瀏覽器跑規則並把公開狀態放進自己的 presence，玩家把動作放進自己的 presence，手牌用 ECDH + AES-GCM 加密。每個 presence 上限 4 KiB（`codec.js` 負責壓縮）。
+- 主持人會換人（`src/net/online.js`）：開戰後交給效能最好的玩家（`src/net/perf.js`）；主持人每次更新把整局狀態加密給接班人（`bk`），離開或失聯時由接班人接手（`ep` 代數高者為準，舊主持人自動改當玩家）。線上房間有回合時間限制（`src/game/clock.js`）；聊天在 `src/net/chat.js`。
+- 帳號（只在自架版）：`server/accounts.js`（Google ID token 驗證、SQLite Durable Object `Accounts`）、`src/net/account.js`、`src/ui/account-ui.js`；用戶端 ID 在 `server/config.js`。不保存 email。
 - `src/net/room.js` 依環境選傳輸：claude.ai 的 room 功能、自架站的 WebSocket 房間（頁面有 `window.__rooms`）、測試用的 BroadcastChannel（`window.__mockRoom`）。三者介面相同。
 - `server/worker.js`：靜態網站＋`/rooms/<名稱>` WebSocket → `PresenceRoom` Durable Object（休眠 API、同分頁重連接手、過期清除、速率限制、只接受同站或本機來源）。
 - 地圖上的 DOM 標籤（數字牌、港口、強盜徽章）在 `src/render/labels.js`：外框只負責定位（inline transform），動畫只能加在裡面的元素上。

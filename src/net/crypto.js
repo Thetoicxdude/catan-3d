@@ -23,8 +23,10 @@ function unb64(str) {
 // Reuses a stored key pair (so a reloaded page can reclaim its seat), else makes a new one.
 export async function loadKeyPair() {
   const S = subtle();
+  // tests run several players in one browser profile: each page keeps its own key there
+  const slot = typeof window !== 'undefined' && window.__keySlot ? KEY_STORE + ':' + window.__keySlot : KEY_STORE;
   try {
-    const saved = JSON.parse(localStorage.getItem(KEY_STORE) || 'null');
+    const saved = JSON.parse(localStorage.getItem(slot) || 'null');
     if (saved && saved.priv && saved.pub) {
       const priv = await S.importKey('jwk', saved.priv, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
       const pub = await S.importKey('raw', unb64(saved.pub), { name: 'ECDH', namedCurve: 'P-256' }, true, []);
@@ -36,7 +38,7 @@ export async function loadKeyPair() {
   const kp = await S.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
   const pubB64 = b64(await S.exportKey('raw', kp.publicKey));
   try {
-    localStorage.setItem(KEY_STORE, JSON.stringify({ priv: await S.exportKey('jwk', kp.privateKey), pub: pubB64 }));
+    localStorage.setItem(slot, JSON.stringify({ priv: await S.exportKey('jwk', kp.privateKey), pub: pubB64 }));
   } catch {
     /* storage unavailable: key lives for this page load only */
   }

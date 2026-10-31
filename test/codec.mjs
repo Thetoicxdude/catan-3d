@@ -8,6 +8,8 @@ import * as C from '../src/net/codec.js';
 const KEYS = ['phase', 'current', 'turn', 'rolled', 'dice', 'devPlayed', 'pending', 'trade', 'longestRoad', 'largestArmy', 'roadLen', 'winner', 'seq', 'rolls', 'bank', 'devDeckCount', 'targetVP', 'vertices', 'edges'];
 let checked = 0;
 let maxSize = 0;
+let fullMax = 0;
+let seatsChecked = 0;
 for (let g = 0; g < 40; g++) {
   const players = Array.from({ length: g % 3 ? 4 : 3 }, (_, i) => ({ name: ['曙光王國', '蒼藍聯邦', '琥珀公國', '白楊共和國'][i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' } }));
   const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4] });
@@ -64,8 +66,27 @@ for (let g = 0; g < 40; g++) {
       }
       checked++;
     }
+    // the whole game, as the player taking over as host rebuilds it
+    const full = JSON.parse(JSON.stringify(C.encodeFull(st)));
+    const rebuilt = C.decodeFull(board, seats, pub, full);
+    const norm = (x) => JSON.parse(JSON.stringify(x));
+    const want = norm(st);
+    const got = norm(rebuilt);
+    for (const k of Object.keys(want)) assert.deepEqual(got[k], want[k], `full state: ${k} differs (game ${g}, seq ${st.seq})`);
+    assert.deepEqual(Object.keys(got).sort(), Object.keys(want).sort());
+    // and the game goes on from it exactly as from the original
+    if (st.phase !== 'over') {
+      const p = actorsNow(st)[0];
+      const a = aiAct(makeView(st, p), p, {}, makeRng(seatsChecked++));
+      if (a) {
+        const e1 = applyAction(JSON.parse(JSON.stringify(st)), a);
+        const e2 = applyAction(rebuilt, a);
+        assert.deepEqual(norm(e2), norm(e1));
+      }
+    }
+    fullMax = Math.max(fullMax, C.utf8Size(full));
     const size = C.utf8Size({ bd: board, ps: C.encodeSeats(st), pub });
     maxSize = Math.max(maxSize, size);
   }
 }
-console.log(`codec ok: ${checked} views compared, largest public snapshot ${maxSize} bytes`);
+console.log(`codec ok: ${checked} views compared, largest public snapshot ${maxSize} bytes, largest takeover snapshot ${fullMax} bytes`);

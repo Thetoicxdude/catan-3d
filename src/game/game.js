@@ -12,6 +12,7 @@ import {
   legalCitySpots,
   playableDev,
   totalVP,
+  publicVP,
   RES,
   COSTS,
 } from '../engine/engine.js';
@@ -23,6 +24,7 @@ import { Dialogs } from '../ui/dialogs.js';
 import { describe, hexTooltip, esc, DEV_INFO } from '../ui/text.js';
 import { sfx, setSfx } from '../ui/sfx.js';
 import { TERRAIN_RES } from '../engine/board.js';
+import { turnKey, turnLimit, timeoutAction } from './clock.js';
 
 const SAVE_KEY = 'catan3d-save-v1';
 const SPEED = { slow: 1.7, normal: 1, fast: 0.45, turbo: 0.12 };
@@ -45,6 +47,7 @@ const DELAY = {
   endRoadBuilding: 300,
 };
 const MAP_MODES = ['terrain', 'political', 'production', 'resource'];
+const DISCARD_MS = 30000; // after a 7, everyone who must discard gets at least this long
 
 export function loadSave() {
   try {
@@ -119,6 +122,15 @@ export class Game {
     this.layer.className = 'modal-layer';
     this.hudRoot.appendChild(this.layer);
     this.dialogs = new Dialogs(this.layer);
+    // online games: a clock for every step, and the room's chat next to the battle log
+    this.deadline = 0;
+    this.clockKey = null;
+    this.frozen = false;
+    if (net && net.chat) {
+      this.hud.enableChat((text) => net.chat.post(text));
+      this.chatSink = (m) => !this.destroyed && this.hud.addChat(m);
+      net.chat.attach(this.chatSink);
+    }
 
     this.map.onHexHover = (hex, x, y) => {
       if (hex == null) this.hud.showTip(null);
@@ -137,17 +149,26 @@ export class Game {
   }
 
   // ── lifecycle ──
-  start() {
+  // switched: the same campaign carries on on this page in another role (the host changed): the
+  // camera stays and nothing is announced again. clockLeft: what was left of the turn clock.
+  start({ switched = false, clockLeft = null } = {}) {
     this.map.sync(this.view(), [], false);
-    this.map.camera.resetView();
-    if (this.state.phase === 'setup') this.map.focus(0, 5, this.map.camera.fitIsland(1.12));
-    this.hud.log(`戰役開始：${this.players.map((p, i) => `<span class="who" style="color:${p.color}">${i === this.viewer ? '你' : esc(p.name)}</span>`).join('、')}`, { hl: true });
-    if (this.state.phase === 'setup') this.hud.log('開局：依序放置村莊與道路（第二輪順序相反）。', {});
+    if (!switched) {
+      this.map.camera.resetView();
+      if (this.state.phase === 'setup') this.map.focus(0, 5, this.map.camera.fitIsland(1.12));
+      this.hud.log(`戰役開始：${this.players.map((p, i) => `<span class="who" style="color:${p.color}">${i === this.viewer ? '你' : esc(p.name)}</span>`).join('、')}`, { hl: true });
+      if (this.state.phase === 'setup') this.hud.log('開局：依序放置村莊與道路（第二輪順序相反）。', {});
+    }
     // hot seat: when another player at this device moves first, hand the device over before anything else
     this.pickViewer();
+    if (this.net) {
+      this.updateClock();
+      if (!this.client && clockLeft != null) this.deadline = Date.now() + clockLeft;
+      this.clockTimer = setInterval(() => this.clockFrame(), 500);
+    }
     this.refresh();
     this.schedule();
-    this.focusHome();
+    if (!switched) this.focusHome();
     if (this.net && this.net.role === 'host') this.net.onChange(this.state, []);
   }
 
@@ -164,6 +185,8 @@ export class Game {
   destroy() {
     this.destroyed = true;
     clearTimeout(this.timer);
+    clearInterval(this.clockTimer);
+    if (this.net && this.net.chat && this.chatSink) this.net.chat.detach(this.chatSink);
     window.removeEventListener('keydown', this.keyHandler);
     this.dialogs.close(true);
     this.map.setInteraction(null);
@@ -196,6 +219,7 @@ export class Game {
   // host: apply a remote player's move; returns an error message or null
   dispatchFrom(action) {
     if (this.destroyed) return '遊戲已結束';
+    if (this.frozen) return '主持人交接中，請稍候再試';
     let events;
     try {
       events = applyAction(this.state, action);
@@ -230,6 +254,86 @@ export class Game {
     this.refresh();
   }
 
+  // host: hold everything while the campaign moves to another page (on: nothing moves here)
+  freeze(on, note = '主持人交接中…') {
+    this.frozen = !!on;
+    if (on) {
+      clearTimeout(this.timer);
+      this.timer = null;
+      this.dialogs.close(true);
+    }
+    this.setNetStatus(on ? note : null);
+    if (!on) this.schedule();
+  }
+
+  // ── the turn clock (online games) ──
+  // Each opening placement gets 2 minutes and each turn 3 (see clock.js). The host keeps the clock and
+  // moves for a player whose time has run out; the other pages show the time they are sent.
+  updateClock() {
+    if (!this.net || this.client) return;
+    const st = this.state;
+    const key = turnKey(st);
+    if (!key) {
+      this.deadline = 0;
+      this.clockKey = null;
+      return;
+    }
+    if (key !== this.clockKey) {
+      this.clockKey = key;
+      this.deadline = Date.now() + turnLimit(st);
+    }
+    if (st.pending && st.pending.type === 'discard' && this.discardKey !== key) {
+      this.discardKey = key;
+      this.deadline = Math.max(this.deadline, Date.now() + DISCARD_MS);
+    }
+  }
+
+  clockLeft() {
+    return this.deadline && this.state.phase !== 'over' ? Math.max(0, this.deadline - Date.now()) : null;
+  }
+
+  // client: the time left as the host last published it (pn: that update's number, so the same
+  // update heard again doesn't restart the clock)
+  setRemoteClock(dl, pn) {
+    if (pn != null && pn === this.clockPn) return;
+    this.clockPn = pn;
+    this.deadline = typeof dl === 'number' ? Date.now() + dl : 0;
+  }
+
+  clockFrame() {
+    if (this.destroyed) return;
+    if (!this.client && !this.frozen) this.clockTick();
+    this.hud.paintClock();
+    const v = this.view();
+    if (!this.deadline || Date.now() < this.deadline || v.phase === 'over') return;
+    const key = turnKey(v) + (v.pending ? ':' + v.pending.type : '');
+    if (this.toldOut === key) return;
+    this.toldOut = key;
+    const who = actorsNow(v).filter((p) => this.players[p] && this.players[p].kind !== 'ai');
+    if (who.includes(this.viewer)) this.hud.toast('時間到了', '系統會替你完成這一步：擲骰、結束回合，或由電腦代為選擇。', 'hourglass', 4200);
+    if (this.client && who.length) this.hud.log(`${who.map((p) => (p === this.viewer ? '你' : esc(this.players[p].name))).join('、')}的時間到了，由系統代為完成`, {});
+  }
+
+  // host: someone's time is up — make the smallest move that gets the game going again (one a tick)
+  clockTick() {
+    if (!this.deadline || this.destroyed) return;
+    const st = this.state;
+    if (st.phase === 'over' || Date.now() < this.deadline) return;
+    if (performance.now() < (this.fxHold || 0)) return; // the dice are still rolling
+    for (const p of actorsNow(st)) {
+      if (!this.players[p] || this.players[p].kind === 'ai') continue;
+      const a = timeoutAction(st, p, this.mem[p], this.rnd);
+      if (!a) continue;
+      const k = this.clockKey + ':' + p;
+      if (this.timedOut !== k) {
+        this.timedOut = k;
+        this.hud.log(`${p === this.viewer ? '你' : esc(this.players[p].name)}的時間到了，由系統代為完成`, { hl: true });
+      }
+      if (!this.dispatch(a, { quiet: true })) this.aiFallback(p);
+      return;
+    }
+  }
+
   save() {
     if (this.client) return;
     try {
@@ -243,6 +347,10 @@ export class Game {
   // ── actions ──
   dispatch(action, { quiet = false } = {}) {
     if (this.destroyed) return false;
+    if (this.frozen) {
+      if (!quiet) this.hud.toast('請稍候', '主持人正在交接，馬上就好。', 'wait', 2200);
+      return false;
+    }
     if (this.client) {
       const ok = this.net.send(action);
       if (ok) {
@@ -276,6 +384,7 @@ export class Game {
   }
 
   afterEvents(action, events) {
+    this.updateClock();
     this.pickViewer();
     this.present(action, events.map((e) => redactEvent(e, this.viewer)));
     if (this.net && this.net.role === 'host') this.net.onChange(this.state, events);
@@ -578,13 +687,19 @@ export class Game {
     else if (k === 'menu') {
       const body = document.createElement('div');
       body.innerHTML = this.net
-        ? `<p class="lead">${this.client ? '離開後可以用同一個房間代碼重新加入（主持人會暫時讓電腦代管你的國家）。' : '你是主持人：離開後房間會關閉，其他玩家將無法繼續。戰役會自動儲存。'}</p>`
+        ? `<p class="lead">${this.client ? '離開後你的國家立刻改由電腦接手；之後可以用同一個房間代碼重新加入，取回你的國家。' : '你是主持人：離開後由另一位線上玩家的電腦接手主持，你的國家改由電腦接手。沒有其他線上玩家時房間會關閉。'}</p>`
         : '<p class="lead">遊戲會自動儲存，之後可從主選單「繼續上一局」接著玩。</p>';
       const back = document.createElement('button');
       back.className = 'btn';
       back.type = 'button';
       back.textContent = '繼續遊戲';
       back.onclick = () => this.dialogs.close();
+      // on a narrow phone in an online game the rules button gives its place in the top bar to the clock
+      const rules = document.createElement('button');
+      rules.className = 'btn ghost';
+      rules.type = 'button';
+      rules.textContent = '規則';
+      rules.onclick = () => this.dialogs.rules();
       const exit = document.createElement('button');
       exit.className = 'btn primary';
       exit.type = 'button';
@@ -593,7 +708,7 @@ export class Game {
         this.dialogs.close(true);
         this.onExit && this.onExit();
       };
-      this.dialogs.open({ kind: 'menu', title: '主選單', body, foot: [back, exit], cls: 'narrow' });
+      this.dialogs.open({ kind: 'menu', title: '主選單', body, foot: [rules, back, exit], cls: 'narrow' });
     }
   }
 
@@ -658,7 +773,10 @@ export class Game {
       this.hud.render(this.ctx({ banner: null }));
       return;
     }
-    if (this.net) this.hud.setNet(this.net);
+    if (this.net) {
+      this.hud.setNet(this.net);
+      this.hud.setClock(this.deadline, this.viewer >= 0 && v.phase !== 'over' && actorsNow(v).includes(this.viewer));
+    }
 
     // a 7 was just rolled: let the dice finish before asking anyone to discard or move the robber
     const diceLeft = (this.diceUntil || 0) - performance.now();
@@ -673,6 +791,7 @@ export class Game {
       if (!this.overShown) {
         this.overShown = true;
         if (!this.client) clearSave();
+        if (this.onGameOver) this.onGameOver(this.result());
         setTimeout(
           () =>
             this.dialogs.gameOver(
@@ -807,11 +926,30 @@ export class Game {
     }
   }
 
+  // What the campaign came to for the player at this device, for their record (null: nothing to
+  // record — a spectator, or several people sharing this device).
+  result() {
+    const v = this.view();
+    const me = this.viewer;
+    if (v.phase !== 'over' || me < 0 || !v.players[me]) return null;
+    if (!this.net && this.players.filter((p) => p.kind === 'human').length !== 1) return null;
+    const vp = (p) => {
+      const pl = v.players[p];
+      return publicVP(v, p) + (Array.isArray(pl.dev) ? pl.dev.filter((c) => c && c.type === 'victoryPoint').length : 0);
+    };
+    const won = v.winner === me;
+    const mine = vp(me);
+    const place = won ? 1 : 1 + v.players.filter((_, q) => q !== me && (q === v.winner || vp(q) > mine)).length;
+    const gid = this.net ? `o:${this.net.code}:${v.mapSeed >>> 0}` : `s:${this.state.seed >>> 0}:${this.state.mapSeed >>> 0}`;
+    const mode = this.net ? (this.net.official ? 'official' : 'online') : 'single';
+    return { gid, mode, won, vp: Math.min(30, mine), place: Math.min(4, place), n: v.players.length, turns: Math.min(2000, v.turn || 0) };
+  }
+
   // ── computer players ──
   schedule() {
     clearTimeout(this.timer);
     this.timer = null;
-    if (this.client) return;
+    if (this.client || this.frozen) return;
     if (this.destroyed || this.state.phase === 'over') {
       this.thinking = null;
       return;

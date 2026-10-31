@@ -60,6 +60,8 @@ const A = {
   cross: `<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>`,
   wait: `<circle cx="6" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="18" cy="12" r="1.8" fill="currentColor"/>`,
   log: `<path d="M5 6h14M5 10h14M5 14h10M5 18h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
+  hourglass: `<path d="M7 3.5h10M7 20.5h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8.2 3.5c0 4.2 3.2 6 3.8 8.5-.6 2.5-3.8 4.3-3.8 8.5M15.8 3.5c0 4.2-3.2 6-3.8 8.5.6 2.5 3.8 4.3 3.8 8.5" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/><path d="M9.6 19c.8-1.7 1.7-2.7 2.4-3.4.7.7 1.6 1.7 2.4 3.4z" fill="currentColor"/>`,
+  chat: `<path d="M4 6.6C4 5.2 5.2 4 6.6 4h10.8C18.8 4 20 5.2 20 6.6v6.8c0 1.4-1.2 2.6-2.6 2.6H11l-4.6 3.8V16h0C5.1 16 4 14.8 4 13.4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8.6" cy="10" r="1.1" fill="currentColor"/><circle cx="12" cy="10" r="1.1" fill="currentColor"/><circle cx="15.4" cy="10" r="1.1" fill="currentColor"/>`,
   people: `<circle cx="9" cy="8" r="3" fill="currentColor"/><path d="M3 19c.5-3.5 3-5.5 6-5.5s5.5 2 6 5.5z" fill="currentColor"/><circle cx="16.5" cy="9" r="2.4" fill="currentColor" opacity="0.6"/><path d="M15 13.6c3 .1 5.2 2 5.6 5.4h-4" fill="currentColor" opacity="0.6"/>`,
 };
 

@@ -470,12 +470,15 @@ function mockChannel(name, peer) {
   const api = {
     name,
     presence(patch) {
+      // like the real rooms: a patch that would make the presence too big is refused and changes nothing
+      const next = { ...mine };
       for (const [k, v] of Object.entries(patch)) {
-        if (v === null) delete mine[k];
-        else mine[k] = v;
+        if (v === null) delete next[k];
+        else next[k] = v;
       }
-      const size = new TextEncoder().encode(JSON.stringify(mine)).length;
+      const size = new TextEncoder().encode(JSON.stringify(next)).length;
       if (size > 4096) return Promise.reject({ code: 'invalid_argument', message: 'presence over 4 KiB: ' + size });
+      mine = next;
       myUpdated = Date.now();
       send();
       queue('updated', build()[0]);

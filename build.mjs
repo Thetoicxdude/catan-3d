@@ -4,6 +4,7 @@ import { build } from 'esbuild';
 import { readFileSync, writeFileSync, existsSync, cpSync, rmSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { execSync } from 'node:child_process';
+import { GOOGLE_CLIENT_ID } from './server/config.js';
 
 const entry = process.argv[2] || 'src/main.js';
 const out = process.argv[3] || 'dist/index.html';
@@ -82,7 +83,8 @@ if (out === 'dist/index.html') {
   };
   rmSync('site', { recursive: true, force: true });
   mkdirSync('site', { recursive: true });
-  writeFileSync('site/index.html', `${HOST_SKELETON}<script>window.__rooms = '/rooms/'; window.__build = ${JSON.stringify(build)};</script>\n${page}\n</body></html>`);
+  // the site has its own room server and accounts ("Sign in with Google": the public client id)
+  writeFileSync('site/index.html', `${HOST_SKELETON}<script>window.__rooms = '/rooms/'; window.__gsi = ${JSON.stringify(GOOGLE_CLIENT_ID)}; window.__build = ${JSON.stringify(build)};</script>\n${page}\n</body></html>`);
   if (existsSync('assets/manifest.json')) cpSync('assets', 'site/assets', { recursive: true });
 }
 console.log(`built ${out}: ${(page.length / 1024).toFixed(0)} KB (js ${(js.length / 1024).toFixed(0)} KB)`);

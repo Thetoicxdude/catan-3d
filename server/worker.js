@@ -16,6 +16,9 @@
 //                  {t:'left', peer}            a peer left
 //                  {t:'ack', id} / {t:'err', id, code, message}
 import { DurableObject } from 'cloudflare:workers';
+import { handleApi, Accounts } from './accounts.js';
+
+export { Accounts };
 
 const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
 const PEER_RE = /^[a-z0-9]{8,40}$/;
@@ -61,6 +64,7 @@ export default {
       }
       return env.ROOMS.get(env.ROOMS.idFromName(name)).fetch(request);
     }
+    if (url.pathname.startsWith('/api/')) return handleApi(request, env, url);
     if (url.pathname === '/healthz') return new Response('ok', { headers: { 'cache-control': 'no-store' } });
     return env.ASSETS.fetch(request);
   },

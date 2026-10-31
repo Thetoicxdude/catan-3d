@@ -42,7 +42,29 @@
   100% { box-shadow: 0 0 0 0 rgba(111, 212, 124, 0); }
 }
 
+/* who you are: the nation you play, and (on the game's own site) your account */
+.hm-who { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; }
 .hm-nation { display: flex; align-items: center; gap: 12px; padding: 6px 8px 6px 6px; }
+.hm-account {
+  display: flex; align-items: center; gap: 9px; max-width: 290px; min-width: 0; margin-right: 8px; padding: 4px 14px 4px 4px;
+  border: 1px solid rgba(201, 163, 92, 0.7); border-radius: 999px; cursor: pointer; font: inherit; text-align: left;
+  background: linear-gradient(180deg, rgba(46, 33, 20, 0.94), rgba(20, 14, 8, 0.94)); color: #ecd9a8;
+  box-shadow: inset 0 1px 0 rgba(255, 226, 180, 0.18), 0 3px 8px rgba(0, 0, 0, 0.55);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.hm-account:hover, .hm-account:focus-visible { outline: none; border-color: #f0cf7a; box-shadow: inset 0 1px 0 rgba(255, 226, 180, 0.18), 0 3px 8px rgba(0, 0, 0, 0.55), 0 0 14px rgba(255, 214, 120, 0.35); }
+.ac-face {
+  position: relative; flex: none; width: var(--s); height: var(--s); border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+  background: radial-gradient(circle at 40% 32%, #6b5232 0%, #2c1e12 75%); color: #f3dfae;
+  box-shadow: 0 0 0 2px #a07a4a, 0 0 0 3px #2a1a0e;
+}
+.ac-face b { font-family: var(--font-display); font-weight: 900; font-size: calc(var(--s) * 0.46); line-height: 1; }
+.ac-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ac-face.ac-none svg { width: 66%; height: 66%; color: #e8cf8e; }
+.ac-t { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.ac-t b { font-family: var(--font-display); font-weight: 900; font-size: 14px; letter-spacing: 0.08em; color: #fff1c8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-t small { font-size: 11.5px; color: #c9b88f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-chev { flex: none; font-style: normal; font-size: 19px; line-height: 1; color: #c9a35c; margin-left: 2px; }
 .hm-flag {
   flex: none; display: block; line-height: 0;
   border: 7px solid #5a3e26; border-image: url(assets/ui/frame_bronze.webp) 45 round;
@@ -214,6 +236,8 @@
   .hm-sub { font-size: 10px; margin-top: 4px; letter-spacing: 0.4em; }
   .hm-sub::before, .hm-sub::after { width: 12px; }
   .hm-live { margin: 4px 0 0 51px; font-size: 12px; }
+  .hm-who { width: 100%; align-items: stretch; gap: 6px; }
+  .hm-account { max-width: none; margin-right: 0; padding: 3px 12px 3px 3px; }
   .hm-nation { width: 100%; box-sizing: border-box; padding: 2px 0; gap: 10px; }
   .hm-flag { border-width: 6px; }
   .hm-flag img { width: 42px; height: 28px; }

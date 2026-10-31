@@ -5,7 +5,9 @@
 import { getRoom, wrap, selfHosted } from './room.js';
 import { loadKeyPair, sharedKey, seal, open, cryptoAvailable } from './crypto.js';
 import * as C from './codec.js';
-import { ACTION_TYPES } from '../engine/engine.js';
+import { ACTION_TYPES, actorsNow } from '../engine/engine.js';
+import { Chat } from './chat.js';
+import { perfScore, isTouchDevice } from './perf.js';
 import { randomState } from '../engine/rng.js';
 import { flagURL } from '../ui/flags.js';
 import { esc } from '../ui/text.js';
@@ -130,9 +132,42 @@ function seatRows(seats, me, opts = {}) {
 }
 
 // ───────────────────────── host ─────────────────────────
+// The host is whichever page runs the campaign. It starts as the room's creator, but once the campaign
+// is under way the page best able to run it takes over, and if the host's page goes away the next
+// best page takes over from the last state it was sent (sealed for that page alone). Each new host
+// counts up an epoch (`ep`); when two pages claim the room, the higher epoch is the host and the
+// other steps down to playing its own nation.
+
+const FAILOVER_MS = 6000; // the host's page has been gone this long: the next host takes over
+const STALL_MS = 15000; // the game has waited this long on a host that does nothing: the same
+const HANDOVER_MS = 10000; // a handover nobody took up is called off after this
+const LEAVE_WAIT_MS = 4000; // a host leaving the campaign waits this long for the next host
+const HIDE_MS = 4000; // a host page in the background this long hands the room on (phones: at once)
+const PERF_MARGIN = 1.15; // the room moves to a device at least this much faster
+const RETRY_MS = 30000; // after a handover nobody took up, wait this long before offering it again
+const PRESENCE_BUDGET = 3900;
+// presence keys of each role, cleared when a page changes role
+const HOST_KEYS = ['code', 'st', 'lob', 'bd', 'ps', 'pub', 'px', 'ack', 'err', 'ev', 'tv', 'off', 'rem', 'ep', 'pn', 'bk', 'ho', 'dl', 'hn', 'hc'];
+const PLAYER_KEYS = ['name', 'color', 'sid', 'out', 'perf', 'vis', 'bye', 'gm'];
+
+// of two pages hosting the same room, the real host: the newer claim, then the smaller peer id
+function outranks(epA, peerA, epB, peerB) {
+  const a = Number(epA) || 1;
+  const b = Number(epB) || 1;
+  return a > b || (a === b && String(peerA) < String(peerB));
+}
+
+function pageVisible() {
+  return typeof document === 'undefined' || document.visibilityState !== 'hidden';
+}
+
+const KINDS = { h: 'host', r: 'remote', a: 'ai', o: 'open' };
+function decodeLob(lob) {
+  return (Array.isArray(lob) ? lob : []).map(([k, name, color, peer, level, away]) => ({ kind: KINDS[k] || 'open', name, color, peer, level, away: !!away }));
+}
 
 export class HostSession {
-  constructor({ app, settings, onStart, onLeave, toast, official = false, quiet = false, onLobby = null, seconds = 60, mapSeed = null }) {
+  constructor({ app, settings, onStart, onLeave, toast, official = false, quiet = false, onLobby = null, seconds = 60, mapSeed = null, onDemoted = null, chat = null }) {
     this.app = app;
     this.settings = settings;
     this.mapSeed = mapSeed; // official rooms list their island, so the home screen can show it
@@ -143,6 +178,8 @@ export class HostSession {
     this.quiet = quiet; // the matchmaking screen draws the lobby instead of the host's own screen
     this.onLobby = onLobby;
     this.seconds = seconds;
+    this.onDemoted = onDemoted; // another page took the campaign over: this page plays on as a player
+    this.chat = chat || new Chat();
     this.history = [];
     this.err = null;
     this.phase = 'lobby';
@@ -151,6 +188,12 @@ export class HostSession {
     this.publishing = null;
     this.dirty = false;
     this.ui = null;
+    this.ep = 1;
+    this.pn = 0;
+    this.hostSeat = 0;
+    this.handing = null;
+    this.demoted = false;
+    this.bkTo = null;
   }
 
   async open(restore = null) {
@@ -161,9 +204,12 @@ export class HostSession {
     this.code = restore ? restore.code : makeCode();
     this.ch = wrap(await this.room.join(PREFIX + this.code));
     this.keys = await loadKeyPair();
-    if (restore) this.phase = 'play';
+    this.perf = perfScore();
     if (restore) {
+      this.phase = 'play';
+      this.ep = Number(restore.ep) || 1;
       this.seats = restore.seats.map((s) => ({ ...s, peer: null, away: s.kind === 'remote', awaySince: s.kind === 'remote' ? Date.now() : 0 }));
+      this.hostSeat = Math.max(0, this.seats.findIndex((s) => s.kind === 'host'));
     } else {
       const s = this.settings;
       this.seats = [{ kind: 'host', name: cleanName(s.name, '曙光王國'), color: s.color }];
@@ -176,11 +222,41 @@ export class HostSession {
       this.autoTimer = setInterval(() => this.tickAuto(), 250);
     }
     rememberRoom(this.code, 'host');
+    this.listen();
+    if (!restore && !this.quiet) this.showLobby();
+    this.publish();
+  }
+
+  // listen on the room channel (also after taking a running campaign over from another page)
+  listen() {
+    this.seats[this.hostSeat].peer = this.me();
     this.unsub = this.ch.onPeers((ch) => this.onPeers(ch));
     this.connUnsub = this.ch.onConnection((ok) => this.ui && this.ui.conn && this.ui.conn(ok));
     this.awayTimer = setInterval(() => this.checkAway(), 2000);
-    if (!restore && !this.quiet) this.showLobby();
-    this.publish();
+    this.chat.bind(this.ch, (peer, pr) => this.whoIs(peer, pr));
+    this.watchPage();
+  }
+
+  // this page takes over a running campaign (from ClientSession.takeover)
+  takeover(t) {
+    this.room = t.room;
+    this.lobby = wrap(this.room);
+    this.ch = t.ch;
+    this.keys = t.keys;
+    this.code = t.code;
+    this.ep = t.ep;
+    this.seats = t.seats;
+    this.hostSeat = t.hostSeat;
+    this.official = !!t.official;
+    this.mapSeed = t.mapSeed != null ? t.mapSeed : null;
+    this.createdAt = t.createdAt || Date.now();
+    this.phase = 'play';
+    this.perf = perfScore();
+    this.becoming = true; // the first update also clears this page's player keys
+    rememberRoom(this.code, 'host');
+    this.listen();
+    // who is here, how fast their devices are: from the presences as they are now
+    this.onPeers({ peers: this.ch.peers(), joined: [], left: [], updated: [] });
   }
 
   remaining() {
@@ -211,6 +287,12 @@ export class HostSession {
     return this.ch.me();
   }
 
+  whoIs(peer, pr) {
+    const s = this.seats && this.seats.find((x) => x.peer === peer && x.kind !== 'open');
+    if (s) return { name: s.name, color: s.color };
+    return { name: `${cleanName(pr && pr.name, '觀戰者')}（觀戰）`, color: null };
+  }
+
   usedColors(except = -1) {
     return this.seats.filter((s, i) => i !== except && s.color && s.kind !== 'open').map((s) => s.color);
   }
@@ -221,17 +303,48 @@ export class HostSession {
   }
 
   onPeers(ch) {
+    if (this.demoted || this.phase === 'closed') return;
     if (ch.error) {
       this.toast('連線中斷', '房間連線已結束，請重新建立房間。', 'cross');
       return;
     }
+    this.chat.receive(ch.peers);
     // the room echoing this page's own presence back changes nothing here (and answering it with
     // another publish would loop)
     if (Array.isArray(ch.updated) && !(ch.joined && ch.joined.length) && !(ch.left && ch.left.length) && ch.updated.length && ch.updated.every((p) => p.sameTab)) return;
-    const peers = ch.peers.filter((p) => !p.sameTab && p.presence && p.presence.app === APP && p.presence.role === 'player');
+    const me = this.me();
+    const all = ch.peers.filter((p) => !p.sameTab && p.presence && p.presence.app === APP);
+    // another page now runs this campaign (it took over from us): play on as a player
+    if (this.phase === 'play') {
+      const rival = all.find((p) => p.presence.role === 'host' && p.presence.code === this.code && outranks(p.presence.ep, p.peer, this.ep, me));
+      if (rival) {
+        this.demote();
+        return;
+      }
+    }
+    const players = all.filter((p) => p.presence.role === 'player');
+    const peers = players.filter((p) => !p.presence.bye);
     const now = Date.now();
     let changed = false;
-    const present = new Set(peers.map((p) => p.peer));
+    // players who said goodbye: their seat opens (lobby) or the computer takes their nation at once
+    for (const p of players) {
+      if (!p.presence.bye) continue;
+      const i = this.seats.findIndex((s) => s.peer === p.peer && s.kind === 'remote');
+      if (i < 0) continue;
+      const s = this.seats[i];
+      if (this.phase === 'lobby') Object.assign(s, { kind: 'open', peer: null, name: '', color: null, key: null });
+      else {
+        Object.assign(s, { peer: null, away: true, awaySince: now });
+        if (!s.managed) {
+          s.managed = true;
+          if (this.game) this.game.setSeatAway(i, true);
+          this.toast('玩家離開', `${s.name} 離開了戰役，改由電腦接手。`, 'people');
+        }
+      }
+      changed = true;
+    }
+    // a host page stepping down after a handover is still here: it becomes a player in a moment
+    const present = new Set([...peers, ...all.filter((p) => p.presence.role === 'host')].map((p) => p.peer));
     // seated players who left
     this.seats.forEach((s) => {
       if (s.kind === 'remote' && s.peer && !present.has(s.peer)) {
@@ -241,7 +354,7 @@ export class HostSession {
           s.away = true;
           s.awaySince = now;
           s.peer = null;
-          this.toast('玩家離線', `${s.name} 離開了房間，${AWAY_MS / 1000} 秒後由電腦代管。`, 'people');
+          if (!s.quiet) this.toast('玩家離線', `${s.name} 離開了房間，${AWAY_MS / 1000} 秒後由電腦代管。`, 'people');
         }
         changed = true;
       }
@@ -253,10 +366,13 @@ export class HostSession {
         // a returning player (same key) reclaims an empty seat
         i = this.seats.findIndex((s) => s.kind === 'remote' && !s.peer && s.key === pr.k);
         if (i >= 0) {
-          const same = pr.sid && pr.sid === this.seats[i].sid; // same page as before: keep its move counter
-          Object.assign(this.seats[i], { peer: p.peer, away: false, awaySince: 0, managed: false, lastN: same ? this.seats[i].lastN || 0 : 0, sid: pr.sid || null });
-          if (this.game) this.game.setSeatAway(i, false);
-          this.toast('玩家回來了', `${this.seats[i].name} 重新連線`, 'people');
+          const s = this.seats[i];
+          const same = pr.sid && pr.sid === s.sid; // same page as before: keep its move counter
+          const wasManaged = s.managed;
+          Object.assign(s, { peer: p.peer, away: false, awaySince: 0, managed: false, lastN: same ? s.lastN || 0 : 0, sid: pr.sid || null });
+          if (this.game && wasManaged) this.game.setSeatAway(i, false);
+          if (!s.quiet) this.toast('玩家回來了', `${s.name} 重新連線`, 'people');
+          s.quiet = false;
           changed = true;
         }
       }
@@ -265,8 +381,18 @@ export class HostSession {
         if (open >= 0) {
           const name = cleanName(pr.name, '玩家 ' + (open + 1));
           Object.assign(this.seats[open], { kind: 'remote', peer: p.peer, name, color: this.freeColor(pr.color, open), key: pr.k, lastN: 0, away: false, sid: pr.sid || null });
+          i = open;
           changed = true;
         }
+      }
+      if (i >= 0) {
+        const s = this.seats[i];
+        // how well this player's device could run the campaign, whether its page is in front, and
+        // whether it has the campaign on screen yet
+        s.perf = Number(pr.perf) || 0;
+        s.vis = pr.vis === 0 ? 0 : 1;
+        s.ready = pr.gm === 1;
+        if (!s.key && typeof pr.k === 'string' && pr.k.length < 200) s.key = pr.k;
       }
       if (i >= 0 && this.phase === 'lobby') {
         const s = this.seats[i];
@@ -277,9 +403,14 @@ export class HostSession {
           changed = true;
         }
       }
-      if (i >= 0 && this.phase === 'play' && this.game) this.takeIntents(i, p);
+      if (i >= 0 && this.phase === 'play' && this.game && !this.handing) this.takeIntents(i, p);
     }
     this.waiting = peers.filter((p) => !this.seats.some((s) => s.peer === p.peer)).map((p) => cleanName(p.presence.name, '玩家'));
+    // the backup goes to whoever is now best placed to take over
+    if (this.phase === 'play' && this.state) {
+      const next = this.successor();
+      if ((next ? next.peer : null) !== this.bkTo) changed = true;
+    }
     if (changed || this.phase === 'lobby') {
       if (this.ui && this.ui.render) this.ui.render();
       if (this.onLobby && this.phase === 'lobby') this.onLobby();
@@ -305,8 +436,10 @@ export class HostSession {
   }
 
   checkAway() {
-    if (this.phase !== 'play' || !this.game) return;
+    if (this.phase !== 'play' || !this.game || this.handing) return;
     const now = Date.now();
+    // a much faster device has joined in (or has its campaign on screen now): it hosts
+    if (now >= (this.handAgainAt || 0)) this.handToBest();
     this.seats.forEach((s, i) => {
       if (s.kind === 'remote' && s.away && s.awaySince && now - s.awaySince > AWAY_MS && !s.managed) {
         s.managed = true;
@@ -347,6 +480,13 @@ export class HostSession {
     if (this.ui) this.ui.close();
     this.ui = null;
     this.game = await this.onStart(players, this.netApi());
+    // the device best able to run the campaign hosts it (checked every 2 s, see checkAway)
+  }
+
+  handToBest() {
+    if (this.phase !== 'play' || this.demoted || this.handing || !pageVisible() || !this.state || this.state.phase === 'over') return;
+    const best = this.successor(true, true);
+    if (best && best.perf > (this.perf || 0) * PERF_MARGIN) this.handover('perf');
   }
 
   resume(game) {
@@ -359,9 +499,11 @@ export class HostSession {
     return {
       role: 'host',
       code: this.code,
+      official: this.official,
+      chat: this.chat,
       onChange: (st, events) => this.broadcast(st, events),
       entropy: randomState(),
-      serialize: () => ({ code: this.code, seats: this.seats.map((s) => ({ kind: s.kind, name: s.name, color: s.color, key: s.key || null, level: s.level, lastN: s.lastN || 0, sid: s.sid || null })) }),
+      serialize: () => ({ code: this.code, ep: this.ep, seats: this.seats.map((s) => ({ kind: s.kind, name: s.name, color: s.color, key: s.key || null, level: s.level, lastN: s.lastN || 0, sid: s.sid || null })) }),
       leave: () => this.leave(),
       peersOnline: () => 1 + this.seats.filter((s) => s.kind === 'remote' && s.peer).length,
     };
@@ -381,10 +523,11 @@ export class HostSession {
   }
 
   publish() {
+    if (this.phase === 'closed' || this.demoted) return;
     this.dirty = true;
     if (this.publishing) return;
     this.publishing = (async () => {
-      while (this.dirty) {
+      while (this.dirty && !this.demoted && this.phase !== 'closed') {
         // a burst of moves (quick computer turns) goes out as one update, at most about 8 a second
         const wait = (this.lastPublish || 0) + 120 - Date.now();
         if (wait > 0) await new Promise((r) => setTimeout(r, wait));
@@ -400,13 +543,35 @@ export class HostSession {
     })();
   }
 
+  // the player who takes over if this page goes away: a seated player who is here, preferably with
+  // the campaign on screen and the page in front, then the fastest device
+  successor(visibleOnly = false, readyOnly = false) {
+    let best = null;
+    const rank = (c) => c.ready * 4 + c.vis * 2;
+    this.seats.forEach((s, i) => {
+      if (s.kind !== 'remote' || !s.peer || s.away || s.managed || !s.key) return;
+      if (visibleOnly && s.vis === 0) return;
+      if (readyOnly && !s.ready) return;
+      const c = { i, peer: s.peer, key: s.key, perf: s.perf || 0, vis: s.vis === 0 ? 0 : 1, ready: s.ready ? 1 : 0 };
+      if (!best || rank(c) > rank(best) || (rank(c) === rank(best) && c.perf > best.perf)) best = c;
+    });
+    return best;
+  }
+
+  // what the next host needs about each seat beyond the public lobby list (keys only for players
+  // who are away: the others' keys are in their own presence)
+  seatMeta() {
+    return this.seats.map((s) => (s.kind === 'remote' ? [s.away || !s.peer ? s.key || 0 : 0, s.lastN || 0, s.sid || 0, s.managed ? 1 : 0] : 0));
+  }
+
   async publishNow() {
-    this.seats[0].peer = this.me();
+    const hs = this.seats[this.hostSeat];
+    hs.peer = this.me();
     const lob = this.lob();
     const open = this.seats.filter((s) => s.kind === 'open').length;
     const rem = this.remaining();
     // the room listing in the lobby only changes with seats and phase: send it only when it does
-    const listing = { code: this.code, nm: this.seats[0].name, n: this.seats.length, f: open, st: this.phase, off: this.official ? 1 : 0, ts: this.createdAt };
+    const listing = { code: this.code, nm: hs.name, n: this.seats.length, f: open, st: this.phase, off: this.official ? 1 : 0, ts: this.createdAt };
     if (this.mapSeed != null) listing.ms = this.mapSeed >>> 0;
     const lk = JSON.stringify(listing);
     if (lk !== this.listingKey || (rem != null && Date.now() - (this.listingAt || 0) > 5000)) {
@@ -415,7 +580,7 @@ export class HostSession {
       this.lobby.presence({ app: APP, v: V, host: { ...listing, rem } }).catch(() => {});
     }
     if (this.phase === 'lobby' || !this.state) {
-      await this.ch.presence({ app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: this.phase, lob, tv: this.settings.target || 10, off: this.official ? 1 : 0, rem });
+      await this.ch.presence({ app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: this.phase, lob, tv: this.settings.target || 10, off: this.official ? 1 : 0, rem, ep: this.ep });
       return;
     }
     const st = this.state;
@@ -428,36 +593,146 @@ export class HostSession {
       for (const h of this.history) for (const d of h.priv[i] || []) x.push([h.s, ...d]);
       px['s' + i] = await seal(key, { ...C.encodePrivate(st, i), x });
     }
+    // the whole game, sealed for the player who takes over if this page goes away
+    let bk = null;
+    const to = this.handing ? this.seats.find((s) => s.peer === this.handing.to) : this.successor();
+    if (to && to.key && st.phase !== 'over') {
+      const key = await sharedKey(this.keys.priv, to.key);
+      bk = { to: to.peer, b: await seal(key, { f: C.encodeFull(st), m: this.seatMeta() }) };
+    }
+    this.bkTo = bk ? bk.to : null;
+    const ho = this.handing ? { to: this.handing.to, at: this.handing.at, bye: this.handing.bye ? 1 : 0 } : null;
+    const dl = this.game && this.game.clockLeft ? this.game.clockLeft() : null;
     const ack = this.seats.filter((s) => s.kind === 'remote' && s.peer).map((s) => [s.peer, s.lastN || 0]);
-    const base = { app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: 'play', lob, bd: C.encodeBoard(st), ps: C.encodeSeats(st), pub: C.encodePublic(st), px, ack, err: this.err };
+    const base = { app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: 'play', lob, bd: C.encodeBoard(st), ps: C.encodeSeats(st), pub: C.encodePublic(st), px, ack, err: this.err, ep: this.ep, pn: ++this.pn, hn: hs.name, hc: hs.color, bk, ho, dl, tv: this.settings.target || 10, off: this.official ? 1 : 0 };
+    if (this.becoming) for (const k of PLAYER_KEYS) base[k] = null;
+    // the presence holds this page's chat lines too
+    const budget = PRESENCE_BUDGET - (this.chat.items.length ? C.utf8Size({ chat: this.chat.items.map(([n, t]) => [n, t]) }) : 0);
     let ev = this.history.map((h) => [h.s, h.ev]);
     let pres = { ...base, ev };
-    while (C.utf8Size(pres) > 3900 && ev.length > 1) {
+    while (C.utf8Size(pres) > budget && ev.length > 1) {
       ev = ev.slice(1);
       pres = { ...base, ev };
     }
-    if (C.utf8Size(pres) > 3900) pres = { ...base, ev: [] };
+    if (C.utf8Size(pres) > budget) pres = { ...base, ev: [] };
+    if (C.utf8Size(pres) > budget && pres.bk) pres = { ...pres, bk: null }; // the backup waits for a smaller update
     if (typeof window !== 'undefined') window.__presSize = Math.max(window.__presSize || 0, C.utf8Size(pres));
     await this.ch.presence(pres);
+    this.becoming = false;
+  }
+
+  // Hand the campaign to another player's page: freeze it here, send that page the whole game and
+  // wait until it hosts (this page then steps down). reason: 'perf' (a faster device), 'hidden'
+  // (this page went to the background), 'leave' (the host is leaving the campaign).
+  handover(reason) {
+    if (this.phase !== 'play' || this.demoted || this.handing || !this.state || this.state.phase === 'over') return false;
+    if (reason === 'hidden' && pageVisible()) return false;
+    const to = this.successor(reason !== 'leave', reason !== 'leave') || (reason === 'leave' ? this.successor() : null);
+    if (!to) return false;
+    this.handing = { to: to.peer, at: this.ep + 1, bye: reason === 'leave', reason };
+    if (this.game && !this.game.destroyed) this.game.freeze(true, '主持人交接中…');
+    this.publish();
+    clearTimeout(this.handTimer);
+    this.handTimer = setTimeout(() => this.cancelHandover(), HANDOVER_MS);
+    return true;
+  }
+
+  cancelHandover() {
+    if (!this.handing || this.demoted) return;
+    this.handing = null;
+    this.handAgainAt = Date.now() + RETRY_MS;
+    if (this.game && !this.game.destroyed) this.game.freeze(false);
+    this.publish();
+  }
+
+  // the page is going away (closed, reloaded, frozen): no time to wait, point the player who already
+  // holds the latest backup at it
+  handoverNow() {
+    if (this.phase !== 'play' || this.demoted || !this.bkTo || !this.state || this.state.phase === 'over') return;
+    try {
+      this.ch.presence({ ho: { to: this.bkTo, at: this.ep + 1, bye: 0 } }).catch(() => {});
+    } catch {
+      /* the page is closing */
+    }
+    // a reload comes back as a player: the other page hosts by then
+    rememberRoom(this.code, 'client');
+  }
+
+  watchPage() {
+    if (typeof document === 'undefined' || this.unwatchPage) return;
+    const onVis = () => {
+      clearTimeout(this.hideTimer);
+      if (pageVisible()) return;
+      this.hideTimer = setTimeout(() => this.handover('hidden'), isTouchDevice() ? 0 : HIDE_MS);
+    };
+    const onGone = () => this.handoverNow();
+    document.addEventListener('visibilitychange', onVis);
+    document.addEventListener('freeze', onGone);
+    window.addEventListener('pagehide', onGone);
+    this.unwatchPage = () => {
+      clearTimeout(this.hideTimer);
+      document.removeEventListener('visibilitychange', onVis);
+      document.removeEventListener('freeze', onGone);
+      window.removeEventListener('pagehide', onGone);
+      this.unwatchPage = null;
+    };
+  }
+
+  stopTimers() {
+    clearInterval(this.awayTimer);
+    clearInterval(this.autoTimer);
+    clearTimeout(this.handTimer);
+    if (this.unwatchPage) this.unwatchPage();
+    if (this.unsub) this.unsub();
+    if (this.connUnsub) this.connUnsub();
+    this.unsub = null;
+    this.connUnsub = null;
+  }
+
+  // another page runs the campaign now: stop here and hand this page's room channel on
+  demote() {
+    if (this.demoted) return;
+    this.demoted = true;
+    this.phase = 'closed';
+    this.stopTimers();
+    this.lobby.presence({ host: null }).catch(() => {});
+    this.handing = null;
+    if (this.afterHandover) {
+      // the host was leaving the campaign: done
+      this.afterHandover();
+      return;
+    }
+    if (this.onDemoted) this.onDemoted({ room: this.room, ch: this.ch, keys: this.keys, code: this.code, chat: this.chat });
+    else this.ch.leave().catch(() => {});
   }
 
   async leave() {
-    clearInterval(this.awayTimer);
-    clearInterval(this.autoTimer);
-    this.phase = 'closed';
-    forgetRoom();
-    try {
-      await this.lobby.presence({ host: null });
-    } catch {
-      /* already gone */
-    }
-    if (this.unsub) this.unsub();
-    try {
-      await this.ch.leave();
-    } catch {
-      /* already gone */
-    }
-    if (this.ui) this.ui.close();
+    if (this.leaving) return this.leaving;
+    this.leaving = (async () => {
+      // the others play on: hand the campaign to one of them first
+      if (this.phase === 'play' && !this.demoted && this.handover('leave')) {
+        await new Promise((resolve) => {
+          this.afterHandover = resolve;
+          setTimeout(resolve, LEAVE_WAIT_MS);
+        });
+      }
+      this.stopTimers();
+      this.phase = 'closed';
+      forgetRoom();
+      try {
+        await this.lobby.presence({ host: null });
+      } catch {
+        /* already gone */
+      }
+      this.chat.close();
+      try {
+        await this.ch.leave();
+      } catch {
+        /* already gone */
+      }
+      if (this.ui) this.ui.close();
+    })();
+    return this.leaving;
   }
 
   showLobby() {
@@ -518,7 +793,9 @@ export class HostSession {
 // ───────────────────────── client ─────────────────────────
 
 export class ClientSession {
-  constructor({ app, settings, code, onGame, onLeave, toast, quiet = false, onLobby = null, onHostLost = null, noSpectate = false }) {
+  // attach: { room, ch, keys } — a page that hosted this campaign until another page took over keeps
+  // its room channel and plays on as a player
+  constructor({ app, settings, code, onGame, onLeave, toast, quiet = false, onLobby = null, onHostLost = null, noSpectate = false, attach = null, chat = null, onTakeover = null }) {
     this.app = app;
     this.settings = settings;
     this.code = normCode(code);
@@ -529,6 +806,9 @@ export class ClientSession {
     this.onLobby = onLobby;
     this.onHostLost = onHostLost;
     this.noSpectate = noSpectate;
+    this.attach = attach;
+    this.chat = chat || new Chat();
+    this.onTakeover = onTakeover; // this page is to run the campaign now
     this.n = 0;
     this.out = [];
     this.lastSeq = -1;
@@ -538,22 +818,42 @@ export class ClientSession {
     this.lastErr = null;
     // this tab sat in this room before (reload, new version): expect to get the seat back
     const prev = rememberedRoom();
-    this.returning = !!(prev && prev.role === 'client' && prev.code === this.code);
+    this.returning = !!attach || !!(prev && prev.role === 'client' && prev.code === this.code);
     this.claimLeft = null;
     this.claimTimer = null;
+    this.hostPeer = null;
+    this.hostEp = 0;
+    this.backup = null; // the latest host update that names this page as the next host
+    this.goneMs = 0;
+    this.stallMs = 0;
+    this.seqAt = Date.now();
+    this.lob = [];
   }
 
   async open() {
-    const sup = await onlineSupport();
-    if (!sup.ok) throw new Error(supportError(sup.why));
-    this.room = sup.room;
-    this.ch = wrap(await this.room.join(PREFIX + this.code));
-    this.keys = await loadKeyPair();
+    if (this.attach) {
+      this.room = this.attach.room;
+      this.ch = this.attach.ch;
+      this.keys = this.attach.keys;
+    } else {
+      const sup = await onlineSupport();
+      if (!sup.ok) throw new Error(supportError(sup.why));
+      this.room = sup.room;
+      this.ch = wrap(await this.room.join(PREFIX + this.code));
+      this.keys = await loadKeyPair();
+    }
     this.sid = makeCode() + makeCode();
-    await this.ch.presence({ app: APP, v: V, role: 'player', name: cleanName(this.settings.name, '玩家'), color: this.settings.color, k: this.keys.pubB64, sid: this.sid, out: [] });
+    this.perf = perfScore();
+    const pres = { app: APP, v: V, role: 'player', name: cleanName(this.settings.name, '玩家'), color: this.settings.color, k: this.keys.pubB64, sid: this.sid, out: [], perf: this.perf, vis: pageVisible() ? 1 : 0 };
+    if (this.attach) for (const k of HOST_KEYS) pres[k] = null; // this page hosted until now
+    await this.ch.presence(pres);
     rememberRoom(this.code, 'client');
+    this.chat.bind(this.ch, (peer, pr) => this.whoIs(peer, pr));
     this.unsub = this.ch.onPeers((ch) => this.onPeers(ch));
+    this.watchPage();
+    this.watchTimer = setInterval(() => this.watchHost(), 1000);
     if (!this.quiet) this.showWaiting();
+    if (this.attach) this.onPeers({ peers: this.ch.peers(), joined: [], left: [], updated: [] });
     this.hostTimer = setTimeout(() => {
       if (this.hostSeen) return;
       if (this.ui) this.ui.status('找不到這個房間的主持人。請確認代碼，或請主持人重新開房。');
@@ -565,19 +865,55 @@ export class ClientSession {
     return this.ch.me();
   }
 
+  whoIs(peer, pr) {
+    const s = this.lob.find((x) => x.peer === peer && x.kind !== 'open');
+    if (s) return { name: s.name, color: s.color };
+    return { name: `${cleanName(pr && pr.name, '觀戰者')}（觀戰）`, color: null };
+  }
+
+  // the host hands the campaign to a page in front: say when this page goes to the background
+  watchPage() {
+    if (typeof document === 'undefined') return;
+    let sent = pageVisible() ? 1 : 0;
+    let t = null;
+    this.onVis = () => {
+      clearTimeout(t);
+      // a quick look at another tab changes nothing
+      t = setTimeout(() => {
+        const v = pageVisible() ? 1 : 0;
+        if (v === sent || this.closed) return;
+        sent = v;
+        this.ch.presence({ vis: v }).catch(() => {});
+      }, 2000);
+    };
+    document.addEventListener('visibilitychange', this.onVis);
+  }
+
+  // the host of this room: of the pages hosting it, the newest claim
+  findHost(peers) {
+    let host = null;
+    for (const p of peers) {
+      if (p.sameTab || !p.presence || p.presence.app !== APP || p.presence.role !== 'host' || p.presence.code !== this.code) continue;
+      if (!host || outranks(p.presence.ep, p.peer, host.presence.ep, host.peer)) host = p;
+    }
+    return host;
+  }
+
   onPeers(ch) {
+    if (this.closed) return;
     if (ch.error) {
       this.toast('連線中斷', '房間連線已結束。', 'cross');
       return;
     }
-    const host = ch.peers.find((p) => !p.sameTab && p.presence && p.presence.app === APP && p.presence.role === 'host' && p.presence.code === this.code);
+    this.chat.receive(ch.peers);
+    const host = this.findHost(ch.peers);
     if (!host) {
-      if (this.hostSeen && this.game) this.game.setNetStatus('主持人離線，等待重新連線…');
+      if (this.hostSeen && this.game) this.game.setNetStatus(this.backup ? '主持人離線，準備由你接手…' : '主持人離線，等待重新連線或由其他玩家接手…');
       if (this.hostSeen && !this.game && this.onHostLost && !this.lostTimer) {
         // the room closed before the campaign started
         this.lostTimer = setTimeout(() => {
           this.lostTimer = null;
-          const back = this.ch.peers().some((p) => !p.sameTab && p.presence && p.presence.role === 'host' && p.presence.code === this.code);
+          const back = this.findHost(this.ch.peers());
           if (!back && !this.game) this.onHostLost();
         }, 3000);
       }
@@ -585,6 +921,7 @@ export class ClientSession {
     }
     if (!this.hostSeen) clearTimeout(this.hostTimer);
     this.hostSeen = true;
+    this.hostPeer = host.peer;
     if (host.presence === this.lastPres) return;
     this.lastPres = host.presence;
     const me = this.me();
@@ -592,15 +929,24 @@ export class ClientSession {
   }
 
   async handleHost(pr, me) {
+    if (this.closed) return;
     // before the game exists, act only on the newest presence from the host (a newer one is queued)
     if (!this.game && this.lastPres && pr !== this.lastPres) return;
-    const lob = Array.isArray(pr.lob) ? pr.lob : [];
-    const seats = lob.map(([k, name, color, peer, level, away]) => ({ kind: { h: 'host', r: 'remote', a: 'ai', o: 'open' }[k] || 'open', name, color, peer, level, away: !!away }));
+    const seats = decodeLob(pr.lob);
+    this.lob = seats;
     const seat = seats.findIndex((s) => s.peer === me);
     this.seat = seat;
     if (pr.st !== 'play' || !pr.pub) {
       if (this.ui) this.ui.render(seats, seat);
       if (this.onLobby) this.onLobby(seats, seat, typeof pr.rem === 'number' ? pr.rem : null, Date.now());
+      return;
+    }
+    // this page is next in line: keep the sealed game it is sent, and take over when asked (an update
+    // without a backup, too big to carry one, leaves the last one in place)
+    if (this.hostEp && (Number(pr.ep) || 1) !== this.hostEp) this.backup = null;
+    if (pr.bk) this.backup = pr.bk.to === me && seat >= 0 ? { pr, at: Date.now() } : null;
+    if (pr.ho && pr.ho.to === me && this.backup && this.onTakeover) {
+      this.takeover(true);
       return;
     }
     let priv = null;
@@ -635,6 +981,7 @@ export class ClientSession {
         for (const e of decoded) if (e) evs.push(e);
       }
     }
+    if (pr.pub.s !== this.lastSeq) this.seqAt = Date.now();
     this.lastSeq = pr.pub.s;
     const ack = (pr.ack || []).find((a) => a[0] === me);
     if (ack) {
@@ -646,13 +993,117 @@ export class ClientSession {
       this.lastErr = pr.err[1];
       this.toast('無法執行', pr.err[2], 'cross');
     }
+    const ep = Number(pr.ep) || 1;
+    const hostName = cleanName(pr.hn, '另一位玩家');
     if (!this.game) {
+      this.hostEp = ep;
       if (this.ui) this.ui.close();
       this.ui = null;
       this.game = await this.onGame(view, players, this.netApi(seat, view));
+      this.seqAt = Date.now();
+      // ready to run the campaign if it comes to that
+      if (seat >= 0) this.ch.presence({ gm: 1 }).catch(() => {});
+      if (this.game && this.game.setRemoteClock) this.game.setRemoteClock(pr.dl, pr.pn);
+      // this page hosted until now: say who runs the campaign
+      if (this.attach && this.game) this.game.hud.log(`主持改由 <b>${esc(hostName)}</b> 的電腦負責`, { hl: true });
     } else {
+      if (ep !== this.hostEp) {
+        this.hostEp = ep;
+        this.game.hud.log(`主持改由 <b>${esc(hostName)}</b> 的電腦負責`, { hl: true });
+      }
       this.game.setNetStatus(null);
+      if (this.game.setRemoteClock) this.game.setRemoteClock(pr.dl, pr.pn);
       this.game.applyRemote(view, evs, players);
+    }
+  }
+
+  // has the host stopped answering? (only the next host checks: it is the one who can do something)
+  hostStalled() {
+    const g = this.game;
+    const v = g && g.state;
+    if (!v || v.phase === 'over') return false;
+    const now = Date.now();
+    const quiet = now - this.seqAt;
+    // this page's own move has gone unanswered
+    if (this.out.length && now - this.out[0][2] > 8000 && quiet > 8000) return true;
+    // only the computer is to move (nobody else is being waited on): the host plays it within seconds
+    const actors = actorsNow(v);
+    const byComputer = (p) => g.players[p] && g.players[p].kind === 'ai';
+    if (quiet > 8000 && actors.length && actors.every(byComputer)) return true;
+    // the turn clock ran out and the host did nothing about it
+    if (g.deadline && now > g.deadline + 8000 && quiet > 8000) return true;
+    return false;
+  }
+
+  // every second: the next host takes over when the host's page has been gone (or silent) too long.
+  // Time the page itself was frozen doesn't count.
+  watchHost() {
+    if (this.closed || this.taking) return;
+    const now = performance.now();
+    const dt = Math.min(1500, now - (this.watchAt || now));
+    this.watchAt = now;
+    if (!this.backup || !this.game || !this.onTakeover) {
+      this.goneMs = 0;
+      this.stallMs = 0;
+      return;
+    }
+    const here = this.findHost(this.ch.peers());
+    this.goneMs = here ? 0 : this.goneMs + dt;
+    this.stallMs = here && this.hostStalled() ? this.stallMs + dt : 0;
+    if (this.goneMs >= FAILOVER_MS || this.stallMs >= STALL_MS) this.takeover(false);
+  }
+
+  // Run the campaign from the last game the host sent this page. planned: the host asked for it.
+  async takeover(planned) {
+    if (this.taking || this.closed || !this.backup) return;
+    this.taking = true;
+    const { pr, at } = this.backup;
+    try {
+      const me = this.me();
+      const key = await sharedKey(this.keys.priv, pr.k);
+      const data = await open(key, pr.bk.b);
+      const state = C.decodeFull(pr.bd, C.decodeSeats(pr.ps), pr.pub, data.f);
+      const lob = decodeLob(pr.lob);
+      const meta = Array.isArray(data.m) ? data.m : [];
+      const hostSeat = lob.findIndex((s) => s.peer === me);
+      if (hostSeat < 0) throw new Error('no seat');
+      const bye = !!(planned && pr.ho && pr.ho.bye);
+      const oldHost = lob.findIndex((s) => s.kind === 'host');
+      const keyOf = (peer) => {
+        const p = peer && this.ch.peers().find((x) => x.peer === peer);
+        return p && p.presence && typeof p.presence.k === 'string' ? p.presence.k : null;
+      };
+      const now = Date.now();
+      const seats = lob.map((s, i) => {
+        const m = Array.isArray(meta[i]) ? meta[i] : null;
+        if (i === hostSeat) return { kind: 'host', name: s.name, color: s.color, peer: me };
+        if (i === oldHost) {
+          // the page that hosted: a player now (it steps down when it sees this page hosting)
+          const here = planned && !bye;
+          return { kind: 'remote', name: s.name, color: s.color, key: pr.k, peer: here ? this.hostPeer : null, away: !here, awaySince: now, managed: bye, lastN: 0, sid: null, quiet: true };
+        }
+        if (s.kind === 'remote') {
+          return { kind: 'remote', name: s.name, color: s.color, key: (m && m[0]) || keyOf(s.peer), lastN: (m && m[1]) || 0, sid: (m && m[2]) || null, managed: !!(m && m[3]), peer: s.away ? null : s.peer || null, away: s.away || !s.peer, awaySince: s.away || !s.peer ? now : 0 };
+        }
+        return { kind: 'ai', name: s.name, color: s.color, level: s.level || 'normal' };
+      });
+      state.players.forEach((p, i) => {
+        const s = seats[i];
+        if (s.kind === 'host') {
+          p.kind = 'human';
+          p.ai = null;
+        } else if (s.kind === 'remote') {
+          p.kind = s.managed ? 'ai' : 'remote';
+          p.ai = s.managed ? { level: 'normal' } : null;
+        }
+      });
+      const dl = typeof pr.dl === 'number' ? Math.max(0, pr.dl - (Date.now() - at)) : null;
+      this.stop();
+      this.onTakeover({ room: this.room, ch: this.ch, keys: this.keys, code: this.code, ep: planned && pr.ho ? Number(pr.ho.at) || (Number(pr.ep) || 1) + 1 : (Number(pr.ep) || 1) + 1, seats, hostSeat, state, official: !!pr.off, target: Number(pr.tv) || 10, dl, chat: this.chat, planned, oldHostName: oldHost >= 0 ? lob[oldHost].name : '' });
+    } catch (e) {
+      console.warn('takeover failed', e);
+      this.backup = null;
+      this.taking = false;
     }
   }
 
@@ -685,8 +1136,10 @@ export class ClientSession {
     return {
       role: 'client',
       code: this.code,
+      official: !!(this.lastPres && this.lastPres.off),
       seat,
       view,
+      chat: this.chat,
       send: (action) => this.send(action),
       busy: () => this.out.length > 0 && Date.now() - this.out[this.out.length - 1][2] < 3500,
       leave: () => this.leave(),
@@ -708,21 +1161,38 @@ export class ClientSession {
     return true;
   }
 
-  async leave() {
+  // stop acting as a player on this channel (leaving, or becoming the host)
+  stop() {
     clearTimeout(this.hostTimer);
     clearTimeout(this.lostTimer);
     clearTimeout(this.claimTimer);
+    clearInterval(this.watchTimer);
+    if (this.onVis) document.removeEventListener('visibilitychange', this.onVis);
     this.closed = true;
-    forgetRoom();
     if (this.unsub) this.unsub();
+    this.unsub = null;
+    if (this.ui) this.ui.close();
+    this.ui = null;
+  }
+
+  async leave() {
+    if (this.closed && this.left) return;
+    this.left = true;
+    this.stop();
+    forgetRoom();
+    // tell the host this is a goodbye: the computer takes the nation over at once
+    try {
+      await this.ch.presence({ bye: 1, out: [] });
+    } catch {
+      /* already gone */
+    }
+    this.chat.close();
     try {
       await this.ch.leave();
     } catch {
       /* already gone */
     }
-    if (this.ui) this.ui.close();
   }
-
   showWaiting() {
     const scr = el('div', 'menu-screen online-screen');
     scr.innerHTML = `<div class="title-block"><div class="eyebrow">Online Room</div><h1>線上房間<span>${esc(this.code.toUpperCase())}</span></h1><p>已進入房間。主持人按下「開始戰役」後，地圖會自動出現。</p></div>
@@ -759,8 +1229,10 @@ export class ClientSession {
 export class MatchSession {
   // onState: the home screen shows the matchmaking itself (no screen of its own); it gets
   // { phase, code, seats, seat, rem } on every change
-  constructor({ app, settings, toast, onHostStart, onClientGame, onLeave, onState = null, seconds = 60, mapSeed = null }) {
+  constructor({ app, settings, toast, onHostStart, onClientGame, onLeave, onState = null, seconds = 60, mapSeed = null, onTakeover = null, onDemoted = null }) {
     this.app = app;
+    this.onTakeover = onTakeover; // the campaign moves to this page / away from it (see HostSession)
+    this.onDemoted = onDemoted;
     this.settings = settings;
     this.mapSeed = mapSeed;
     this.onState = onState;
@@ -890,6 +1362,7 @@ export class MatchSession {
       quiet: true,
       seconds: this.seconds,
       mapSeed: this.mapSeed,
+      onDemoted: (d) => this.onDemoted && this.onDemoted(d, this),
       onLobby: () => this.render(),
       onStart: async (players, net) => {
         this.state = 'playing';
@@ -920,6 +1393,7 @@ export class MatchSession {
       toast: this.toast,
       quiet: true,
       noSpectate: true,
+      onTakeover: (t) => this.onTakeover && this.onTakeover(t, this),
       onLobby: (seats, seat, rem, at) => {
         this.lobbyView = { seats, seat, rem, at };
         this.render();
@@ -957,6 +1431,19 @@ export class MatchSession {
     this.busy = false;
     this.render();
     if (!fromEvaluate) this.evaluate();
+  }
+
+  // the campaign changed hands: the new session carries on with the room channel, this one only lets go
+  // of the matchmaking
+  retire() {
+    this.closed = true;
+    clearInterval(this.tick);
+    if (this.unsub) this.unsub();
+    this.unsub = null;
+    if (this.lobby) this.lobby.presence({ mm: null }).catch(() => {});
+    this.host = null;
+    this.client = null;
+    this.closeUI();
   }
 
   // the running game's network side (for leaving from inside the campaign)

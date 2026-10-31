@@ -344,6 +344,41 @@ export function decodeView(board, seats, pub, priv, seat) {
   };
 }
 
+// ── the whole game, for the player who takes over as host ──
+// The public part is already in the host's presence; this adds every hand, the development deck's
+// order and the dice generator. It travels sealed for that one player only.
+export function encodeFull(st) {
+  return {
+    p: st.players.map((p, i) => encodePrivate(st, i)),
+    d: st.devDeck.map((t) => DEV[t]).join(''),
+    g: Array.isArray(st.rng) ? st.rng.slice() : null,
+    sd: st.seed >>> 0,
+  };
+}
+
+export function decodeFull(board, seats, pub, full) {
+  const v = decodeView(board, seats, pub, null, -1);
+  const players = v.players.map((p, i) => {
+    const pr = (full.p && full.p[i]) || { r: '', d: '' };
+    return {
+      id: i,
+      name: p.name,
+      color: p.color,
+      kind: p.kind,
+      ai: p.ai,
+      res: resFull(pr.r),
+      dev: pr.d ? pr.d.split(',').map((x) => ({ type: DEV_R[x[0]], turn: Number(x.slice(1)) })) : [],
+      played: p.played,
+      knights: p.knights,
+      pieces: p.pieces,
+    };
+  });
+  const st = { ...v, players, devDeck: [...String(full.d || '')].map((c) => DEV_R[c]), rng: Array.isArray(full.g) ? full.g.slice() : null, seed: full.sd >>> 0 };
+  delete st.viewer;
+  delete st.devDeckCount;
+  return st;
+}
+
 export function applyPrivateDetails(events, details) {
   for (const [i, k, v] of details || []) {
     const e = events[i];

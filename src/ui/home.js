@@ -9,6 +9,7 @@ import { PALETTE } from './menu.js';
 import { flagURL } from './flags.js';
 import { esc } from './text.js';
 import { emblemSvg, seatShield } from './emblems.js';
+import { mountAccount } from './account-ui.js';
 
 const APP = 'catan3d';
 const SQRT3 = Math.sqrt(3);
@@ -361,10 +362,12 @@ export function showHome(app, opts) {
         <div class="hm-logo"><span class="hm-crest">${crest()}</span><h1><span class="hm-title">卡坦島</span><span class="hm-sub">3D 戰略版</span></h1></div>
         <div class="hm-live" role="status" hidden><i></i><span></span></div>
       </div>
-      <div class="hm-nation">
-        <span class="hm-flag"><img alt=""></span>
-        <label class="hm-name"><span class="sr-only">你的國家名稱</span><input id="menu-name" type="text" maxlength="8" autocomplete="off" spellcheck="false"></label>
-        <div class="hm-gems" role="group" aria-label="國家顏色"></div>
+      <div class="hm-who">
+        <div class="hm-nation">
+          <span class="hm-flag"><img alt=""></span>
+          <label class="hm-name"><span class="sr-only">你的國家名稱</span><input id="menu-name" type="text" maxlength="8" autocomplete="off" spellcheck="false"></label>
+          <div class="hm-gems" role="group" aria-label="國家顏色"></div>
+        </div>
       </div>
     </header>
     <main class="hm-main">
@@ -433,6 +436,9 @@ export function showHome(app, opts) {
     settings.name = name.value;
     onChange(settings);
   });
+
+  // ── the player's account (signing in with Google, the record of finished campaigns) ──
+  const account = opts.dialogs ? mountAccount(scr.querySelector('.hm-who'), opts.dialogs) : null;
 
   // ── actions ──
   const handlers = { single: opts.onSingle, create: opts.onCreate, join: opts.onJoin, continue: opts.onContinue, rules: opts.onRules, settings: opts.onSettings, match: opts.onMatch };
@@ -646,6 +652,7 @@ export function showHome(app, opts) {
     close() {
       closed = true;
       clearInterval(timer);
+      if (account) account.close();
       for (const u of unsubs) if (u) u();
       if (ro) ro.disconnect();
       if (fitRo) fitRo.disconnect();

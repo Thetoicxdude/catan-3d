@@ -118,7 +118,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 /* ───────── banner (current order) ───────── */
 .banner {
   position: absolute; z-index: 15; left: 50%; transform: translateX(-50%);
-  top: calc(var(--tb-h) + var(--safe-t) + 12px);
+  top: calc(var(--tb-h) + var(--safe-t) + 52px);
   max-width: min(640px, calc(100% - 32px));
   display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px;
   background: rgba(22, 26, 29, 0.92); border: 1px solid var(--brass-lo); border-left: 3px solid var(--brass);
@@ -229,6 +229,39 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .log-body .who { font-weight: 700; }
 .log-body .t { font-family: var(--font-num); color: var(--ink-faint); margin-right: 4px; }
 .log.collapsed .log-body { display: none; }
+/* tabs: 戰報 / 聊天 (the chat tab only in online games) */
+.log-head { padding: 2px 6px 0 6px; letter-spacing: 0; }
+.log-tabs { display: flex; gap: 2px; align-self: stretch; }
+.log-tabs button { appearance: none; border: 0; background: none; cursor: pointer; position: relative; padding: 3px 10px 4px; font: inherit; font-family: var(--font-display); font-size: 12.5px; letter-spacing: 0.3em; color: var(--ink-faint); border-bottom: 2px solid transparent; }
+.log-tabs button:hover { color: var(--ink); }
+.log-tabs button.on { color: var(--brass-hi); border-bottom-color: var(--brass); }
+.log-tabs button:focus-visible { outline: 2px solid var(--brass-hi); outline-offset: -2px; }
+.log-tabs .dot { position: absolute; top: 3px; right: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+.log-fold { width: 26px; height: 22px; min-height: 22px; }
+.log.chatting { max-height: 250px; }
+.chat-body { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.chat-list { overflow-y: auto; padding: 6px 10px 4px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 72px; scrollbar-width: thin; }
+.chat-list p { margin: 0; color: var(--ink); line-height: 1.45; overflow-wrap: anywhere; }
+.chat-list .who { font-weight: 700; margin-right: 7px; }
+.chat-list p.mine .who { color: var(--brass-hi); }
+.chat-list p.note { color: var(--ink-faint); font-size: 12px; }
+.chat-list:empty::before { content: '對所有玩家說話。訊息只會出現在這場戰役裡。'; color: var(--ink-faint); font-size: 12px; }
+.chat-form { display: flex; gap: 6px; padding: 6px 8px 8px; border-top: 1px solid var(--line); }
+.chat-form input { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border-radius: 2px; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(199, 166, 96, 0.3); color: var(--ink); font-family: var(--font-body); font-size: 13px; }
+.chat-form input:focus { outline: none; border-color: var(--brass); }
+.chat-form .btn { min-height: 32px; height: 32px; padding: 0 12px; font-size: 13px; }
+.log.collapsed .chat-body { display: none; }
+.icon-btn.unread { position: relative; }
+.icon-btn.unread::after { content: ''; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+/* the turn clock (online games): the time left for this step */
+.turn-clock { display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 7px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.28); color: var(--ink-dim); border-radius: 2px; }
+.turn-clock b { font-family: var(--font-num); font-size: 19px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink); min-width: 2.3em; text-align: right; }
+.turn-clock.mine { border-color: rgba(234, 208, 142, 0.6); color: var(--brass-hi); background: rgba(199, 166, 96, 0.14); }
+.turn-clock.mine b { color: var(--brass-hi); }
+.turn-clock.low { border-color: rgba(207, 84, 68, 0.75); color: #ff9a84; background: rgba(207, 84, 68, 0.16); }
+.turn-clock.low b { color: #ffb4a3; }
+.turn-clock.low.mine { animation: clockLow 1s ease-in-out infinite; }
+@keyframes clockLow { 50% { box-shadow: 0 0 14px rgba(207, 84, 68, 0.6); } }
 
 /* ───────── minimap & map modes ───────── */
 .minimap {
@@ -244,7 +277,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 /* ───────── toasts (dispatches) ───────── */
 .toasts {
   position: absolute; z-index: 30; left: 50%; transform: translateX(-50%);
-  top: calc(var(--tb-h) + var(--safe-t) + 62px);
+  top: calc(var(--tb-h) + var(--safe-t) + 106px);
   display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; width: min(420px, calc(100% - 32px));
 }
 .toast {
@@ -458,6 +491,16 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 @media (max-width: 1180px) {
   .tb-stats .stat.knights { display: none; }
   .log { width: 260px; }
+  /* online games add the room chip and the clock: make room */
+  .topbar { gap: 12px; }
+  .tb-right:has(.turn-clock:not([hidden])) .turn-box { display: none; }
+  .net-chip .tx { display: none; }
+}
+@media (max-width: 1040px) {
+  .tb-stats .stat.cards, .tb-stats .stat.devs { display: none; }
+  .tb-name { max-width: 6em; }
+  .net-chip { display: none; }
+  .dice .die { width: 26px; height: 26px; }
 }
 @media (max-width: 980px) {
   .minimap canvas { display: none; }
@@ -466,7 +509,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .outliner { width: 236px; }
   .act { width: 66px; }
 }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   :root { --tb-h: 50px; }
   .mobile-only { display: flex !important; }
   .desk-only { display: none !important; }
@@ -485,6 +528,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .stat .n { font-size: 17px; }
   .stat.vp .n { font-size: 20px; }
   .turn-box { display: none; }
+  .turn-clock { padding: 2px 6px 2px 4px; gap: 3px; margin-right: 2px; }
+  .turn-clock b { font-size: 16px; min-width: 2.1em; }
+  .turn-clock .ico { width: 15px; height: 15px; }
   .banner { top: calc(var(--tb-h) + var(--safe-t) + 44px); font-size: 13px; }
   .toasts { top: calc(var(--tb-h) + var(--safe-t) + 96px); }
   .outliner { top: calc(var(--tb-h) + var(--safe-t) + 44px); width: min(300px, calc(100% - 24px)); }
@@ -501,6 +547,22 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .minimap { flex-direction: row-reverse; align-items: flex-end; }
   .nexthint { bottom: calc(76px + var(--safe-b)); font-size: 12.5px; padding: 6px 12px; }
   .fab-row { top: calc(var(--tb-h) + var(--safe-t) + 44px); }
+  /* the bar holds two rows here (the hand below): panels start under its real height */
+  .banner { top: calc(var(--tb-real, 138px) + 8px); }
+  .toasts { top: calc(var(--tb-real, 138px) + 60px); }
+  .outliner { top: calc(var(--tb-real, 138px) + 8px); }
+  .fab-row { top: calc(var(--tb-real, 138px) + 8px); }
+  /* the nation's name gives way (it ellipsizes) before anything wraps to another row */
+  .tb-nation { flex: 1 1 0; min-width: 0; }
+  .tb-nation > div { min-width: 0; }
+  .tb-spacer { display: none; }
+  /* online: the clock takes the dice's place (the roll shows big in the middle and in the log) */
+  .tb-right:has(.turn-clock:not([hidden])) .dice { display: none; }
+}
+@media (max-width: 420px) {
+  .tb-right:has(.turn-clock:not([hidden])) [data-k="rules"] { display: none; }
+}
+@media (max-width: 760px) {
   .menu-screen { grid-template-columns: minmax(0, 1fr); align-content: start; }
   .title-block { align-self: start; padding: 8px 0 0; }
   .title-block p.credits { display: none; }
@@ -602,3 +664,32 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .fx-announce.danger .ic { background: radial-gradient(circle at 30% 25%, #ff9a86, #c43a2a 70%, #7a1d14); color: #fff2ee; box-shadow: 0 0 18px rgba(226, 96, 78, 0.6); }
 .stat.vp-hit { animation: vphit 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) 1; }
 @keyframes vphit { 0% { transform: scale(1); } 30% { transform: scale(1.35); filter: drop-shadow(0 0 10px rgba(255, 210, 110, 0.9)); } 100% { transform: scale(1); } }
+
+/* ───────── account: signing in, the record ───────── */
+.modal.account .ac-facts { margin: 6px 0 16px; padding-left: 1.2em; color: var(--ink-dim); font-size: 13px; line-height: 1.75; }
+.modal.account .ac-facts b { color: var(--ink); font-weight: 700; }
+.gsi-slot { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--ink-dim); font-size: 13px; }
+.ac-err { margin: 10px 0 0; color: #f08a78; font-size: 13px; text-align: center; }
+.ac-who { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.ac-who .nm { display: block; font-family: var(--font-display); font-weight: 900; font-size: 20px; letter-spacing: 0.06em; color: var(--ink); }
+.ac-who small { color: var(--ink-faint); font-size: 12px; }
+.ac-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+.ac-stats > div { display: flex; flex-direction: column; align-items: center; padding: 9px 4px 8px; background: rgba(0, 0, 0, 0.28); border: 1px solid var(--line); }
+.ac-stats b { font-family: var(--font-num); font-size: 27px; font-weight: 700; line-height: 1; color: var(--brass-hi); }
+.ac-stats b small { font-size: 15px; color: var(--ink-faint); }
+.ac-stats span { margin-top: 5px; font-size: 12px; letter-spacing: 0.12em; color: var(--ink-dim); }
+.ac-recent { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ac-recent li { display: grid; grid-template-columns: 3.2em 4.8em 4.4em minmax(0, 1fr); align-items: baseline; gap: 8px; padding: 6px 10px; font-size: 13px; background: rgba(0, 0, 0, 0.22); border-left: 3px solid var(--ink-faint); }
+.ac-recent li.won { border-left-color: var(--brass-hi); }
+.ac-recent .d { font-family: var(--font-num); font-size: 14px; color: var(--ink-faint); }
+.ac-recent .m { color: var(--ink-dim); white-space: nowrap; }
+.ac-recent .r { color: var(--ink); white-space: nowrap; }
+.ac-recent li.won .r { color: var(--brass-hi); }
+.ac-recent .v { color: var(--ink-dim); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-recent .v b { font-family: var(--font-num); font-size: 15px; color: var(--ink); }
+.btn.danger { color: #f0a090; }
+.btn.danger.armed { background: #6e2219; border-color: #e2604e; color: #fff; }
+@media (max-width: 520px) {
+  .ac-recent li { grid-template-columns: 3em minmax(0, 1fr) auto; }
+  .ac-recent .v { grid-column: 1 / -1; text-align: left; }
+}

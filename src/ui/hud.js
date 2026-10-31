@@ -154,6 +154,7 @@ export class Hud {
       </div>
       <div class="tb-spacer"></div>
       <div class="tb-right">
+        <div class="turn-clock" hidden role="timer" title="這一步剩下的時間">${icon('hourglass', 18)}<b class="num">0:00</b></div>
         <div class="turn-box desk-only"><div class="t1">回合</div><div class="t2"></div></div>
         <div class="dice" title="上一次擲骰"></div>
         <button class="btn ghost icon-btn mobile-only" data-k="nations" title="諸國" aria-label="諸國">${icon('people', 20)}</button>
@@ -163,6 +164,10 @@ export class Hud {
         <button class="btn ghost icon-btn" data-k="menu" title="主選單" aria-label="主選單">${icon('menu', 20)}</button>
       </div>`;
     r.appendChild(this.top);
+    if (typeof ResizeObserver === 'function') {
+      this.topObs = new ResizeObserver(() => r.style.setProperty('--tb-real', Math.round(this.top.getBoundingClientRect().bottom) + 'px'));
+      this.topObs.observe(this.top);
+    }
     this.resBox = this.top.querySelector('.tb-res');
     this.chips = {};
     for (const res of RES) {
@@ -178,7 +183,12 @@ export class Hud {
       b.addEventListener('click', () => {
         const k = b.dataset.k;
         if (k === 'nations') this.outliner.classList.toggle('closed');
-        else if (k === 'log') this.logEl.classList.toggle('collapsed');
+        else if (k === 'log') {
+          this.logEl.classList.toggle('collapsed');
+          // unread chat: open straight on it
+          if (!this.logEl.classList.contains('collapsed') && this.chatUnread) this.showTab('chat');
+          this.paintUnread();
+        }
         else this.h.ui(k);
       }),
     );
@@ -190,7 +200,7 @@ export class Hud {
 
     // outliner
     this.outliner = el('aside', 'outliner panel');
-    if (window.innerWidth <= 760) this.outliner.classList.add('closed');
+    if (window.innerWidth <= 900) this.outliner.classList.add('closed');
     // the bank on top: what is left of each resource and of the development deck
     this.bankEl = el('div', 'bank');
     this.bankEl.innerHTML = `<div class="ol-head"><span>銀行</span><small>BANK</small></div><div class="bk-row"></div>`;
@@ -211,11 +221,16 @@ export class Hud {
     r.appendChild(this.outliner);
 
     // log
+    // the battle log; in online games a second tab holds the room's chat
     this.logEl = el('section', 'log panel');
-    this.logEl.innerHTML = `<div class="log-head"><span>戰報</span><button class="btn ghost icon-btn" style="width:26px;height:22px;min-height:22px" aria-label="收合">−</button></div><div class="log-body" aria-live="polite"></div>`;
-    if (window.innerWidth <= 760) this.logEl.classList.add('collapsed');
+    this.logEl.innerHTML = `<div class="log-head"><div class="log-tabs" role="tablist"><button type="button" role="tab" class="on" data-tab="log" aria-selected="true">戰報</button><button type="button" role="tab" data-tab="chat" aria-selected="false" hidden>聊天<i class="dot" hidden></i></button></div><button class="btn ghost icon-btn log-fold" type="button" aria-label="收合">−</button></div><div class="log-body" aria-live="polite"></div><div class="chat-body" hidden><div class="chat-list" aria-live="polite"></div><form class="chat-form" autocomplete="off"><input type="text" maxlength="80" placeholder="輸入訊息，按 Enter 送出" aria-label="聊天訊息" enterkeyhint="send"><button type="submit" class="btn primary">送出</button></form></div>`;
+    if (window.innerWidth <= 900) this.logEl.classList.add('collapsed');
     this.logBody = this.logEl.querySelector('.log-body');
-    this.logEl.querySelector('.log-head button').addEventListener('click', () => this.logEl.classList.toggle('collapsed'));
+    this.chatBody = this.logEl.querySelector('.chat-body');
+    this.chatList = this.logEl.querySelector('.chat-list');
+    this.chatTab = this.logEl.querySelector('[data-tab="chat"]');
+    this.logEl.querySelector('.log-fold').addEventListener('click', () => this.logEl.classList.toggle('collapsed'));
+    this.logEl.querySelectorAll('.log-tabs [data-tab]').forEach((b) => b.addEventListener('click', () => this.showTab(b.dataset.tab)));
     r.appendChild(this.logEl);
 
     // action bar
@@ -301,7 +316,7 @@ export class Hud {
       this.top.querySelector('.tb-right').prepend(this.netChip);
     }
     const n = net.peersOnline ? net.peersOnline() : null;
-    this.netChip.innerHTML = `<i></i>線上 · ${esc(String(net.code || '').toUpperCase())}${n ? ` · ${n} 人` : ''}`;
+    this.netChip.innerHTML = `<i></i><span class="tx">線上 · </span>${esc(String(net.code || '').toUpperCase())}<span class="tx">${n ? ` · ${n} 人` : ''}</span>`;
     this.netChip.title = net.role === 'host' ? '你是主持人：規則判定與電腦玩家都在你的頁面上運行' : '已連線到主持人';
   }
 
@@ -616,6 +631,109 @@ export class Hud {
       btn.addEventListener('click', x.onClick);
       acts.appendChild(btn);
     }
+  }
+
+  // ── chat (online games) ──
+  enableChat(onSend) {
+    this.chatSend = onSend;
+    this.chatTab.hidden = false;
+    const form = this.logEl.querySelector('.chat-form');
+    const input = form.querySelector('input');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const why = this.chatSend ? this.chatSend(input.value) : 'off';
+      if (!why) input.value = '';
+      else if (why === 'fast') this.flashHint('訊息送得太快了，請稍等一下');
+    });
+    // typing never reaches the game's keyboard shortcuts
+    input.addEventListener('keydown', (e) => e.stopPropagation());
+  }
+
+  showTab(tab) {
+    const chat = tab === 'chat' && !this.chatTab.hidden;
+    this.logEl.querySelectorAll('.log-tabs [data-tab]').forEach((b) => {
+      const on = b.dataset.tab === (chat ? 'chat' : 'log');
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    this.logBody.hidden = chat;
+    this.chatBody.hidden = !chat;
+    this.logEl.classList.toggle('chatting', chat);
+    if (chat) {
+      this.logEl.classList.remove('collapsed');
+      this.chatUnread = 0;
+      this.chatList.scrollTop = this.chatList.scrollHeight;
+    }
+    this.paintUnread();
+  }
+
+  chatShown() {
+    return !this.chatBody.hidden && !this.logEl.classList.contains('collapsed');
+  }
+
+  paintUnread() {
+    const n = this.chatShown() ? 0 : this.chatUnread || 0;
+    this.chatTab.querySelector('.dot').hidden = !n;
+    const lb = this.top.querySelector('[data-k="log"]');
+    if (lb) lb.classList.toggle('unread', !!n);
+  }
+
+  // { name, color, text, mine, note } — note: a line from the game itself (who hosts now, and so on)
+  addChat(m) {
+    const p = el('p', m.note ? 'note' : m.mine ? 'mine' : '');
+    if (m.note) p.textContent = m.text;
+    else {
+      const who = el('b', 'who');
+      who.textContent = m.mine ? '你' : m.name || '玩家';
+      if (m.color) who.style.color = m.color;
+      const t = el('span', 'tx');
+      t.textContent = m.text;
+      p.append(who, t);
+    }
+    this.chatList.appendChild(p);
+    while (this.chatList.childElementCount > 80) this.chatList.firstElementChild.remove();
+    this.chatList.scrollTop = this.chatList.scrollHeight;
+    if (!m.mine && !m.note && !this.chatShown()) {
+      this.chatUnread = (this.chatUnread || 0) + 1;
+      // on a phone the panel is folded away: show the line briefly
+      if (this.logEl.classList.contains('collapsed')) this.toast(m.name || '玩家', m.text, 'chat', 3200);
+    }
+    this.paintUnread();
+  }
+
+  // ── the turn clock (online games) ──
+  setClock(deadline, mine) {
+    this.clockAt = deadline || 0;
+    this.clockMine = !!mine;
+    this.paintClock();
+  }
+
+  paintClock() {
+    const c = this.top.querySelector('.turn-clock');
+    if (!this.clockAt) {
+      c.hidden = true;
+      return;
+    }
+    const left = Math.max(0, this.clockAt - Date.now());
+    const s = Math.ceil(left / 1000);
+    c.hidden = false;
+    c.querySelector('b').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    c.classList.toggle('mine', this.clockMine);
+    c.classList.toggle('low', s <= 20);
+    c.title = this.clockMine ? '你這一步剩下的時間，時間到會自動完成這一步' : '這一步剩下的時間';
+  }
+
+  // a new HUD for the same game (this page became the host, or stopped being it): keep what was said
+  adopt(old) {
+    if (!old) return;
+    while (old.logBody.firstChild) this.logBody.appendChild(old.logBody.firstChild);
+    while (old.chatList.firstChild) this.chatList.appendChild(old.chatList.firstChild);
+    this.logBody.scrollTop = this.logBody.scrollHeight;
+    this.chatUnread = old.chatUnread || 0;
+    if (old.logEl.classList.contains('collapsed')) this.logEl.classList.add('collapsed');
+    else this.logEl.classList.remove('collapsed');
+    if (old.chatShown && old.chatShown() && !this.chatTab.hidden) this.showTab('chat');
+    this.paintUnread();
   }
 
   // ── log & toasts ──

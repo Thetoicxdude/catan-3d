@@ -28,7 +28,7 @@ async def main():
             pg = await ctx.new_page()
             pg.set_default_navigation_timeout(180000)  # the other pages keep this software-rendered browser busy
             NOA = '' if os.environ.get('ASSETS') else 'window.__noAssets = true; '  # UI-flow test: skip the asset pack
-            await pg.add_init_script(NOA + f"window.__mapFps = 0.1; {ROOMJS} window.__mmSeconds = {SECS}; localStorage.setItem('catan3d-settings-v1', JSON.stringify({{speed:'turbo', follow:false, quality:'low', name: '{names[i]}'}}));")
+            await pg.add_init_script(NOA + f"window.__mapFps = 0.1; {ROOMJS} window.__mmSeconds = {SECS}; window.__perf = 100; window.__keySlot = '{names[i]}'; localStorage.setItem('catan3d-settings-v1', JSON.stringify({{speed:'turbo', follow:false, quality:'low', name: '{names[i]}'}}));")
             pg.on('pageerror', lambda e, i=i: logs.append(f'[p{i} pageerror] {e}'))
             pg.on('console', lambda m, i=i: logs.append(f'[p{i} {m.type}] {m.text}') if m.type == 'error' else None)
             await pg.goto('http://127.0.0.1:8765/dist/index.test.html')

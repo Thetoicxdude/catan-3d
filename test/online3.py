@@ -5,7 +5,7 @@ from shot import serve, THREE
 from playwright.async_api import async_playwright
 SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')  # screenshots
 os.makedirs(SP, exist_ok=True)
-INIT = """window.__mapFps = 0.15; window.__mockRoom = true;
+INIT = """window.__mapFps = 0.15; window.__mockRoom = true; window.__perf = 100; window.__keySlot = NAME;
 localStorage.setItem('catan3d-settings-v1', JSON.stringify({speed:'turbo', follow:false, quality:'low', name: NAME, color: COLOR, opponents: 3}));"""
 # ROOMS=ws: play over the real room server (`npx wrangler dev --port 8787`) instead of the in-browser mock
 if os.environ.get('ROOMS') == 'ws': INIT = INIT.replace('window.__mockRoom = true;', "window.__rooms = 'ws://127.0.0.1:8787/rooms/';")
