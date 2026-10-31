@@ -68,7 +68,7 @@ const FACES = process.argv[4] || '/home/claude/assetwork/frames/out/cards';
 for (const f of fs.readdirSync(FACES)) if (/^card_.*\.webp$/.test(f)) fs.copyFileSync(path.join(FACES, f), path.join(OUT, 'cards', f));
 // home screen art from the same frames (tools/art/frames/make_ui.py)
 const UI = process.argv[5] || '/home/claude/assetwork/frames/out/ui';
-const UI_FILES = ['frame_bronze', 'frame_gold', 'menu_gold', 'menu_bronze', 'menu_verdigris', 'menu_silver', 'parchment', 'board_bronze', 'board_gold'];
+const UI_FILES = ['frame_bronze', 'frame_gold', 'frame_red', 'menu_gold', 'menu_bronze', 'menu_verdigris', 'menu_silver', 'parchment', 'board_bronze', 'board_gold'];
 fs.mkdirSync(path.join(OUT, 'ui'), { recursive: true });
 for (const f of UI_FILES) fs.copyFileSync(path.join(UI, `${f}.webp`), path.join(OUT, 'ui', `${f}.webp`));
 

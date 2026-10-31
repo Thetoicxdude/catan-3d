@@ -1,5 +1,6 @@
 // Resource cards (photographic art, styled in cards.css) and inline SVG icons (original drawings)
 // for actions and map modes.
+import { gameIcon } from './gameicons.js';
 
 export const RES_NAMES = { wood: '木材', brick: '磚塊', wool: '羊毛', grain: '小麥', ore: '礦石' };
 // the names printed on the cards themselves (the game's original English card names)
@@ -65,7 +66,32 @@ const A = {
   people: `<circle cx="9" cy="8" r="3" fill="currentColor"/><path d="M3 19c.5-3.5 3-5.5 6-5.5s5.5 2 6 5.5z" fill="currentColor"/><circle cx="16.5" cy="9" r="2.4" fill="currentColor" opacity="0.6"/><path d="M15 13.6c3 .1 5.2 2 5.6 5.4h-4" fill="currentColor" opacity="0.6"/>`,
 };
 
+// the game's own objects are drawn from Game Icons (see gameicons.js); the interface marks (ticks,
+// crosses, the map modes, the menu) stay simple line drawings
+const FIGURE = {
+  dice: 'rolling-dices',
+  road: 'stone-path',
+  settlement: 'house',
+  city: 'castle',
+  dev: 'card-random',
+  devbuy: 'card-draw',
+  trade: 'trade',
+  cards: 'card-pick',
+  end: 'player-next',
+  knight: 'mounted-knight',
+  vp: 'laurel-crown',
+  robber: 'hooded-figure',
+  people: 'meeple-group',
+  rules: 'rule-book',
+  gear: 'cog',
+  hourglass: 'hourglass',
+  chat: 'talk',
+  harbor: 'anchor',
+  leave: 'exit-door',
+};
+
 export function icon(name, size = 20) {
+  if (FIGURE[name]) return gameIcon(FIGURE[name], size, 'ico gi');
   return `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${A[name] || ''}</svg>`;
 }
 

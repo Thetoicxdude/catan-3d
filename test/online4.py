@@ -143,9 +143,15 @@ async def main():
         check('player hand matches the new host', c1['seq'] != truth['seq'] or c1['res'] == truth['res'], f'{c1} vs {truth}')
         # 5. p1 leaves through the menu: the computer takes its nation at once
         seat1 = c1['seat']
-        await p1.click('.topbar [data-k="menu"]')
-        await p1.wait_for_selector('.modal .btn.primary', timeout=20000)
-        await p1.click('.modal .btn.primary')
+        # (an incoming trade offer can take the dialog's place: open the menu again until it is left)
+        for _ in range(6):
+            await p1.click('.topbar [data-k="menu"]')
+            try:
+                await p1.wait_for_selector('.modal[aria-label="主選單"] .btn.primary', timeout=8000)
+                await p1.click('.modal[aria-label="主選單"] .btn.primary', timeout=5000)
+            except Exception:
+                continue
+            if await wait_for(p1, "!window.__game || window.__game.destroyed", 10): break
         ok = await wait_for(p3, f"__game.state.players[{seat1}].kind === 'ai'", 15)
         check('a leaving player is replaced by the computer at once', ok, await p3.evaluate(f"__game.state.players.map((p) => p.name + ':' + p.kind).join(' ')"))
         await p3.screenshot(path=f'{SP}/on4-end.png')

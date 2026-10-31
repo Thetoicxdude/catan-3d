@@ -559,9 +559,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   /* online: the clock takes the dice's place (the roll shows big in the middle and in the log) */
   .tb-right:has(.turn-clock:not([hidden])) .dice { display: none; }
 }
-@media (max-width: 420px) {
-  .tb-right:has(.turn-clock:not([hidden])) [data-k="rules"] { display: none; }
-}
 @media (max-width: 760px) {
   .menu-screen { grid-template-columns: minmax(0, 1fr); align-content: start; }
   .title-block { align-self: start; padding: 8px 0 0; }

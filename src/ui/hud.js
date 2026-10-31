@@ -241,7 +241,7 @@ export class Hud {
       ['road', 'road', '道路', '1', COSTS.road],
       ['settlement', 'settlement', '村莊', '2', COSTS.settlement],
       ['city', 'city', '城市', '3', COSTS.city],
-      ['dev', 'dev', '發展卡', '4', COSTS.dev],
+      ['dev', 'devbuy', '發展卡', '4', COSTS.dev],
       ['sep'],
       ['trade', 'trade', '交易', 'T'],
       ['cards', 'cards', '手中卡牌', 'C'],

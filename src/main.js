@@ -15,6 +15,12 @@ import { setSfx } from './ui/sfx.js';
 
 const SETTINGS_KEY = 'catan3d-settings-v1';
 const app = document.getElementById('app');
+// without the art pack (the claude.ai page) the bronze frames fall back to plain lines
+{
+  const probe = new Image();
+  probe.onerror = () => document.documentElement.classList.add('no-art');
+  probe.src = 'assets/ui/frame_bronze.webp';
+}
 app.innerHTML = '<div id="map"></div><div class="vignette"></div>';
 const mapEl = app.querySelector('#map');
 

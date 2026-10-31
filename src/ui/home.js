@@ -393,7 +393,7 @@ export function showHome(app, opts) {
       <button class="hm-medal" type="button" data-k="rules" title="規則說明" aria-label="規則說明">${emblemSvg('rules', 40)}<span>規則</span></button>
       <button class="hm-medal" type="button" data-k="settings" title="設定" aria-label="設定">${emblemSvg('settings', 40)}<span>設定</span></button>
     </div>
-    <p class="hm-credits">寫實素材來自 <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>、Blend Swap 的 Daniel74 與 <a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a>（皆為 CC0）${version ? `<span class="ver">${esc(version)}</span>` : ''}</p>`;
+    <p class="hm-credits">寫實素材來自 <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>、Blend Swap 的 Daniel74 與 <a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a>（皆為 CC0）；圖示來自 <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>（Lorc、Delapouite 等，<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>）${version ? `<span class="ver">${esc(version)}</span>` : ''}</p>`;
   app.appendChild(scr);
   // without the art pack (the claude.ai page) the frames fall back to plain bronze and parchment
   const probe = new Image();

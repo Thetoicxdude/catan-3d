@@ -22,6 +22,7 @@
 - 帳號（只在自架版）：`server/accounts.js`（Google ID token 驗證、SQLite Durable Object `Accounts`）、`src/net/account.js`、`src/ui/account-ui.js`；用戶端 ID 在 `server/config.js`。不保存 email。
 - `src/net/room.js` 依環境選傳輸：claude.ai 的 room 功能、自架站的 WebSocket 房間（頁面有 `window.__rooms`）、測試用的 BroadcastChannel（`window.__mockRoom`）。三者介面相同。
 - `server/worker.js`：靜態網站＋`/rooms/<名稱>` WebSocket → `PresenceRoom` Durable Object（休眠 API、同分頁重連接手、過期清除、速率限制、只接受同站或本機來源）。
+- 畫面風格：`src/ui/theme.css` 最後載入，把面板、按鈕、對話框統一成主畫面的古銅回紋框（`assets/ui/frame_*.webp`）、琺瑯底與金字；沒有素材包時 `<html>` 會有 `no-art`，框線退回簡單線條。遊戲物件的圖示來自 game-icons.net（`src/ui/gameicons.js`，由 `tools/icons.mjs` 產生；CC BY 3.0，主畫面左下角的出處不可拿掉）。
 - 地圖上的 DOM 標籤（數字牌、港口、強盜徽章）在 `src/render/labels.js`：外框只負責定位（inline transform），動畫只能加在裡面的元素上。
 
 ## 驗證時要注意
