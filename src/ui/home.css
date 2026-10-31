@@ -6,8 +6,7 @@
 
 .menu-screen.home {
   --gold-text: linear-gradient(180deg, #fff6d2 0%, #f4d47c 36%, #c98f2e 64%, #8d5a1b 100%);
-  --cw: clamp(96px, 18.5vh, 150px);
-  --bh: clamp(210px, 37vh, 330px);
+  --cw: clamp(92px, 17vh, 142px);
   display: flex; flex-direction: column; align-items: stretch; gap: 0;
   padding: calc(14px + var(--safe-t)) max(22px, var(--safe-r)) calc(12px + var(--safe-b)) max(22px, var(--safe-l));
   background:
@@ -74,89 +73,82 @@
 /* ── middle: the official room and the hand ── */
 .hm-main { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(18px, 3.2vh, 34px); padding: 18px 0 6px; }
 
+/* the official room: the owner's frame (its parchment taken out) laid over the map and the room's terms */
 .ho-board {
-  position: relative; width: min(820px, 100%); box-sizing: border-box; cursor: pointer;
-  border: 18px solid #5a3e26; border-image: url(assets/ui/frame_bronze.webp) 45 round;
-  background: #0c141b; outline: none; border-radius: 10px;
-  /* box shadows, not filters: the board's countdown changes four times a second */
-  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.6);
-  transition: transform 0.15s ease, box-shadow 0.2s ease;
+  position: relative; isolation: isolate; cursor: pointer; outline: none; container-type: inline-size;
+  width: min(820px, 100%, calc((100vh - 400px) * 1.8388)); aspect-ratio: 958 / 521; border-radius: 2.3% / 4.22%;
+  transition: transform 0.15s ease;
 }
-.ho-board:hover { transform: translateY(-2px); box-shadow: 0 18px 34px rgba(0, 0, 0, 0.65), 0 0 22px rgba(255, 214, 120, 0.25); }
-.ho-board:focus-visible { box-shadow: 0 0 0 3px rgba(255, 230, 160, 0.9), 0 16px 30px rgba(0, 0, 0, 0.6); }
-.ho-board.joined { border-image-source: url(assets/ui/frame_gold.webp); border-color: #b8893a; }
-/* joined: a slow golden glow (an opacity animation, cheap to draw) */
-.ho-board::after {
-  content: ""; position: absolute; inset: -18px; z-index: -1; pointer-events: none; border-radius: 10px; opacity: 0;
-  box-shadow: 0 0 30px 6px rgba(255, 206, 100, 0.6);
+.ho-board::before, .ho-board::after {
+  content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  background: center / 100% 100% no-repeat; transition: opacity 0.35s ease;
 }
-.ho-board.joined::after { animation: hmglow 2s ease-in-out infinite; will-change: opacity; }
+.ho-board::before { background-image: url(assets/ui/board_bronze.webp); }
+.ho-board::after { background-image: url(assets/ui/board_gold.webp); opacity: 0; }
+.ho-board.joined::after { opacity: 1; }
+/* its shadow, and when joined a slow golden glow (box shadows and opacity: the countdown redraws often) */
+.ho-glow { position: absolute; inset: 0; z-index: -1; border-radius: inherit; box-shadow: 0 16px 30px rgba(0, 0, 0, 0.6); transition: box-shadow 0.2s ease; }
+.ho-glow::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 0 34px 8px rgba(255, 206, 100, 0.6); opacity: 0; }
+.ho-board.joined .ho-glow::after { animation: hmglow 2s ease-in-out infinite; will-change: opacity; }
 @keyframes hmglow { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.9; } }
-.ho-inner { display: grid; grid-template-columns: 7fr 3fr; height: var(--bh); }
-.ho-mapwrap { position: relative; overflow: hidden; }
+.ho-board:hover { transform: translateY(-2px); }
+.ho-board:hover .ho-glow { box-shadow: 0 18px 34px rgba(0, 0, 0, 0.65), 0 0 22px rgba(255, 214, 120, 0.3); }
+.ho-board:focus-visible .ho-glow { box-shadow: 0 0 0 3px rgba(255, 230, 160, 0.9), 0 16px 30px rgba(0, 0, 0, 0.6); }
+/* inside the frame's opening (left 4.07%, top 8.06%, 91.86% x 84.07%), tucked a little under its edge:
+   the map on the left (about 70% of the opening), the room's terms on the right */
+.ho-pic { position: absolute; z-index: 1; left: 3.8%; top: 7.7%; width: 64.2%; height: 84.8%; background: #0b1f2c; }
+.ho-mapwrap { position: absolute; inset: 0; overflow: hidden; }
 .ho-map { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 .ho-side {
-  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; gap: 6px; padding: 10px 10px 10px 18px; min-width: 0;
+  position: absolute; z-index: 1; left: 68%; top: 7.7%; width: 28.3%; height: 84.8%; box-sizing: border-box; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 3% 3.2% 3% 2.4%;
   background: radial-gradient(ellipse 120% 80% at 50% 40%, #213444 0%, #121e28 55%, #0a1117 100%);
 }
-/* a bronze bar between the map and the terms */
+/* the bar between the map and the terms, in the frame's metal */
 .ho-side::before {
-  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 8px;
-  background: linear-gradient(90deg, #2a1a0e 0, #8a6440 25%, #c49a62 45%, #6b4a2e 75%, #2a1a0e 100%);
+  content: ""; position: absolute; left: -0.5%; top: 0; bottom: 0; width: clamp(4px, 0.8cqw, 7px);
+  background: linear-gradient(90deg, #2a1a0e 0, #8a6440 30%, #c49a62 50%, #6b4a2e 75%, #2a1a0e 100%); transition: filter 0.35s ease;
 }
-/* the room's name on a bronze plaque across the top of the frame */
-.ho-plaque {
-  position: absolute; left: 50%; top: -18px; transform: translate(-50%, -50%); z-index: 2; white-space: nowrap;
-  padding: 7px 30px 8px; border-radius: 3px; border: 1px solid #2a1a0e;
-  background:
-    radial-gradient(circle at 12px 50%, #f3d27a 0 2.2px, #5a3e26 2.6px, transparent 3.2px),
-    radial-gradient(circle at calc(100% - 12px) 50%, #f3d27a 0 2.2px, #5a3e26 2.6px, transparent 3.2px),
-    linear-gradient(180deg, #9a7148 0%, #6b4a2e 48%, #452d1a 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 226, 180, 0.4), inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 4px 10px rgba(0, 0, 0, 0.6);
-}
-.ho-plaque span {
-  font-family: var(--font-display); font-weight: 900; font-size: 17px; letter-spacing: 0.32em; padding-left: 0.32em;
+.ho-board.joined .ho-side::before { filter: sepia(1) saturate(2.4) brightness(1.25); }
+.ho-title { white-space: nowrap; }
+.ho-title span {
+  font-family: var(--font-display); font-weight: 900; font-size: clamp(14px, 2.5cqw, 21px); letter-spacing: 0.26em; padding-left: 0.26em;
   background: var(--gold-text); -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 1px 0 #2a1808);
 }
-.ho-plaque .pl-alt { display: none; }
+.ho-title .pl-alt { display: none; }
 @media (hover: hover) {
   .ho-board:hover .pl-main { display: none; }
   .ho-board:hover .pl-alt { display: inline; }
 }
-.ho-board.joined .ho-plaque { background:
-    radial-gradient(circle at 12px 50%, #fff3c4 0 2.2px, #8d5a1b 2.6px, transparent 3.2px),
-    radial-gradient(circle at calc(100% - 12px) 50%, #fff3c4 0 2.2px, #8d5a1b 2.6px, transparent 3.2px),
-    linear-gradient(180deg, #d9ac55 0%, #a7772e 48%, #6e4614 100%); }
-.ho-board.joined .ho-plaque span { background: linear-gradient(180deg, #2a1808, #4a2c10); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 1px 0 rgba(255, 236, 190, 0.6)); }
 
-.ho-tags { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.ho-tags { display: flex; flex-direction: column; align-items: center; gap: clamp(3px, 0.6cqw, 5px); }
 .ho-tags span {
-  padding: 3px 16px 4px; font-family: var(--font-display); font-weight: 900; font-size: 13px; letter-spacing: 0.12em; color: #3a2412; white-space: nowrap;
+  padding: 0.2em 1.2em 0.28em; font-family: var(--font-display); font-weight: 900; font-size: clamp(11px, 1.6cqw, 13px); letter-spacing: 0.12em; color: #3a2412; white-space: nowrap;
   background: url(assets/ui/parchment.webp) center / 220px auto, #e5d4ad;
-  clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 9px 100%, 0 50%);
+  clip-path: polygon(0.7em 0, calc(100% - 0.7em) 0, 100% 50%, calc(100% - 0.7em) 100%, 0.7em 100%, 0 50%);
 }
-.ho-seats { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.ho-shields { display: flex; gap: 3px; }
-.seat-shield { display: block; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55)); }
+.ho-seats { display: flex; flex-direction: column; align-items: center; gap: clamp(2px, 0.5cqw, 4px); }
+.ho-shields { display: flex; gap: clamp(2px, 0.4cqw, 3px); }
+.seat-shield { display: block; width: clamp(19px, 3.3cqw, 28px); height: auto; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55)); }
 .ho-n {
-  font-family: var(--font-display); font-weight: 900; font-size: 30px; line-height: 1; letter-spacing: 0.06em;
+  font-family: var(--font-display); font-weight: 900; font-size: clamp(20px, 3.7cqw, 30px); line-height: 1; letter-spacing: 0.06em;
   background: var(--gold-text); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 2px 0 #2a1808);
 }
-.ho-timer { position: relative; width: 92px; height: 92px; flex: none; }
+.ho-timer { position: relative; width: clamp(62px, 11cqw, 92px); aspect-ratio: 1; flex: none; }
 .ho-timer svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .ho-timer .rim { fill: #3a2716; stroke: #8a6440; stroke-width: 5; }
 .ho-timer .track { fill: #0d151c; stroke: rgba(255, 255, 255, 0.08); stroke-width: 7; }
-.ho-timer .arc { fill: none; stroke: #f1c965; stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 0.25s linear; filter: drop-shadow(0 0 3px rgba(255, 210, 110, 0.7)); }
-.ho-timer > div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding-top: 3px; box-sizing: border-box; }
+.ho-timer .arc { fill: none; stroke: #f1c965; stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 0.25s linear; }
+.ho-timer > div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding-top: 3%; box-sizing: border-box; }
 .ho-timer b {
-  font-family: var(--font-display); font-weight: 900; font-size: 30px; line-height: 1;
+  font-family: var(--font-display); font-weight: 900; font-size: clamp(19px, 3.6cqw, 30px); line-height: 1;
   background: var(--gold-text); -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.ho-timer b.long { font-size: 24px; }
-.ho-timer span { font-family: var(--font-display); font-weight: 700; font-size: 11px; line-height: 1; color: #d9c08a; letter-spacing: 0.2em; padding-left: 0.2em; }
+.ho-timer b.long { font-size: clamp(16px, 2.9cqw, 24px); }
+.ho-timer span { font-family: var(--font-display); font-weight: 700; font-size: clamp(9.5px, 1.3cqw, 11px); line-height: 1; color: #d9c08a; letter-spacing: 0.2em; padding-left: 0.2em; }
 .ho-timer.idle b { opacity: 0.45; }
-.ho-hint { margin: 0; font-size: 12px; letter-spacing: 0.06em; color: #e9d9ae; text-align: center; text-shadow: 0 1px 2px #000; }
+.ho-hint { margin: 0; font-size: clamp(10.5px, 1.45cqw, 12px); letter-spacing: 0.06em; color: #e9d9ae; text-align: center; text-shadow: 0 1px 2px #000; }
 
 /* the hand: one card per way to play, in the resource cards' frames */
 .hm-hand { display: flex; justify-content: center; align-items: flex-end; gap: clamp(10px, 1.6vw, 22px); padding-bottom: 8px; }
@@ -189,7 +181,9 @@
 .home.no-art .hm-card { background: linear-gradient(180deg, #7a5534, #3a2716); box-shadow: inset 0 0 0 3px #c9a35c, inset 0 0 0 6px #2a1a0e; }
 .home.no-art .hm-em { background: radial-gradient(ellipse at 50% 45%, #2e4152, #0d151c 75%); border-radius: 40% 40% 6px 6px / 22% 22% 6px 6px; }
 .home.no-art .hm-lbl { background: #e7d7b0; border-radius: 2px; }
-.home.no-art .ho-board { border-color: #7a5534; }
+.home.no-art .ho-board::before { background: none; border: clamp(10px, 2.4cqw, 20px) solid #6b4a2e; border-radius: inherit; box-sizing: border-box; }
+.home.no-art .ho-board::after { display: none; }
+.home.no-art .ho-board.joined::before { border-color: #c9a35c; }
 
 /* rules and settings: bronze medals in the corner */
 .hm-medals { position: absolute; right: max(22px, var(--safe-r)); bottom: calc(14px + var(--safe-b)); display: flex; gap: 12px; }
@@ -205,12 +199,12 @@
 }
 .hm-medal:hover .emblem, .hm-medal:focus-visible .emblem { transform: translateY(-2px) rotate(-6deg); box-shadow: inset 0 2px 0 rgba(255, 226, 180, 0.25), 0 0 0 2px #2a1a0e, 0 0 14px rgba(255, 214, 120, 0.6); }
 .hm-medal:focus-visible { outline: none; }
-.hm-credits { position: absolute; left: max(22px, var(--safe-l)); bottom: calc(12px + var(--safe-b)); margin: 0; max-width: 44%; font-size: 11px; line-height: 1.55; color: #9f957f; text-shadow: 0 1px 3px #000; }
+.hm-credits { position: absolute; left: max(22px, var(--safe-l)); bottom: calc(12px + var(--safe-b)); margin: 0; max-width: min(30%, 330px); font-size: 11px; line-height: 1.55; color: #9f957f; text-shadow: 0 1px 3px #000; }
 .hm-credits a { color: #d9bf82; text-decoration: none; border-bottom: 1px solid rgba(217, 191, 130, 0.35); }
 .hm-credits .ver { display: block; color: #776f60; font-family: var(--font-num); letter-spacing: 0.05em; }
 
 @media (max-width: 760px) {
-  .menu-screen.home { --cw: calc((100vw - 32px - 3 * 8px) / 4); --bh: auto; padding: calc(10px + var(--safe-t)) max(14px, var(--safe-r)) calc(10px + var(--safe-b)) max(14px, var(--safe-l)); }
+  .menu-screen.home { --cw: calc((100vw - 32px - 3 * 8px) / 4); padding: calc(10px + var(--safe-t)) max(14px, var(--safe-r)) calc(10px + var(--safe-b)) max(14px, var(--safe-l)); }
   .hm-top { flex-direction: column; gap: 8px; }
   .hm-brand { width: 100%; }
   .hm-crest { width: 42px; height: 42px; }
@@ -227,21 +221,25 @@
   .hm-gems { gap: 5px; }
   .gem { width: 22px; height: 22px; }
   .hm-main { justify-content: flex-start; padding: 22px 0 4px; gap: 18px; }
-  .ho-board { border-width: 12px; }
-  .ho-board::after { inset: -12px; }
-  .ho-plaque { top: -12px; padding: 5px 22px 6px; }
-  .ho-plaque span { font-size: 14px; }
-  .ho-inner { grid-template-columns: 1fr; grid-template-rows: auto auto; height: auto; }
-  .ho-mapwrap { height: 212px; }
-  .ho-side { flex-direction: row; justify-content: space-between; padding: 14px 10px 10px; flex-wrap: wrap; }
-  .ho-side::before { left: 0; right: 0; top: 0; bottom: auto; width: auto; height: 7px; background: linear-gradient(180deg, #2a1a0e 0, #8a6440 25%, #c49a62 45%, #6b4a2e 75%, #2a1a0e 100%); }
-  .ho-tags span { font-size: 11.5px; padding: 2px 12px 3px; }
+  /* phones: the framed map on top, the room's terms in a band underneath */
+  .ho-board { width: 100%; aspect-ratio: auto; border-radius: 12px; display: flex; flex-direction: column; }
+  .ho-board::before, .ho-board::after { bottom: auto; aspect-ratio: 958 / 521; }
+  .ho-pic { position: relative; left: auto; top: auto; width: 100%; height: auto; aspect-ratio: 958 / 521; background: none; }
+  .ho-mapwrap { inset: auto; left: 3.8%; top: 7.7%; width: 92.4%; height: 84.8%; background: #0b1f2c; }
+  .ho-side {
+    position: relative; left: auto; top: auto; width: auto; height: auto; margin: 6px 1.5% 0; padding: 8px 12px 10px;
+    flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 8px;
+    border: 7px solid #5a3e26; border-image: url(assets/ui/frame_bronze.webp) 45 round; border-radius: 10px;
+  }
+  .ho-board.joined .ho-side { border-image-source: url(assets/ui/frame_gold.webp); }
+  .ho-side::before { display: none; }
+  .ho-title { width: 100%; text-align: center; }
   .ho-tags { gap: 4px; }
+  .ho-timer { width: 74px; }
+  .ho-timer b { font-size: 23px; }
+  .ho-timer b.long { font-size: 19px; }
+  .seat-shield { width: 22px; }
   .ho-n { font-size: 24px; }
-  .seat-shield { width: 22px; height: 26px; }
-  .ho-timer { width: 76px; height: 76px; }
-  .ho-timer b { font-size: 24px; }
-  .ho-timer b.long { font-size: 20px; }
   .ho-hint { width: 100%; }
   .hm-hand { gap: 8px; }
   .hm-lbl { letter-spacing: 0.02em; }

@@ -3,6 +3,7 @@
 #   menu_<metal>.webp    a blank card for a menu button: the arched window filled with a dark enamel
 #                        field (the emblem and the name are drawn by the page)
 #   parchment.webp       a piece of the frames' parchment for name plates and labels
+#   board_<metal>.webp   the official room's frame (the owner's own pictures, the parchment taken out)
 #   python3 make_ui.py <out dir>
 import sys, os
 import numpy as np
@@ -107,6 +108,43 @@ def parchment():
     p = fr[230:560, 110:450]
     Image.fromarray(np.clip(p, 0, 255).astype(np.uint8)).save(os.path.join(OUT, 'parchment.webp'), 'WEBP', quality=86, method=6)
 
+
+# the official room's board (src/board1.webp bronze, src/board2.webp gold, supplied by the project owner):
+# only the frame is kept. The two pictures differ only in the metal, so where they differ is the frame;
+# the parchment inside (identical in both) and the dark ground around it become transparent.
+BOARD_BOX = (33, 31, 991, 552)  # the frame inside the 1024x572 pictures
+BOARD_R = 22
+
+
+def boards():
+    a = np.asarray(Image.open(os.path.join(HERE, 'src/board1.webp')).convert('RGB'), np.float32)
+    b = np.asarray(Image.open(os.path.join(HERE, 'src/board2.webp')).convert('RGB'), np.float32)
+    d = ndimage.gaussian_filter(np.abs(a - b).mean(axis=2), 1.0)
+    frame = ndimage.binary_closing(d > 9, structure=np.ones((5, 5)))
+    lab, _ = ndimage.label(~frame)
+    inner = lab == lab[a.shape[0] // 2, a.shape[1] // 2]
+    inner = ndimage.binary_erosion(inner, iterations=1)  # keep the frame's own shadow line
+    hole = ndimage.gaussian_filter(inner.astype(np.float32), 0.7)
+    x0, y0, x1, y1 = BOARD_BOX
+    w, h = x1 - x0, y1 - y0
+    # the rounded outline, half a pixel inside the crop
+    ss = 4
+    yy, xx = np.mgrid[0 : h * ss, 0 : w * ss] + 0.5
+    ex0, ey0, ex1, ey1 = 0.5 * ss, 0.5 * ss, (w - 0.5) * ss, (h - 0.5) * ss
+    R = BOARD_R * ss
+    cx = np.clip(xx, ex0 + R, ex1 - R)
+    cy = np.clip(yy, ey0 + R, ey1 - R)
+    outer = ((xx - cx) ** 2 + (yy - cy) ** 2 <= R * R) & (xx >= ex0) & (xx <= ex1) & (yy >= ey0) & (yy <= ey1)
+    outer = np.asarray(Image.fromarray((outer * 255).astype(np.uint8)).resize((w, h), Image.LANCZOS), np.float32) / 255
+    alpha = outer * (1 - hole[y0:y1, x0:x1])
+    ys, xs = np.where(hole[y0:y1, x0:x1] > 0.5)
+    print('board opening (percent of the board): left %.2f top %.2f width %.2f height %.2f' % (xs.min() / w * 100, ys.min() / h * 100, (xs.max() - xs.min() + 1) / w * 100, (ys.max() - ys.min() + 1) / h * 100))
+    for src, name in ((a, 'bronze'), (b, 'gold')):
+        rgba = np.dstack([src[y0:y1, x0:x1], alpha * 255])
+        Image.fromarray(np.clip(rgba, 0, 255).astype(np.uint8), 'RGBA').save(os.path.join(OUT, f'board_{name}.webp'), 'WEBP', quality=90, alpha_quality=95, method=6)
+
+
+boards()
 
 soft, dist = window_mask()
 for n in METALS.values():

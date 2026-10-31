@@ -152,7 +152,8 @@ export function drawBoardArt(canvas, board) {
   };
   if (!board) return;
   const span = { x: HEX_SIZE * SQRT3 * 5 + 14, z: HEX_SIZE * 8 + 10 };
-  const s = Math.min((W * 0.94) / span.x, (H * 0.97) / span.z);
+  // (clear of the frame's medallions, which reach a little into the picture)
+  const s = Math.min((W * 0.9) / span.x, (H * 0.86) / span.z);
   // old-chart dressing in the open sea: a compass rose, swell marks and a few sails
   const isle = (x, y) => Math.hypot((x - cx) / (span.x * 0.5 * s + H * 0.05), (y - cz) / (span.z * 0.5 * s + H * 0.05)) < 1;
   if (W / H > 1.25) rose(Math.min(W * 0.1, cx - span.x * 0.5 * s - H * 0.12), H * 0.2, H * 0.12);
@@ -368,18 +369,17 @@ export function showHome(app, opts) {
     </header>
     <main class="hm-main">
       <section class="ho-board" data-k="match" role="button" tabindex="0" aria-label="官方房間：點擊加入配對，再點一次退出">
-        <div class="ho-plaque"><span class="pl-main">官方房間</span><span class="pl-alt">加入配對</span></div>
-        <div class="ho-inner">
-          <div class="ho-mapwrap"><canvas class="ho-map" aria-hidden="true"></canvas></div>
-          <div class="ho-side">
-            <div class="ho-tags"><span>4 人對戰</span><span>10 分勝利</span><span>標準規則</span></div>
-            <div class="ho-seats"><span class="ho-shields"></span><b class="ho-n">0/4</b></div>
-            <div class="ho-timer">
-              <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45" class="rim"/><circle cx="50" cy="50" r="38" class="track"/><circle cx="50" cy="50" r="38" class="arc"/></svg>
-              <div><b class="ho-sec">60</b><span>秒</span></div>
-            </div>
-            <p class="ho-hint" hidden></p>
+        <i class="ho-glow" aria-hidden="true"></i>
+        <div class="ho-pic"><div class="ho-mapwrap"><canvas class="ho-map" aria-hidden="true"></canvas></div></div>
+        <div class="ho-side">
+          <div class="ho-title"><span class="pl-main">官方房間</span><span class="pl-alt">加入配對</span></div>
+          <div class="ho-tags"><span>4 人對戰</span><span>10 分勝利</span><span>標準規則</span></div>
+          <div class="ho-seats"><span class="ho-shields"></span><b class="ho-n">0/4</b></div>
+          <div class="ho-timer">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45" class="rim"/><circle cx="50" cy="50" r="38" class="track"/><circle cx="50" cy="50" r="38" class="arc"/></svg>
+            <div><b class="ho-sec">60</b><span>秒</span></div>
           </div>
+          <p class="ho-hint" hidden></p>
         </div>
       </section>
       <nav class="hm-hand" aria-label="遊戲方式">
