@@ -6,16 +6,18 @@ import { aiAct } from '../src/ai/ai.js';
 import { makeRng } from '../src/engine/rng.js';
 import { timeoutAction, turnKey, turnLimit } from '../src/game/clock.js';
 
-const ALLOWED = new Set(['settlement', 'road', 'discard', 'robber', 'steal', 'cancelOffer', 'respond', 'roll', 'endTurn', 'endRoadBuilding']);
+const ALLOWED = new Set(['settlement', 'road', 'ship', 'discard', 'gold', 'robber', 'steal', 'cancelOffer', 'respond', 'roll', 'endTurn', 'endRoadBuilding']);
 let checked = 0;
 let games = 0;
 const kinds = {};
-// 40 standard games, then 5–6 player games on the large island (paired turns, then the special building phase)
-for (let g = 0; g < 52; g++) {
-  const big = g >= 40;
+// 40 standard games, 5–6 player games on the large island (paired turns, then the special building
+// phase), then Seafarers games
+for (let g = 0; g < 66; g++) {
+  const big = g >= 40 && g < 52;
+  const sea = g >= 52;
   const n = big ? 5 + (g % 2) : 4;
   const players = Array.from({ length: n }, (_, i) => ({ name: 'p' + i, color: '#000', kind: 'ai', ai: { level: 'normal' } }));
-  const st = createGame({ seed: 1000 + g, players, targetVP: 10, map: big ? 'base-6' : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
+  const st = createGame({ seed: 1000 + g, players, targetVP: 10, map: big ? 'base-6' : sea ? (g >= 60 ? 'sea-2' : 'sea-1') : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
   const mem = players.map(() => ({}));
   const rnd = makeRng(77 + g);
   let steps = 0;
@@ -27,7 +29,7 @@ for (let g = 0; g < 52; g++) {
       const a = timeoutAction(st, p, {}, rnd);
       if (!a) continue;
       assert.ok(ALLOWED.has(a.type), `time-out move ${a.type}`);
-      if (a.type === 'settlement' || a.type === 'road') assert.ok(st.phase === 'setup' || (st.pending && st.pending.type === 'roadBuilding'), `${a.type} only in the opening`);
+      if (a.type === 'settlement' || a.type === 'road' || a.type === 'ship') assert.ok(st.phase === 'setup' || (st.pending && st.pending.type === 'roadBuilding'), `${a.type} only in the opening`);
       if (a.type === 'respond') assert.equal(a.accept, false, 'a time-out never accepts a trade');
       const copy = JSON.parse(JSON.stringify(st));
       applyAction(copy, a); // throws if illegal

@@ -1,7 +1,7 @@
 // Turn time limits for online games. Each opening placement (a village and its road) gets 2 minutes
 // and each later turn 3 minutes; with 5–6 players the second player of a paired turn gets 90 seconds
 // and each step of the special building phase 45. When a player's time runs out the host does the least it can for
-// them: the computer finishes a placement, a discard or a robber move, an open offer is withdrawn,
+// them: the computer finishes a placement, a discard, a gold field's pick or a robber move, an open offer is withdrawn,
 // the dice are rolled, and the turn ends. Nothing is built or traded on anyone's behalf.
 import { actorsNow, makeView } from '../engine/engine.js';
 import { aiAct } from '../ai/ai.js';
@@ -32,7 +32,7 @@ export function timeoutAction(st, p, mem, rnd) {
   const ai = () => aiAct(makeView(st, p), p, mem || {}, rnd);
   if (st.phase === 'setup') return st.setup.order[st.setup.i] === p ? ai() : null;
   const pd = st.pending;
-  if (pd && pd.type === 'discard') return pd.amounts[p] ? ai() : null;
+  if (pd && (pd.type === 'discard' || pd.type === 'gold')) return pd.amounts[p] ? ai() : null;
   if (st.trade) {
     if (st.trade.from === p) return { type: 'cancelOffer', p };
     if (st.trade.resp[p] === null) return { type: 'respond', p, accept: false };

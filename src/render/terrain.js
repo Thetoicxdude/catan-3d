@@ -4,12 +4,13 @@
 import * as THREE from 'three';
 import { GEO, HEX_SIZE, worldToAxial, AXIAL_DIRS, axialToWorld } from '../engine/geometry.js';
 import { pips } from '../engine/board.js';
+import { seaInfo } from '../engine/seafarers.js';
 import { makeNoise, GLSL_NOISE } from './noise.js';
 
 // The square of the world the terrain covers (centred on the origin): the standard island's is
 // −64…64; larger maps widen it (fitDomain, when the terrain is built).
 export const DOMAIN = { min: -64, size: 128 };
-export const TERRAIN_IDS = { forest: 1, hills: 2, pasture: 3, fields: 4, mountains: 5, desert: 6 };
+export const TERRAIN_IDS = { forest: 1, hills: 2, pasture: 3, fields: 4, mountains: 5, desert: 6, gold: 7 };
 const TYPES = ['forest', 'hills', 'pasture', 'fields', 'mountains', 'desert'];
 const APOTHEM = HEX_SIZE * 0.8660254;
 
@@ -43,9 +44,11 @@ export function buildTerrain(board, seed, quality = 'high') {
   const base = quality === 'low' ? 256 : quality === 'medium' ? 368 : 448;
   const N = Math.min(Math.round(base * 1.6), Math.round(((base - 1) * DOMAIN.size) / 128) + 1);
   const nz = makeNoise(seed);
-  const landHexes = GEO.hexes.filter((h) => !h.sea).map((h) => ({ x: h.x, z: h.z, q: h.q, r: h.r, type: board.hexes[h.id].terrain }));
+  // land as the board lays it out (Seafarers: sea inside the map, some of it drawn from the pools)
+  const sea = seaInfo(board);
+  const landHexes = GEO.hexes.filter((h) => sea.land[h.id]).map((h) => ({ x: h.x, z: h.z, q: h.q, r: h.r, type: board.hexes[h.id].terrain }));
   const hexByQR = new Map(landHexes.map((h, i) => [h.q + ',' + h.r, i]));
-  const coastVerts = GEO.vertices.filter((v) => v.coastal);
+  const coastVerts = GEO.vertices.filter((v) => sea.coast[v.id]);
 
   function coastDist(x, z) {
     let s = 1e9;
@@ -100,6 +103,11 @@ export function buildTerrain(board, seed, quality = 'high') {
         const d = 0.5 + 0.5 * Math.sin((x * 0.8 + z * 0.6) * 0.55 + 2.2 * nz.fbm(x * 0.08, z * 0.08, 2));
         return 0.28 + 0.6 * d * Math.pow(m, 0.4);
       }
+      case 'gold': {
+        // (Seafarers) a gold field: low rocky knolls round a dry riverbed
+        const b = 0.5 + 0.5 * nz.fbm(x * 0.1 + 9.1, z * 0.1 - 4.4, 3);
+        return 0.25 + 1.6 * Math.pow(b, 1.6) * m;
+      }
     }
     return 0.2;
   }
@@ -135,7 +143,8 @@ export function buildTerrain(board, seed, quality = 'high') {
         const w = c.w / sw;
         const m = smooth(1.0, 0.22, hexNorm(x - c.h.x, z - c.h.z));
         hsum += w * shape(c.h.type, x, z, m);
-        weights[TYPES.indexOf(c.h.type)] += w;
+        // (a gold field paints over the desert's sand, see the shader)
+        weights[c.h.type === 'gold' ? 5 : TYPES.indexOf(c.h.type)] += w;
       }
       landH += hsum;
       mountW = weights[4];
@@ -325,7 +334,7 @@ export function buildTerrain(board, seed, quality = 'high') {
     const H2 = board.hexes[h.id];
     hexData[k] = (TERRAIN_IDS[H2.terrain] || 0) * 32;
     hexData[k + 1] = Math.round((pips(H2.number) / 5) * 255);
-    hexData[k + 2] = h.sea ? 0 : 255;
+    hexData[k + 2] = sea.land[h.id] ? 255 : 0;
     hexData[k + 3] = 0;
   }
   const hexTex = new THREE.DataTexture(hexData, win.w, win.h, THREE.RGBAFormat);
@@ -399,7 +408,7 @@ vWNrm = normalize(mat3(modelMatrix) * objectNormal);`,
       )
       .replace('#include <fog_fragment>', TERRAIN_FRAG_POST + '\n#include <fog_fragment>');
   };
-  mat.customProgramCacheKey = () => 'catan-terrain-v5';
+  mat.customProgramCacheKey = () => 'catan-terrain-v6';
 
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;
@@ -728,6 +737,16 @@ vec3 terrainAlbedo() {
   if (vW1.z > 0.004) { col += vW1.z * desertCol(p, n1, vW1.z); ws += vW1.z; }
   col = ws > 0.0 ? col / ws : vec3(0.76, 0.70, 0.52);
 
+  // (Seafarers) gold fields: golden gravel with glittering veins
+  if (abs(hexData(qr).r * 255.0 / 32.0 - 7.0) < 0.5) {
+    float gm = smoothstep(0.0, 2.2, hexInner(p - hc));
+    float vein = smoothstep(0.6, 0.78, fbm2(p * 0.9 + 3.0));
+    vec3 gc = mix(vec3(0.66, 0.5, 0.2), vec3(0.93, 0.78, 0.33), fbm2(p * 0.35 + 1.7));
+    gc = mix(gc, vec3(1.0, 0.92, 0.55), vein * 0.85);
+    gc *= 0.86 + 0.2 * smoothstep(0.3, 0.9, fbm2(p * 2.4));
+    col = mix(col, gc, gm * 0.9);
+  }
+
   // beaches & seabed
   float beach = smoothstep(0.6, 0.32, h) * smoothstep(-6.0, -1.4, vCoast);
   vec3 sand = mix(vec3(0.86, 0.79, 0.58), vec3(0.93, 0.87, 0.68), fbm2(p * 0.8));
@@ -814,6 +833,7 @@ const TERRAIN_FRAG_POST = /* glsl */ `
     float tw = vW0.x + vW0.y + vW0.z + vW1.x + vW1.y + vW1.z;
     // (picked as display colours: this pass works in linear light)
     tint = tw > 0.01 ? toLin(tint / tw) * grain : parch;
+    if (abs(hd.r * 255.0 / 32.0 - 7.0) < 0.5) tint = toLin(vec3(0.96, 0.78, 0.28)) * grain;
     vec3 paper = mix(parch, tint, 0.94) * shade;
     float stip = step(0.86, hash12(floor(p * 1.7))) * vW0.x;
     paper = mix(paper, vec3(0.30, 0.38, 0.24), stip * 0.45);
@@ -847,6 +867,7 @@ const TERRAIN_FRAG_POST = /* glsl */ `
     else if (tid == 4.0) rc = vec3(0.92, 0.76, 0.26);
     else if (tid == 5.0) rc = vec3(0.52, 0.53, 0.56);
     else if (tid == 6.0) rc = vec3(0.86, 0.77, 0.55);
+    else if (tid == 7.0) rc = vec3(0.98, 0.8, 0.2);
     float g = dot(c, vec3(0.333));
     vec3 m = mix(vec3(g), rc, 0.8) * (0.85 + 0.3 * g);
     m = mix(m, vec3(0.10), (1.0 - smoothstep(0.0, 0.35, ed)) * 0.8);

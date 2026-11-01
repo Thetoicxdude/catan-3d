@@ -88,6 +88,12 @@ const FIGURE = {
   chat: 'talk',
   harbor: 'anchor',
   leave: 'exit-door',
+  // Seafarers
+  ship: 'sailboat',
+  moveShip: 'ship-wheel',
+  pirate: 'pirate-flag',
+  gold: 'gold-nuggets',
+  isle: 'island',
 };
 
 export function icon(name, size = 20) {

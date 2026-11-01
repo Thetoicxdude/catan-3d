@@ -10,6 +10,8 @@ const USED = [
   // the action bar and the top bar
   'rolling-dices', 'stone-path', 'house', 'castle', 'card-draw', 'trade', 'card-pick', 'player-next', 'hourglass', 'talk',
   'mounted-knight', 'laurel-crown', 'card-random', 'exit-door', 'meeple-group', 'hooded-figure', 'anchor',
+  // Seafarers: ships, moving a ship, the pirate, gold fields, new islands
+  'sailboat', 'ship-wheel', 'pirate-flag', 'gold-nuggets', 'island',
 ];
 
 const src = JSON.parse(readFileSync(process.argv[2], 'utf8'));

@@ -12,11 +12,14 @@ let fullMax = 0;
 let seatsChecked = 0;
 let bigMax = 0;
 const NAMES = ['曙光王國', '蒼藍聯邦', '琥珀公國', '白楊共和國', '紫晶公國', '翡翠王朝'];
-// 40 standard games, then 5–6 player games on the large island (paired turns, then the special building phase)
-for (let g = 0; g < 52; g++) {
-  const big = g >= 40;
+let seaMax = 0;
+// 40 standard games, 5–6 player games on the large island (paired turns, then the special building
+// phase), then Seafarers games (scenario 1, then scenario 2)
+for (let g = 0; g < 72; g++) {
+  const big = g >= 40 && g < 52;
+  const sea = g >= 52;
   const players = Array.from({ length: big ? 5 + (g % 2) : g % 3 ? 4 : 3 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' } }));
-  const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4], map: big ? 'base-6' : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
+  const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4], map: big ? 'base-6' : sea ? (g >= 64 ? 'sea-2' : 'sea-1') : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
   const rnd = makeRng(g);
   const mem = players.map(() => ({}));
   let guard = 0;
@@ -50,6 +53,13 @@ for (let g = 0; g < 52; g++) {
       const want = makeView(st, seat);
       for (const k of KEYS) assert.deepEqual(got[k], want[k], `${k} differs (game ${g}, seq ${st.seq})`);
       assert.deepEqual(got.sub, want.sub, `sub differs (game ${g}, seq ${st.seq})`);
+      if (sea) {
+        assert.deepEqual(got.ships, want.ships, `ships differ (game ${g}, seq ${st.seq})`);
+        assert.equal(got.board.pirate, want.board.pirate);
+        assert.deepEqual(got.newShips, want.newShips);
+        assert.equal(got.shipMoved, want.shipMoved);
+        got.players.forEach((pl, i) => assert.equal(pl.chits, want.players[i].chits));
+      }
       assert.deepEqual(got.rules, want.rules);
       assert.equal(got.map, want.map);
       assert.deepEqual(got.board.hexes, want.board.hexes);
@@ -95,6 +105,7 @@ for (let g = 0; g < 52; g++) {
     fullMax = Math.max(fullMax, C.utf8Size(full));
     const size = C.utf8Size({ bd: board, ps: C.encodeSeats(st), pub });
     if (big) bigMax = Math.max(bigMax, size);
+    else if (sea) seaMax = Math.max(seaMax, size);
     else maxSize = Math.max(maxSize, size);
   }
 }
@@ -105,4 +116,4 @@ for (let g = 0; g < 52; g++) {
   const bd = { ...C.encodeBoard(st), hk: 'zzzz' };
   assert.throws(() => C.decodeBoard(bd, 0), (e) => e instanceof C.BoardMismatch);
 }
-console.log(`codec ok: ${checked} views compared, largest public snapshot ${maxSize} bytes (5–6 players on the large island: ${bigMax}), largest takeover snapshot ${fullMax} bytes`);
+console.log(`codec ok: ${checked} views compared, largest public snapshot ${maxSize} bytes (5–6 players on the large island: ${bigMax}; Seafarers: ${seaMax}), largest takeover snapshot ${fullMax} bytes`);

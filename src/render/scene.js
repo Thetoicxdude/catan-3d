@@ -1,7 +1,7 @@
 // MapView: the whole 3D strategy map — renderer, lights, terrain, sea, clouds, scenery,
 // pieces, territories, labels, map modes, picking and the render loop.
 import * as THREE from 'three';
-import { GEO } from '../engine/geometry.js';
+import { GEO, HEX_SIZE } from '../engine/geometry.js';
 import { pips, TERRAIN_RES } from '../engine/board.js';
 import { buildTerrain, DOMAIN } from './terrain.js';
 import { buildFlora } from './flora.js';
@@ -12,11 +12,19 @@ import { Territory } from './territory.js';
 import { StrategyCamera, ZOOM_MIN, ZOOM_MAX } from './camera.js';
 import { Markers } from './markers.js';
 import { Labels } from './labels.js';
+import { FogCover } from './fog.js';
 import { GLSL_NOISE } from './noise.js';
 import { resCard, icon, RES_NAMES } from '../ui/icons.js';
 
-// number tokens stay large enough to read at every zoom
-const TOKEN_SCALE = (zh) => Math.min(1.15, Math.max(0.8, 92 / zh));
+// number tokens stay large enough to read at every zoom (0.8 at least), smaller still only when the
+// provinces themselves get small on screen (a large map on a phone), so that tokens do not overlap
+let tokenFloor = 0.8;
+const TOKEN_SCALE = (zh) => Math.min(1.15, Math.max(tokenFloor, 92 / zh));
+
+// (Seafarers, the fog islands) the hexes nobody has explored yet, and a key that changes with every
+// discovery
+const hiddenFog = (board) => GEO.hexes.filter((h) => board.hexes[h.id].terrain === 'fog').map((h) => h.id);
+const fogKey = (board) => (GEO.def.fog ? hiddenFog(board).join('.') : '');
 
 const SUN = new THREE.Vector3(-0.55, 0.78, 0.42).normalize();
 const SKY_SRGB = new THREE.Color('#a9c2d2');
@@ -334,6 +342,12 @@ export class MapView {
 
     this.buildLabels(state);
     this.markers = new Markers(this.overlay, this.pieces, this.terrain);
+    // (Seafarers, the fog islands) mist over the hexes nobody has explored
+    this.fogKey = fogKey(state.board);
+    if (GEO.def.fog) {
+      this.fog = new FogCover(scene);
+      this.fog.set(hiddenFog(state.board));
+    }
     this.sync(state, [], false);
     this.camera.target.set(0, 0, 6);
     this.camera.goal.set(0, 0, 6);
@@ -655,8 +669,69 @@ export class MapView {
     spec.onPick(id);
   }
 
+  // (Seafarers, the fog islands) hexes were discovered: the ground, the sea, the scenery, the harbors,
+  // the labels and the pieces are built again on the board as it is now; the camera, the map mode and
+  // the interaction stay
+  rebuildBoard(state) {
+    const scene = this.scene;
+    const seed = state.mapSeed != null ? state.mapSeed : state.seed;
+    this.boardRef = state.board;
+    this.fogKey = fogKey(state.board);
+    const drop = (obj) => {
+      scene.remove(obj);
+      obj.traverse((o) => {
+        if (o.geometry && o.geometry.dispose) o.geometry.dispose();
+      });
+    };
+    const old = this.terrain;
+    drop(old.mesh);
+    old.mesh.material.dispose();
+    if (old.heightTex) old.heightTex.dispose();
+    if (old.hexTex) old.hexTex.dispose();
+    drop(this.flora.group);
+    drop(this.harbors.group);
+    drop(this.pieces.group);
+    this.terrain = buildTerrain(state.board, seed, this.quality);
+    scene.add(this.terrain.mesh);
+    this.camera.heightAt = this.terrain.heightAt;
+    const water = this.water.material;
+    this.water.material = waterMaterial(this.terrain);
+    water.dispose();
+    // the same kind of scenery as before (the asset pack's, once it has been put in)
+    const pack = this.flora.real ? assetStatus.pack : null;
+    this.floraArgs = [this.terrain, state.board, seed, this.quality];
+    this.flora = buildFlora(this.terrain, state.board, seed, this.quality, pack, SUN);
+    scene.add(this.flora.group);
+    if (pack) {
+      this.terrain.setLayers(pack.terrain);
+      if (pack.models) this.terrain.setRock(pack.models.rock);
+    }
+    this.harbors = buildHarbors(state.board, this.terrain, this.models);
+    scene.add(this.harbors.group);
+    this.pieces = new Pieces(scene, this.terrain, this.players, this.models);
+    this.markers.setPieces(this.pieces);
+    this.markers.terrain = this.terrain;
+    this.territory = new Territory(this.players, this.terrain);
+    this.terrain.uniforms.uTerritory.value = this.territory.fillTex;
+    this.terrain.uniforms.uBorder.value = this.territory.borderTex;
+    this.terrain.uniforms.uSunDir.value.copy(SUN);
+    for (const t of this.tokenLabels) this.labels.remove(t.it);
+    if (this.robberLabel) this.labels.remove(this.robberLabel);
+    for (const hl of this.harborLabels) this.labels.remove(hl.it);
+    this.buildLabels(state);
+    // the pieces already on the board come back without popping in
+    this.pieces.sync(state, false);
+    this.setInteraction(this.interaction);
+    this.shadowDirty = 3;
+  }
+
   // ── state sync ──
   sync(state, events = [], animate = true) {
+    // (fog) the board changed under the map: build it again first
+    if (this.fog) {
+      if (fogKey(state.board) !== this.fogKey) this.rebuildBoard(state);
+      this.fog.set(hiddenFog(state.board));
+    }
     const changed = this.pieces.sync(state, animate);
     if (this.territory.update(state)) {
       for (const lbl of this.territory.labels) {
@@ -765,6 +840,15 @@ export class MapView {
     this.camera.flyTo(x, z, h);
   }
 
+  // the opening view: the middle of the land from distance h, drawn back and moved over when part of
+  // the land would be under the panels (`free`: the part of the screen they leave open)
+  frameLand(free, h) {
+    const c = GEO.center;
+    const f = free ? this.camera.frameBox(GEO.vertices.filter((v) => v.land > 0), free, c.x, c.z + 5, h) : null;
+    if (f) this.focus(f.x, f.z, f.h);
+    else this.focus(c.x, c.z + 5, h);
+  }
+
   focusVertex(v, h = null) {
     const g = GEO.vertices[v];
     if (!this.camera.isVisible(g.x, g.z, 0.18)) this.focus(g.x, g.z, h);
@@ -860,6 +944,10 @@ export class MapView {
     const busy = this.pieces.update(t, dt);
     this.flora.update(t, dt);
     this.harbors.update(t);
+    if (this.fog) this.fog.update(t, dt, paper);
+    // a province's width on screen, in pixels (the same estimate as the markers'): a token (58 px) takes
+    // at most about 0.62 of it, so that the tokens of neighbouring provinces keep apart
+    tokenFloor = Math.min(0.8, Math.max(0.45, ((this.size.h / (0.65 * H)) * HEX_SIZE * 1.732) / 93));
     const tokenScale = TOKEN_SCALE(H);
     this.markers.update(dt, H, this.size.h, this.coarse, tokenScale);
     this.alignNationLabels();
@@ -1001,6 +1089,7 @@ export class MapView {
 
   dispose() {
     this.disposed = true;
+    if (this.fog) this.fog.dispose();
     if (this.assetChip) this.assetChip.remove();
     if (this.post) this.post.dispose();
     this.stop();

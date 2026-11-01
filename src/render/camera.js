@@ -199,6 +199,69 @@ export class StrategyCamera {
     return Math.abs(v.x) < 1 - margin && Math.abs(v.y) < 1 - margin && v.z < 1;
   }
 
+  // run fn with the camera posed at (x, z, h), facing as the goal does
+  withPose(x, z, h, fn) {
+    const save = { t: this.target.clone(), h: this.h, yaw: this.yaw, pitch: this.pitch, lift: this.liftY };
+    this.target.set(x, 0, z);
+    this.h = h;
+    this.yaw = this.goalYaw;
+    this.pitch = this.goalPitch;
+    this.liftY = 0;
+    this.apply();
+    try {
+      return fn();
+    } finally {
+      this.target.copy(save.t);
+      this.h = save.h;
+      this.yaw = save.yaw;
+      this.pitch = save.pitch;
+      this.liftY = save.lift;
+      this.apply();
+    }
+  }
+
+  // A view that takes in the ground points `points` ({x, z}: the corners of the land) inside `free`,
+  // the part of the screen the panels leave open (client pixels), starting from target (x, z) and
+  // distance h: it moves the target and only ever draws back from h. Null when they already fit.
+  frameBox(points, free, x, z, h, pad = 10) {
+    const r = this.screenRect();
+    const f = { left: Math.max(free.left, r.left) + pad, right: Math.min(free.right, r.right) - pad, top: Math.max(free.top, r.top) + pad, bottom: Math.min(free.bottom, r.bottom) - pad };
+    if (f.right - f.left < 120 || f.bottom - f.top < 120 || !points.length) return null;
+    const pts = points.map((q) => new THREE.Vector3(q.x, 0, q.z));
+    const box = () => {
+      const b = { l: Infinity, r: -Infinity, t: Infinity, b: -Infinity };
+      for (const p of pts) {
+        const v = p.clone().project(this.cam);
+        const sx = r.left + ((v.x + 1) / 2) * r.width;
+        const sy = r.top + ((1 - v.y) / 2) * r.height;
+        b.l = Math.min(b.l, sx);
+        b.r = Math.max(b.r, sx);
+        b.t = Math.min(b.t, sy);
+        b.b = Math.max(b.b, sy);
+      }
+      return b;
+    };
+    const fits = (b) => b.l >= f.left - 1 && b.r <= f.right + 1 && b.t >= f.top - 1 && b.b <= f.bottom + 1;
+    if (this.withPose(x, z, h, () => fits(box()))) return null;
+    const h0 = h;
+    const top = this.zoomMax();
+    for (let i = 0; i < 6; i++) {
+      const step = this.withPose(x, z, h, () => {
+        const b = box();
+        // the box's middle onto the free part's middle: shift by the ground between the two points
+        const gb = this.groundAt((b.l + b.r) / 2, (b.t + b.b) / 2);
+        const gf = this.groundAt((f.left + f.right) / 2, (f.top + f.bottom) / 2);
+        const k = Math.max((b.r - b.l) / (f.right - f.left), (b.b - b.t) / (f.bottom - f.top));
+        return { dx: gb && gf ? gb.x - gf.x : 0, dz: gb && gf ? gb.z - gf.z : 0, k };
+      });
+      x += step.dx;
+      z += step.dz;
+      h = clamp(h * step.k, h0, top);
+    }
+    const b = this.bounds;
+    return { x: clamp(x, b.minX, b.maxX), z: clamp(z, b.minZ, b.maxZ), h };
+  }
+
   attach() {
     const c = this.canvas;
     c.addEventListener(

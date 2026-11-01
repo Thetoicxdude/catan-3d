@@ -203,7 +203,7 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
     };
     // the island first: it decides how many nations can play
     g.appendChild(el('label', '', '地圖'));
-    const ms = el('div', 'seg');
+    const ms = el('div', 'seg maps');
     for (const def of MAP_LIST) {
       const b = el('button', settings.map === def.id ? 'on' : '', `${def.name}（${def.players[0] === 2 ? 3 : def.players[0]}–${def.players[1]} 人）`);
       b.type = 'button';
@@ -321,11 +321,17 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
         ['balanced', '平衡隨機'],
         ['spiral', '官方螺旋'],
       ], true);
-    seg2('勝利分數', 'target', [
-      [8, '8 分'],
-      [10, '10 分'],
-      [12, '12 分'],
-    ]);
+    // (a scenario sets its own target)
+    const fixedVP = mapDef(settings.map).vp;
+    if (fixedVP) {
+      g2.appendChild(el('label', '', '勝利分數'));
+      g2.appendChild(el('span', 'form-fixed', `${fixedVP} 分（劇本規定）`));
+    } else
+      seg2('勝利分數', 'target', [
+        [8, '8 分'],
+        [10, '10 分'],
+        [12, '12 分'],
+      ]);
     g2.appendChild(el('label', '', '島嶼'));
     const rr = el('div', 'menu-actions');
     const reroll = el('button', 'btn', '換一座島嶼');

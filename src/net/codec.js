@@ -5,9 +5,9 @@ import { GEO, useMap } from '../engine/geometry.js';
 import { RES } from '../engine/engine.js';
 import { generateBoard } from '../engine/board.js';
 import { seedState } from '../engine/rng.js';
-import { DEFAULT_MAP } from '../engine/maps.js';
+import { DEFAULT_MAP, mapDef } from '../engine/maps.js';
 
-const TER = { forest: 'f', hills: 'h', pasture: 'p', fields: 'g', mountains: 'm', desert: 'd', sea: 's' };
+const TER = { forest: 'f', hills: 'h', pasture: 'p', fields: 'g', mountains: 'm', desert: 'd', sea: 's', gold: 'o' };
 const TER_R = Object.fromEntries(Object.entries(TER).map(([k, v]) => [v, k]));
 const HB = { any: 'a', wood: 'w', brick: 'b', wool: 'l', grain: 'g', ore: 'o' };
 const HB_R = Object.fromEntries(Object.entries(HB).map(([k, v]) => [v, k]));
@@ -31,6 +31,17 @@ const resFull = (s) => {
   const a = String(s).split('.').map(Number);
   const o = {};
   RES.forEach((r, i) => (o[r] = a[i] || 0));
+  return o;
+};
+
+// {seat: count} ↔ "seat.count,seat.count"
+const amountsStr = (m) => Object.entries(m).map(([q, n]) => `${q}.${n}`).join(',');
+const amountsObj = (s) => {
+  const o = {};
+  if (s) for (const x of String(s).split(',')) {
+    const [q, n] = x.split('.').map(Number);
+    o[q] = n;
+  }
   return o;
 };
 
@@ -118,9 +129,17 @@ export function encodeEvent(e) {
     case 'roll':
       return ['R', e.p, e.dice[0], e.dice[1]];
     case 'produce':
-      return ['P', e.sum, e.blocked, e.paid.map((c) => `${c.hex}.${c.vertex}.${c.p}.${RES.indexOf(c.res)}.${c.amt}`).join(','), e.shortages.map((s) => `${RES.indexOf(s.res)}.${s.partial ? 1 : 0}.${s.p ?? -1}.${s.got ?? 0}`).join(',')];
+      return ['P', e.sum, e.blocked, e.paid.map((c) => `${c.hex}.${c.vertex}.${c.p}.${RES.indexOf(c.res)}.${c.amt}`).join(','), e.shortages.map((s) => `${RES.indexOf(s.res)}.${s.partial ? 1 : 0}.${s.p ?? -1}.${s.got ?? 0}`).join(','), ...(e.gold ? [amountsStr(e.gold)] : [])];
     case 'build':
-      return ['B', e.p, e.what[0], e.vertex ?? e.edge, (e.setup ? 1 : 0) + (e.free ? 2 : 0)];
+      return ['B', e.p, e.what === 'ship' ? 'h' : e.what[0], e.vertex ?? e.edge, (e.setup ? 1 : 0) + (e.free ? 2 : 0)];
+    case 'moveShip':
+      return ['V', e.p, e.from, e.to];
+    case 'pirate':
+      return ['J', e.p, e.from, e.to, e.reason === 'knight' ? 'k' : 's'];
+    case 'gold':
+      return ['U', e.p, resStr(e.res), e.count];
+    case 'isleBonus':
+      return ['I', e.p, e.vertex, e.vp];
     case 'startingResources':
       return ['S', e.p, e.vertex, resStr(e.gains)];
     case 'buyDev':
@@ -183,15 +202,25 @@ export function decodeEvent(a) {
             return { res: RES[r], partial: !!partial, p, got };
           })
         : [];
-      return { type: 'produce', sum: a[1], blocked: a[2], paid, shortages };
+      const e = { type: 'produce', sum: a[1], blocked: a[2], paid, shortages };
+      if (a[5]) e.gold = amountsObj(a[5]);
+      return e;
     }
     case 'B': {
-      const what = { r: 'road', s: 'settlement', c: 'city' }[a[2]];
+      const what = { r: 'road', s: 'settlement', c: 'city', h: 'ship' }[a[2]];
       const e = { type: 'build', what, p: a[1], setup: !!(a[4] & 1), free: !!(a[4] & 2) };
-      if (what === 'road') e.edge = a[3];
+      if (what === 'road' || what === 'ship') e.edge = a[3];
       else e.vertex = a[3];
       return e;
     }
+    case 'V':
+      return { type: 'moveShip', p: a[1], from: a[2], to: a[3] };
+    case 'J':
+      return { type: 'pirate', p: a[1], from: a[2], to: a[3], reason: a[4] === 'k' ? 'knight' : 'seven' };
+    case 'U':
+      return { type: 'gold', p: a[1], res: resObj(a[2]), count: a[3] };
+    case 'I':
+      return { type: 'isleBonus', p: a[1], vertex: a[2], vp: a[3] };
     case 'S':
       return { type: 'startingResources', p: a[1], vertex: a[2], gains: resFull(a[3]) };
     case 'D':
@@ -271,6 +300,7 @@ export function encodePublic(st) {
     else if (pd.type === 'robber') pend = ['r', pd.reason === 'knight' ? 'k' : 's'];
     else if (pd.type === 'steal') pend = ['s', pd.hex, pd.victims.join('.')];
     else if (pd.type === 'roadBuilding') pend = ['b', pd.left];
+    else if (pd.type === 'gold') pend = ['g', amountsStr(pd.amounts)];
   }
   const t = st.trade;
   const trade = t ? [t.id, t.from, resStr(t.give), resStr(t.get), Object.entries(t.resp).map(([q, r]) => `${q}${r === 'yes' ? 'y' : r === 'no' ? 'n' : r === 'lack' ? 'l' : 'w'}`).join('.')] : 0;
@@ -296,8 +326,20 @@ export function encodePublic(st) {
     rs: st.rolls.join('.'),
     bk: resStr(st.bank),
     dc: st.devDeck.length,
-    pl: st.players.map((p) => [RES.reduce((s, r) => s + p.res[r], 0), p.dev.length, p.knights, `${p.played.knight}.${p.played.roadBuilding}.${p.played.yearOfPlenty}.${p.played.monopoly}`, `${p.pieces.roads}.${p.pieces.settlements}.${p.pieces.cities}`, st.phase === 'over' ? p.dev.filter((c) => c.type === 'victoryPoint').length : -1]),
+    pl: st.players.map((p) => {
+      const row = [RES.reduce((s, r) => s + p.res[r], 0), p.dev.length, p.knights, `${p.played.knight}.${p.played.roadBuilding}.${p.played.yearOfPlenty}.${p.played.monopoly}`, `${p.pieces.roads}.${p.pieces.settlements}.${p.pieces.cities}${p.pieces.ships != null ? '.' + p.pieces.ships : ''}`, st.phase === 'over' ? p.dev.filter((c) => c.type === 'victoryPoint').length : -1];
+      // (Seafarers) bonus points, the islands they came from, the home islands
+      if (st.ships) row.push(p.chits || 0, (p.isles || []).join('.'), (p.home || []).join('.'));
+      return row;
+    }),
   };
+  // Seafarers: the ships ('.' none, else the owner), the pirate, the ships built this turn, a ship moved
+  if (st.ships) {
+    pub.sh = st.ships.map((p) => (p < 0 ? '.' : String(p))).join('');
+    pub.pi = st.board.pirate;
+    pub.nw = st.newShips.join('.');
+    pub.sm = st.shipMoved ? 1 : 0;
+  }
   // 5–6 players: the part of the turn after the main player's
   if (st.sub) pub.sb = [st.sub.k === 'sbp' ? 's' : 'p', st.sub.lead, st.sub.rest.join('')];
   return pub;
@@ -330,6 +372,7 @@ export function decodeView(board, seats, pub, priv, seat) {
     } else if (k === 'r') pending = { type: 'robber', reason: a === 'k' ? 'knight' : 'seven' };
     else if (k === 's') pending = { type: 'steal', hex: a, victims: String(b).split('.').map(Number) };
     else if (k === 'b') pending = { type: 'roadBuilding', left: a };
+    else if (k === 'g') pending = { type: 'gold', amounts: amountsObj(a) };
   }
   let trade = null;
   if (pub.tr) {
@@ -344,7 +387,7 @@ export function decodeView(board, seats, pub, priv, seat) {
     trade = { id, from, give: resObj(g), get: resObj(gt), resp: r };
   }
   const players = seats.map((s, i) => {
-    const [cnt, devCount, knights, played, pieces, vpShown] = pub.pl[i];
+    const [cnt, devCount, knights, played, pieces, vpShown, chits, isles, home] = pub.pl[i];
     const pp = String(played).split('.').map(Number);
     const pc = String(pieces).split('.').map(Number);
     const mine = i === seat && priv;
@@ -363,7 +406,8 @@ export function decodeView(board, seats, pub, priv, seat) {
       devCount,
       knights,
       played: { knight: pp[0], roadBuilding: pp[1], yearOfPlenty: pp[2], monopoly: pp[3] },
-      pieces: { roads: pc[0], settlements: pc[1], cities: pc[2] },
+      pieces: pc.length > 3 ? { roads: pc[0], settlements: pc[1], cities: pc[2], ships: pc[3] } : { roads: pc[0], settlements: pc[1], cities: pc[2] },
+      ...(pub.sh != null ? { chits: chits || 0, isles: isles ? String(isles).split('.').map(Number) : [], home: home ? String(home).split('.').map(Number) : [] } : {}),
     };
   });
   const dice = pub.di ? [Math.floor(pub.di / 10), pub.di % 10] : null;
@@ -399,9 +443,18 @@ export function decodeView(board, seats, pub, priv, seat) {
     rolls: String(pub.rs).split('.').map(Number),
     map: board.mp || DEFAULT_MAP,
   };
-  if (board.ru) {
-    view.rules = { turns: board.ru === 's' ? 'sbp' : 'paired' };
-    view.sub = pub.sb ? { k: pub.sb[0] === 's' ? 'sbp' : 'pair', lead: pub.sb[1], rest: [...String(pub.sb[2] || '')].map(Number) } : null;
+  // the rules: the map's, with the room's turn rule
+  const rules = { ...(mapDef(board.mp || DEFAULT_MAP).rules || {}) };
+  if (board.ru) rules.turns = board.ru === 's' ? 'sbp' : 'paired';
+  if (Object.keys(rules).length) {
+    view.rules = rules;
+    if (rules.turns) view.sub = pub.sb ? { k: pub.sb[0] === 's' ? 'sbp' : 'pair', lead: pub.sb[1], rest: [...String(pub.sb[2] || '')].map(Number) } : null;
+  }
+  if (pub.sh != null) {
+    view.ships = [...pub.sh].map((ch) => (ch === '.' ? -1 : Number(ch)));
+    view.newShips = pub.nw ? String(pub.nw).split('.').map(Number) : [];
+    view.shipMoved = !!pub.sm;
+    view.board = { ...view.board, pirate: pub.pi };
   }
   return view;
 }
@@ -433,6 +486,7 @@ export function decodeFull(board, seats, pub, full) {
       played: p.played,
       knights: p.knights,
       pieces: p.pieces,
+      ...(p.chits != null ? { chits: p.chits, isles: p.isles, home: p.home } : {}),
     };
   });
   const st = { ...v, players, devDeck: [...String(full.d || '')].map((c) => DEV_R[c]), rng: Array.isArray(full.g) ? full.g.slice() : null, seed: full.sd >>> 0 };

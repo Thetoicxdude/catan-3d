@@ -631,7 +631,8 @@ export class HostSession {
       this.lobby.presence({ app: APP, v: V, host: { ...listing, rem } }).catch(() => {});
     }
     if (this.phase === 'lobby' || !this.state) {
-      await this.ch.presence({ app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: this.phase, lob, tv: this.settings.target || 10, off: this.official ? 1 : 0, rem, ep: this.ep, ...lay });
+      const tv = (!this.official && mapDef(this.settings.map).vp) || this.settings.target || 10;
+      await this.ch.presence({ app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: this.phase, lob, tv, off: this.official ? 1 : 0, rem, ep: this.ep, ...lay });
       return;
     }
     const st = this.state;
@@ -655,7 +656,7 @@ export class HostSession {
     const ho = this.handing ? { to: this.handing.to, at: this.handing.at, bye: this.handing.bye ? 1 : 0 } : null;
     const dl = this.game && this.game.clockLeft ? this.game.clockLeft() : null;
     const ack = this.seats.filter((s) => s.kind === 'remote' && s.peer).map((s) => [s.peer, s.lastN || 0]);
-    const base = { app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: 'play', lob, bd: C.encodeBoard(st), ps: C.encodeSeats(st), pub: C.encodePublic(st), px, ack, err: this.err, ep: this.ep, pn: ++this.pn, hn: hs.name, hc: hs.color, bk, ho, dl, tv: this.settings.target || 10, off: this.official ? 1 : 0, mp: null, ru: null };
+    const base = { app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: 'play', lob, bd: C.encodeBoard(st), ps: C.encodeSeats(st), pub: C.encodePublic(st), px, ack, err: this.err, ep: this.ep, pn: ++this.pn, hn: hs.name, hc: hs.color, bk, ho, dl, tv: st.targetVP || this.settings.target || 10, off: this.official ? 1 : 0, mp: null, ru: null };
     if (this.becoming) for (const k of PLAYER_KEYS) base[k] = null;
     // the presence holds this page's chat lines too
     const budget = PRESENCE_BUDGET - (this.chat.items.length ? C.utf8Size({ chat: this.chat.items.map(([n, t]) => [n, t]) }) : 0);
@@ -801,10 +802,10 @@ export class HostSession {
       // the island and how many play (and on the large island, how the turn is shared)
       const lay = body.querySelector('.room-layout');
       const cur = mapDef(this.settings.map);
-      const segRow = (label, opts, on, pick) => {
+      const segRow = (label, opts, on, pick, cls = '') => {
         const row = el('div', 'layout-row');
         row.appendChild(el('span', 'row-label', label));
-        const seg = el('div', 'seg');
+        const seg = el('div', cls ? 'seg ' + cls : 'seg');
         for (const [val, text] of opts) {
           const b = el('button', val === on ? 'on' : '', text);
           b.type = 'button';
@@ -814,7 +815,7 @@ export class HostSession {
         row.appendChild(seg);
         lay.appendChild(row);
       };
-      segRow('地圖', MAP_LIST.map((d) => [d.id, d.name]), cur.id, (id) => this.setLayout(id, mapDef(id).players[1], this.settings.turns));
+      segRow('地圖', MAP_LIST.map((d) => [d.id, d.name]), cur.id, (id) => this.setLayout(id, mapDef(id).players[1], this.settings.turns), 'maps');
       const lo = Math.max(3, cur.players[0]);
       const counts = [];
       for (let n = lo; n <= cur.players[1]; n++) counts.push([n, `${n} 席`]);

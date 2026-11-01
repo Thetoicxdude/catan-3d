@@ -385,6 +385,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .form-grid { display: grid; grid-template-columns: 112px 1fr; gap: 12px 14px; align-items: center; }
 .form-grid label { color: var(--ink-dim); font-size: 13px; }
 .form-grid .form-note { margin: -4px 0 0; color: var(--ink-faint); font-size: 12px; line-height: 1.55; }
+.form-grid .form-fixed { color: var(--ink); font-size: 14px; }
 .form-grid input[type="text"], .form-grid input[type="number"], .form-grid select {
   width: 100%; box-sizing: border-box; height: 36px; padding: 0 10px; border-radius: 2px;
   background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(199, 166, 96, 0.3); color: var(--ink); font: inherit;
@@ -393,6 +394,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .seg button { padding: 7px 12px; background: rgba(0, 0, 0, 0.3); border: 0; border-right: 1px solid rgba(199, 166, 96, 0.2); color: var(--ink-dim); cursor: pointer; }
 .seg button:last-child { border-right: 0; }
 .seg button.on { background: var(--brass); color: #1f170b; font-weight: 700; }
+/* the map picker: two maps a row, the same width each, however many maps there are */
+.seg.maps { display: grid; grid-template-columns: 1fr 1fr; }
+.seg.maps button { border-bottom: 1px solid rgba(199, 166, 96, 0.2); text-align: left; }
+.seg.maps button:nth-child(2n) { border-right: 0; }
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
 .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.6); cursor: pointer; box-shadow: 0 0 0 1px rgba(199, 166, 96, 0.3); padding: 0; }
 .swatch.on { box-shadow: 0 0 0 2px var(--brass-hi), 0 0 12px rgba(234, 208, 142, 0.5); }

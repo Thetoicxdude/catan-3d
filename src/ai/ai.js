@@ -22,6 +22,10 @@ import {
   playableDev,
   longestRoadFor,
   distanceOK,
+  legalShips,
+  seaInfo,
+  pirateEdges,
+  homeIslands,
 } from '../engine/engine.js';
 
 const LEVELS = {
@@ -77,11 +81,12 @@ function vertexScore(view, v, p, weights, opts = {}) {
   const kinds = new Set();
   for (const h of GEO.vertices[v].hexes) {
     const H = view.board.hexes[h];
-    const r = TERRAIN_RES[H.terrain];
+    // (Seafarers) a gold field gives whatever is needed most
+    const r = H.terrain === 'gold' ? 'gold' : TERRAIN_RES[H.terrain];
     if (!r) continue;
     let pp = pips(H.number);
     if (view.board.robber === h && !opts.ignoreRobber) pp *= 0.6;
-    score += pp * weights[r];
+    score += pp * (r === 'gold' ? Math.max(...RES.map((x) => weights[x])) * 1.1 : weights[r]);
     kinds.add(r);
   }
   score += kinds.size * 0.9;
@@ -135,7 +140,9 @@ function setupSettlement(view, p, lvl, rnd) {
 
 function setupRoad(view, p, lvl, rnd) {
   const from = view.setup.last;
-  const edges = GEO.vertices[from].edges.filter((e) => view.edges[e] === -1);
+  // (Seafarers: a coastal settlement may get a ship instead; a road wherever there is land)
+  const roads = new Set(legalRoadEdges(view, p));
+  const edges = view.ships ? [...new Set([...roads, ...legalShips(view, p)])] : GEO.vertices[from].edges.filter((e) => view.edges[e] === -1);
   const weights = resWeights(view, p, 'early');
   let best = edges[0];
   let bestScore = -Infinity;
@@ -158,13 +165,14 @@ function setupRoad(view, p, lvl, rnd) {
       best = e;
     }
   }
-  return { type: 'road', p, edge: best };
+  return { type: view.ships && !roads.has(best) ? 'ship' : 'road', p, edge: best };
 }
 
 // ───────────────────────── planning ─────────────────────────
 
 // BFS over free paths from my network → settlement spots reachable with d new roads.
 function reachableSpots(view, p, maxDepth = 3) {
+  const sea = view.ships ? seaInfo(view.board) : null;
   const startSet = new Set();
   view.vertices.forEach((b, v) => {
     if (b && b.p === p) startSet.add(v);
@@ -191,6 +199,7 @@ function reachableSpots(view, p, maxDepth = 3) {
     if (b && b.p !== p) continue;
     for (const e of GEO.vertices[v].edges) {
       if (view.edges[e] !== -1) continue;
+      if (sea && (view.ships[e] !== -1 || !sea.eLand[e])) continue;
       const [a, c] = GEO.edges[e].v;
       const w = a === v ? c : a;
       if (dist.has(w)) continue;
@@ -206,6 +215,52 @@ function reachableSpots(view, p, maxDepth = 3) {
     if (d === 0) continue;
     if (!distanceOK(view, v)) continue;
     out.push({ v, d, edge: firstEdge.get(v) });
+  }
+  return out;
+}
+
+// (Seafarers) BFS by sea from my coastal buildings and the ends of my ships: coastal spots a ship
+// route could reach with d more ships, and the first ship to build toward each.
+function seaSpots(view, p, maxDepth = 6) {
+  const sea = seaInfo(view.board);
+  const blocked = new Set(pirateEdges(view));
+  const dist = new Map();
+  const first = new Map();
+  const queue = [];
+  const start = (v) => {
+    if (dist.has(v)) return;
+    dist.set(v, 0);
+    queue.push(v);
+  };
+  view.vertices.forEach((b, v) => b && b.p === p && sea.coast[v] && start(v));
+  for (let e = 0; e < GEO.edges.length; e++) {
+    if (view.ships[e] !== p) continue;
+    for (const v of GEO.edges[e].v) if (!view.vertices[v] || view.vertices[v].p === p) start(v);
+  }
+  while (queue.length) {
+    const v = queue.shift();
+    const d = dist.get(v);
+    if (d >= maxDepth) continue;
+    const b = view.vertices[v];
+    if (b && b.p !== p) continue;
+    for (const e of GEO.vertices[v].edges) {
+      if (view.edges[e] !== -1 || view.ships[e] !== -1 || !sea.eSea[e] || blocked.has(e)) continue;
+      const [a, c] = GEO.edges[e].v;
+      const w = a === v ? c : a;
+      if (dist.has(w)) continue;
+      const wb = view.vertices[w];
+      if (wb && wb.p !== p) continue;
+      dist.set(w, d + 1);
+      first.set(w, d === 0 ? e : first.get(v));
+      queue.push(w);
+    }
+  }
+  const out = [];
+  const home = homeIslands(view, p);
+  for (const [v, d] of dist) {
+    if (d === 0 || !sea.vLand[v] || !distanceOK(view, v)) continue;
+    const isle = sea.vIsland[v];
+    out.push({ v, d, edge: first.get(v), newIsle: isle >= 0 && !home.includes(isle) && !(view.players[p].isles || []).includes(isle) });
   }
   return out;
 }
@@ -279,6 +334,18 @@ function buildPlans(view, p, lvl) {
         }
       }
     }
+  }
+  // (Seafarers) ships toward coasts worth settling, above all new islands (bonus points)
+  if (view.ships && me.pieces.ships > 0 && me.pieces.settlements > 0) {
+    const legal = new Set(legalShips(view, p));
+    const bonus = GEO.def.isleBonus || 0;
+    const byEdge = new Map();
+    for (const s of seaSpots(view, p)) {
+      if (s.edge === undefined || !legal.has(s.edge)) continue;
+      const val = (1.3 + vertexScore(view, s.v, p, weights) * 0.085 + (s.newIsle ? 0.45 * bonus : 0)) * Math.pow(0.62, s.d) * 1.15;
+      if (!byEdge.has(s.edge) || byEdge.get(s.edge) < val) byEdge.set(s.edge, val);
+    }
+    for (const [e, val] of byEdge) plans.push({ kind: 'ship', edge: e, cost: COSTS.ship, value: val + noise(6000 + e) * 0.5 });
   }
   if (view.devDeckCount > 0) {
     let dv = 0.95 + (stage === 'late' ? 0.25 : 0);
@@ -400,6 +467,35 @@ function domesticOfferFor(view, p, cost) {
   return { type: 'offer', p, give: { [give]: giveCount }, get: { [want]: 1 } };
 }
 
+// (Seafarers) the resources a gold field gives: what the best plan lacks, then what I hold least of
+function chooseGold(view, p, amount, lvl) {
+  const me = view.players[p];
+  const bank = { ...view.bank };
+  const want = Math.min(amount, RES.reduce((s, r) => s + bank[r], 0));
+  const out = {};
+  const hand = { ...me.res };
+  const take = (r) => {
+    out[r] = (out[r] || 0) + 1;
+    hand[r]++;
+    bank[r]--;
+  };
+  const plans = buildPlans(view, p, lvl);
+  for (const pl of plans.slice(0, 3)) {
+    const { missing } = missingFor(hand, pl.cost);
+    for (const r of RES) {
+      while ((missing[r] || 0) > 0 && bank[r] > 0 && Object.values(out).reduce((a, b) => a + b, 0) < want) {
+        take(r);
+        missing[r]--;
+      }
+    }
+  }
+  while (Object.values(out).reduce((a, b) => a + b, 0) < want) {
+    const r = RES.filter((x) => bank[x] > 0).sort((a, b) => hand[a] - hand[b])[0];
+    take(r);
+  }
+  return out;
+}
+
 function chooseDiscard(view, p, amount) {
   const me = view.players[p];
   const hand = { ...me.res };
@@ -450,8 +546,57 @@ function robberScore(view, p, h, lvl) {
   return s;
 }
 
+// (Seafarers) what the robber holds back where it stands now: it stays there when the pirate moves
+function robberStays(view, p, lvl) {
+  const h = view.board.robber;
+  if (h == null || h < 0) return 0;
+  const pp = pips(view.board.hexes[h].number);
+  const leaderVP = Math.max(...view.players.map((o) => (o.id === p ? 0 : publicVP(view, o.id))));
+  let s = 0;
+  for (const v of GEO.hexes[h].vertices) {
+    const b = view.vertices[v];
+    if (!b) continue;
+    const mult = b.t === 'c' ? 2 : 1;
+    if (b.p === p) s -= pp * mult * 3;
+    else s += pp * mult * (1 + (lvl.smartRobber ? (publicVP(view, b.p) / Math.max(1, leaderVP)) * 0.8 : 0.3));
+  }
+  return s;
+}
+
+// (Seafarers) the pirate on sea hex h: a card from a rival with a ship beside it, and the rivals'
+// ships there held up (no moving them, no building on past it); never beside our own ships
+function pirateScore(view, p, h, lvl) {
+  if (h === view.board.pirate) return -Infinity;
+  let s = 0;
+  const rivals = new Set();
+  for (const e of GEO.hexes[h].edges) {
+    const q = view.ships[e];
+    if (q < 0) continue;
+    if (q === p) s -= 1.5;
+    else {
+      rivals.add(q);
+      s += 0.8 * (lvl.smartRobber ? 0.5 + publicVP(view, q) / 10 : 1);
+    }
+  }
+  const victims = [...rivals].filter((q) => view.players[q].resCount > 0);
+  if (victims.length) s += 1.5 + Math.max(...victims.map((q) => view.players[q].resCount)) * 0.15;
+  return s;
+}
+
 function chooseRobberHex(view, p, lvl, rnd) {
-  const scored = GEO.hexes.map((h) => ({ h: h.id, s: robberScore(view, p, h.id, lvl) + (rnd() - 0.5) * lvl.noise * 3 }));
+  const sea = view.ships ? seaInfo(view.board) : null;
+  const scored = GEO.hexes.filter((h) => !sea || sea.land[h.id]).map((h) => ({ h: h.id, s: robberScore(view, p, h.id, lvl) + (rnd() - 0.5) * lvl.noise * 3 }));
+  if (sea) {
+    // or the pirate (the robber then stays put); moving it is worth more while it holds up our ships
+    const cur = view.board.pirate;
+    const stuck = cur != null && cur >= 0 ? GEO.hexes[cur].edges.filter((e) => view.ships[e] === p).length : 0;
+    const stay = robberStays(view, p, lvl) + stuck * 1.5;
+    for (const h of GEO.hexes) {
+      if (sea.land[h.id]) continue;
+      const s = pirateScore(view, p, h.id, lvl);
+      if (s > -Infinity) scored.push({ h: h.id, s: s + stay + (rnd() - 0.5) * lvl.noise * 3 });
+    }
+  }
   scored.sort((a, b) => b.s - a.s);
   return scored[0].h;
 }
@@ -543,6 +688,7 @@ function winningMove(view, p, plans) {
 }
 
 function planToAction(p, pl) {
+  if (pl.kind === 'ship') return { type: 'ship', p, edge: pl.edge };
   if (pl.kind === 'city') return { type: 'city', p, vertex: pl.vertex };
   if (pl.kind === 'settlement') return { type: 'settlement', p, vertex: pl.vertex };
   if (pl.kind === 'road') return { type: 'road', p, edge: pl.edge };
@@ -629,6 +775,10 @@ export function aiAct(view, p, mem = {}, rnd = Math.random) {
     if (pd.amounts[p] === undefined) return null;
     return { type: 'discard', p, cards: chooseDiscard(view, p, pd.amounts[p]) };
   }
+  if (pd && pd.type === 'gold') {
+    if (pd.amounts[p] === undefined) return null;
+    return { type: 'gold', p, res: chooseGold(view, p, pd.amounts[p], lvl) };
+  }
   if (view.trade && view.trade.from !== p) {
     if (view.trade.resp[p] === null) {
       const lack = RES.some((r) => view.players[p].res[r] < (view.trade.get[r] || 0));
@@ -641,10 +791,13 @@ export function aiAct(view, p, mem = {}, rnd = Math.random) {
   if (pd && pd.type === 'robber') return { type: 'robber', p, hex: chooseRobberHex(view, p, lvl, rnd) };
   if (pd && pd.type === 'steal') return { type: 'steal', p, target: chooseVictim(view, p, pd.victims) };
   if (pd && pd.type === 'roadBuilding') {
-    const plans = buildPlans(view, p, lvl, rnd).filter((x) => x.kind === 'road');
-    if (plans.length) return { type: 'road', p, edge: plans[0].edge };
-    const any = legalRoadEdges(view, p);
+    const me = view.players[p];
+    const plans = buildPlans(view, p, lvl, rnd).filter((x) => (x.kind === 'road' && me.pieces.roads > 0) || (x.kind === 'ship' && me.pieces.ships > 0));
+    if (plans.length) return planToAction(p, plans[0]);
+    const any = me.pieces.roads > 0 ? legalRoadEdges(view, p) : [];
     if (any.length) return { type: 'road', p, edge: any[Math.floor(rnd() * any.length)] };
+    const ships = me.pieces.ships > 0 ? legalShips(view, p) : [];
+    if (ships.length) return { type: 'ship', p, edge: ships[Math.floor(rnd() * ships.length)] };
     return { type: 'endRoadBuilding', p };
   }
 

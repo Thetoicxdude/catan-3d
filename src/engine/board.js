@@ -1,6 +1,6 @@
 // Board generation for a map (maps.js): terrain shuffle, number tokens, harbors, province names.
 // The map must be in play (useMap) — the board is laid out on GEO.
-import { GEO, AXIAL_DIRS, useMap } from './geometry.js';
+import { GEO, AXIAL_DIRS, useMap, axialToWorld } from './geometry.js';
 import { BASE4 } from './maps.js';
 import { rngFloat, rngInt, shuffle } from './rng.js';
 
@@ -13,6 +13,7 @@ export const TERRAIN_RES = {
   mountains: 'ore',
   desert: null,
   sea: null,
+  gold: null, // (Seafarers) any resource, chosen by the player
 };
 // the standard island's pieces (other maps bring their own, see maps.js)
 export const TERRAIN_COUNTS = BASE4.pool;
@@ -33,6 +34,7 @@ const NAMES = {
   fields: [['金麥', '豐穗', '黃金', '麥浪', '稻香', '暖陽', '秋收', '琥珀'], ['田', '平原', '穀地']],
   mountains: [['鐵脊', '灰岩', '雪峰', '鷹巢', '龍脊', '寒鋒', '黑曜', '銀礦'], ['山', '山脈', '嶺']],
   desert: [['流沙', '焦土', '黃沙', '枯骨', '赤焰', '無垠'], ['荒原', '沙海', '大漠']],
+  gold: [['金沙', '黃金', '耀金', '金脈', '日輝', '寶光'], ['河谷', '金礦', '淘金地']],
 };
 
 function terrainOk(terrains) {
@@ -102,7 +104,9 @@ const dealt = (terrain) => !!terrain && terrain !== 'desert' && terrain !== 'sea
 // same terrain (equal swaps are kept, so the search wanders across plateaus).
 function spreadTerrain(holder, terrains, free) {
   if (free.length < 2) return;
+  // (sea drawn from a pool lands where it falls: sea next to sea is fine)
   const same = (id) => {
+    if (terrains[id] === 'sea') return 0;
     let n = 0;
     for (const nb of GEO.hexes[id].neighbors) if (terrains[nb] === terrains[id]) n++;
     return n;
@@ -149,19 +153,28 @@ export function generateBoard(holder, opts = {}) {
   if (opts.map) useMap(opts.map);
   const def = GEO.def;
   const method = opts.numbers === 'spiral' && def.spiral && def.radius != null ? 'spiral' : 'balanced';
-  const pool = [];
-  for (const [t, c] of Object.entries(def.pool)) for (let i = 0; i < c; i++) pool.push(t);
+  const expand = (counts) => {
+    const out = [];
+    for (const [t, c] of Object.entries(counts || {})) for (let i = 0; i < c; i++) out.push(t);
+    return out;
+  };
+  const pool = expand(def.pool);
 
-  // tiles drawn from the pool ('?'), the others keep the terrain the map gives them
+  // tiles drawn from a pool ('?'): the pool of their group (maps with groups), else the map's; the
+  // others keep the terrain the map gives them
+  const groups = def.groups || null;
+  const groupOf = (t) => (groups && t.g && groups[t.g] ? t.g : '');
   const free = [];
+  const freeBy = {};
   const base = def.tiles.map((t, id) => {
     if (t.t === '?' || !t.t) {
       free.push(id);
+      (freeBy[groupOf(t)] = freeBy[groupOf(t)] || []).push(id);
       return null;
     }
     return t.t;
   });
-  if (pool.length < free.length) throw new Error('地圖的地形不夠分配');
+  for (const [g, ids] of Object.entries(freeBy)) if ((g ? expand(groups[g].pool) : pool).length < ids.length) throw new Error('地圖的地形不夠分配');
 
   let terrains = null;
   if (def.legacy) {
@@ -178,10 +191,12 @@ export function generateBoard(holder, opts = {}) {
       if (score <= 1) break;
     }
   } else {
-    const drawn = shuffle(holder, pool.slice());
     terrains = base.slice();
-    free.forEach((id, i) => (terrains[id] = drawn[i]));
-    spreadTerrain(holder, terrains, free);
+    for (const [g, ids] of Object.entries(freeBy)) {
+      const drawn = shuffle(holder, g ? expand(groups[g].pool) : pool.slice());
+      ids.forEach((id, i) => (terrains[id] = drawn[i]));
+      spreadTerrain(holder, terrains, ids);
+    }
   }
 
   // numbers the map fixes; the tokens go to the other land tiles
@@ -208,22 +223,32 @@ export function generateBoard(holder, opts = {}) {
         if (numbersOk(terrains, cand)) break;
       }
     } else {
-      const tokens = shuffle(holder, def.numbers.slice());
+      // each group's tokens go to that group's land
       numbers = fixed.slice();
-      land.forEach((id, i) => (numbers[id] = tokens[i] || 0));
+      const landBy = {};
+      for (const id of land) (landBy[groupOf(def.tiles[id])] = landBy[groupOf(def.tiles[id])] || []).push(id);
+      for (const [g, ids] of Object.entries(landBy)) {
+        const tokens = shuffle(holder, (g ? groups[g].numbers : def.numbers).slice());
+        ids.forEach((id, i) => (numbers[id] = tokens[i] || 0));
+      }
       repairNumbers(holder, numbers, land.filter((id) => numbers[id]));
     }
   }
 
-  // Harbors round the coast: from a random start, `gaps` coastal paths apart.
-  const coast = GEO.coastalEdges;
-  const offset = Math.floor(rngFloat(holder) * coast.length);
-  const types = shuffle(holder, def.harbors.types.slice());
-  const harbors = [];
-  let pos = offset;
-  for (let i = 0; i < types.length; i++) {
-    harbors.push({ edge: coast[pos % coast.length], type: types[i] });
-    pos += def.harbors.gaps[i];
+  // Harbors round the coast: from a random start, `gaps` coastal paths apart (round one group's land
+  // only, when the map says so); on maps of several islands, shared among the islands.
+  let harbors;
+  if (def.harbors.perIsland) harbors = islandHarbors(holder, shuffle(holder, def.harbors.types.slice()), terrains);
+  else {
+    const coast = def.harbors.group ? groupCoast(def.harbors.group, terrains) : GEO.coastalEdges;
+    const offset = Math.floor(rngFloat(holder) * coast.length);
+    const types = shuffle(holder, def.harbors.types.slice());
+    harbors = [];
+    let pos = offset;
+    for (let i = 0; i < types.length; i++) {
+      harbors.push({ edge: coast[pos % coast.length], type: types[i] });
+      pos += def.harbors.gaps[i];
+    }
   }
   const vertexHarbor = new Array(GEO.vertices.length).fill(null);
   for (const hb of harbors) for (const v of GEO.edges[hb.edge].v) vertexHarbor[v] = hb.type;
@@ -240,6 +265,87 @@ export function generateBoard(holder, opts = {}) {
     return { terrain, number: numbers[h.id], name: p + s };
   });
 
-  const desert = hexes.findIndex((h) => h.terrain === 'desert');
-  return { hexes, harbors, vertexHarbor, robber: desert, method };
+  // the robber starts in the desert; on a map without one, on the hex with the number the map names
+  let robber = hexes.findIndex((h) => h.terrain === 'desert');
+  if (robber < 0 && def.robber && def.robber.number) robber = hexes.findIndex((h) => h.number === def.robber.number);
+  const board = { hexes, harbors, vertexHarbor, robber, method };
+  // the pirate's sea hex (Seafarers)
+  if (def.pirate) board.pirate = GEO.hexAt(def.pirate[0], def.pirate[1]);
+  return board;
+}
+
+// Harbors on a map of several islands: each island gets a share of them by the length of its coast
+// (largest remainders first), spaced evenly round it from a random start.
+function islandHarbors(holder, types, terrains) {
+  const land = (id) => terrains[id] !== 'sea';
+  const island = new Array(GEO.hexes.length).fill(-1);
+  let n = 0;
+  for (const h of GEO.hexes) {
+    if (!land(h.id) || island[h.id] >= 0) continue;
+    const stack = [h.id];
+    island[h.id] = n;
+    while (stack.length) {
+      const id = stack.pop();
+      for (const nb of GEO.hexes[id].neighbors) {
+        if (land(nb) && island[nb] < 0) {
+          island[nb] = n;
+          stack.push(nb);
+        }
+      }
+    }
+    n++;
+  }
+  const coasts = [];
+  for (let i = 0; i < n; i++) {
+    let sq = 0;
+    let sr = 0;
+    let k = 0;
+    for (const h of GEO.hexes) {
+      if (island[h.id] !== i) continue;
+      sq += h.q;
+      sr += h.r;
+      k++;
+    }
+    const c = axialToWorld(sq / k, sr / k);
+    const edges = GEO.edges.filter((e) => e.hexes.filter((id) => island[id] === i).length === 1 && e.hexes.every((id) => island[id] === i || !land(id)));
+    edges.sort((a, b) => Math.atan2(a.z - c.z, a.x - c.x) - Math.atan2(b.z - c.z, b.x - c.x));
+    coasts.push(edges.map((e) => e.id));
+  }
+  const total = coasts.reduce((t, c) => t + c.length, 0);
+  const want = coasts.map((c) => (types.length * c.length) / total);
+  const share = want.map(Math.floor);
+  let left = types.length - share.reduce((t, x) => t + x, 0);
+  const order = coasts.map((c, i) => i).sort((a, b) => want[b] - share[b] - (want[a] - share[a]) || a - b);
+  for (const i of order) {
+    if (left <= 0) break;
+    share[i]++;
+    left--;
+  }
+  const out = [];
+  let t = 0;
+  coasts.forEach((edges, i) => {
+    if (!share[i] || !edges.length) return;
+    const start = Math.floor(rngFloat(holder) * edges.length);
+    for (let j = 0; j < share[i]; j++) out.push({ edge: edges[(start + Math.round((j * edges.length) / share[i])) % edges.length], type: types[t++] });
+  });
+  return out;
+}
+
+// The coast of one group's land: paths with that land on one side and sea (or the edge of the map) on
+// the other, in order round the group's own middle.
+function groupCoast(group, terrains) {
+  const isLand = (id) => GEO.def.tiles[id].g === group && terrains[id] !== 'sea';
+  let sq = 0;
+  let sr = 0;
+  let n = 0;
+  for (const h of GEO.hexes) {
+    if (!isLand(h.id)) continue;
+    sq += h.q;
+    sr += h.r;
+    n++;
+  }
+  const c = axialToWorld(sq / n, sr / n);
+  const edges = GEO.edges.filter((e) => e.hexes.filter(isLand).length === 1 && e.hexes.every((id) => isLand(id) || terrains[id] === 'sea'));
+  edges.sort((a, b) => Math.atan2(a.z - c.z, a.x - c.x) - Math.atan2(b.z - c.z, b.x - c.x));
+  return edges.map((e) => e.id);
 }

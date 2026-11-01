@@ -16,6 +16,10 @@ import {
   RES,
   COSTS,
   ensureMap,
+  legalShips,
+  movableShips,
+  shipTargets,
+  seaInfo,
 } from '../engine/engine.js';
 import { GEO } from '../engine/geometry.js';
 import { aiAct } from '../ai/ai.js';
@@ -158,7 +162,9 @@ export class Game {
     this.map.sync(this.view(), [], false);
     if (!switched) {
       this.map.camera.resetView();
-      if (this.state.phase === 'setup') this.map.focus(GEO.center.x, GEO.center.z + 5, this.map.camera.fitIsland(1.12));
+      // the whole land in view, clear of the panels (a player with buildings is then taken to the first
+      // of them: focusHome, below)
+      this.map.frameLand(this.hud.freeRect(), this.map.camera.fitIsland(1.12));
       this.hud.log(`戰役開始：${this.players.map((p, i) => `<span class="who" style="color:${p.color}">${i === this.viewer ? '你' : esc(p.name)}</span>`).join('、')}`, { hl: true });
       if (this.state.phase === 'setup') this.hud.log('開局：依序放置村莊與道路（第二輪順序相反）。', {});
     }
@@ -608,6 +614,10 @@ export class Game {
     if (this.mode === 'road') return legalRoadEdges(v, me).length > 0 && v.players[me].res.wood > 0 && v.players[me].res.brick > 0 && v.players[me].pieces.roads > 0;
     if (this.mode === 'settlement') return legalSettlementSpots(v, me).length > 0;
     if (this.mode === 'city') return legalCitySpots(v, me).length > 0;
+    // (Seafarers)
+    if (this.mode === 'ship') return legalShips(v, me).length > 0 && v.players[me].pieces.ships > 0;
+    if (this.mode === 'moveShip') return !v.shipMoved && movableShips(v, me).some((e) => shipTargets(v, me, e).length);
+    if (this.mode === 'moveShipTo') return this.moveFrom != null && shipTargets(v, me, this.moveFrom).length > 0;
     return false;
   }
 
@@ -637,6 +647,14 @@ export class Game {
       case 'dev':
         this.mode = null;
         this.dispatch({ type: 'buyDev', p: me });
+        break;
+      case 'ship':
+        this.setMode('ship');
+        break;
+      case 'moveShip':
+        // (pressed again while picking where to sail: back to picking the ship)
+        this.moveFrom = null;
+        this.setMode('moveShip');
         break;
       case 'trade':
         this.mode = null;
@@ -746,7 +764,7 @@ export class Game {
       return;
     }
     if (this.dialogs.kind && !['m'].includes(k)) return;
-    const map = { r: 'roll', 1: 'road', 2: 'settlement', 3: 'city', 4: 'dev', t: 'trade', c: 'cards', ' ': 'end', enter: 'end' };
+    const map = { r: 'roll', 1: 'road', 2: 'settlement', 3: 'city', 4: 'dev', 5: 'ship', 6: 'moveShip', t: 'trade', c: 'cards', ' ': 'end', enter: 'end' };
     if (k === 'm') {
       const i = MAP_MODES.indexOf(this.mapMode);
       this.setMapMode(MAP_MODES[(i + 1) % MAP_MODES.length]);
@@ -812,14 +830,36 @@ export class Game {
       if (p === me) {
         if (v.setup.step === 'settlement') {
           inter = { kind: 'vertex', ids: legalSettlementSpots(v, me, true), ghost: 'settlement', player: me, onPick: (id) => this.dispatch({ type: 'settlement', p: me, vertex: id }) };
-          banner = { html: `開局第 ${round} 輪：選擇<b>村莊</b>的位置${round === 2 ? '（此村莊旁的地形會給你開局資源）' : ''}` };
+          // (Seafarers without a fixed home island: any island; the islands chosen become the home islands)
+          const anyIsle = v.ships && !(GEO.def.setup && GEO.def.setup.group);
+          banner = { html: `開局第 ${round} 輪：選擇<b>村莊</b>的位置${round === 2 ? '（此村莊旁的地形會給你開局資源）' : anyIsle ? '（任何一座島都可以，開局所在的島就是你的本島）' : ''}` };
           hint = { text: '點選白色圓圈放置村莊' };
+        } else if (v.ships) {
+          // (Seafarers) a road, or a ship from a settlement on the coast
+          const roads = legalRoadEdges(v, me);
+          const ships = legalShips(v, me);
+          const asShip = this.setupShip && ships.length ? true : !roads.length;
+          const ids = asShip ? ships : roads;
+          inter = { kind: 'edge', ids, ghost: asShip ? 'ship' : 'road', player: me, onPick: (id) => this.dispatch({ type: asShip ? 'ship' : 'road', p: me, edge: id }) };
+          const other = asShip ? roads.length : ships.length;
+          banner = {
+            html: asShip ? '放置一艘與剛才村莊相連的<b>船</b>' : '放置一條與剛才村莊相連的<b>道路</b>',
+            buttons: other ? [{ label: asShip ? '改放道路' : '改放船', onClick: () => ((this.setupShip = !asShip), this.refresh()) }] : [],
+          };
+          hint = { text: asShip ? '點選白色條紋放置船' : '點選白色條紋放置道路' };
         } else {
           inter = { kind: 'edge', ids: legalRoadEdges(v, me), ghost: 'road', player: me, onPick: (id) => this.dispatch({ type: 'road', p: me, edge: id }) };
           banner = { html: '放置一條與剛才村莊相連的<b>道路</b>' };
           hint = { text: '點選白色條紋放置道路' };
         }
       } else banner = { html: `${P(p)} 正在選擇開局位置…`, wait: true };
+    } else if (v.pending && v.pending.type === 'gold') {
+      // (Seafarers) a gold field paid out: its owners pick their resources
+      if (v.pending.amounts[me] !== undefined) {
+        wantDialog.kind = 'gold';
+        banner = { html: `金礦產出：選擇 <b>${v.pending.amounts[me]}</b> 張任意資源`, urgent: true };
+        hint = { text: `選擇 ${v.pending.amounts[me]} 張資源` };
+      } else banner = { html: '等待其他國家選擇金礦資源…', wait: true };
     } else if (v.pending && v.pending.type === 'discard') {
       if (v.pending.amounts[me] !== undefined) {
         wantDialog.kind = 'discard';
@@ -828,18 +868,20 @@ export class Game {
       } else banner = { html: '等待其他國家棄牌…', wait: true };
     } else if (v.pending && v.pending.type === 'robber') {
       if (v.current === me) {
-        const ids = GEO.hexes.map((h) => h.id).filter((h) => h !== v.board.robber);
+        // (Seafarers: a sea hex moves the pirate instead)
+        const land = v.ships ? seaInfo(v.board).land : null;
+        const ids = GEO.hexes.map((h) => h.id).filter((h) => (land && !land[h] ? h !== v.board.pirate : h !== v.board.robber));
         inter = { kind: 'hex', ids, player: me, onPick: (id) => this.dispatch({ type: 'robber', p: me, hex: id }) };
         const why = v.pending.reason === 'knight' ? '騎士出征' : '擲出 7，強盜出沒';
-        banner = { html: `${why}：點選一塊<b>有白色圓圈的地形</b>安置強盜，並搶奪旁邊國家的一張牌`, urgent: true };
-        hint = { text: '移動強盜：點選有圓圈的地形', urgent: true };
+        banner = { html: land ? `${why}：點選<b>有白色圓圈的地形</b>安置強盜，或點選<b>海域</b>移動海盜（搶奪旁邊有船的國家）` : `${why}：點選一塊<b>有白色圓圈的地形</b>安置強盜，並搶奪旁邊國家的一張牌`, urgent: true };
+        hint = { text: land ? '移動強盜或海盜：點選有圓圈的格子' : '移動強盜：點選有圓圈的地形', urgent: true };
         // make sure this is noticed (once per robber move); the camera is left alone
         const key = 'robber:' + v.turn + ':' + v.pending.reason;
         if (this.robberNotice !== key) {
           this.robberNotice = key;
-          this.hud.toast(why, '點選地圖上有白色圓圈的地形安置強盜。完成之前不能結束回合。', 'robber', 5200);
+          this.hud.toast(why, land ? '點選有白色圓圈的地形安置強盜，或點選海域移動海盜。完成之前不能結束回合。' : '點選地圖上有白色圓圈的地形安置強盜。完成之前不能結束回合。', 'robber', 5200);
         }
-      } else banner = { html: `${P(v.current)} 正在移動強盜…`, wait: true };
+      } else banner = { html: `${P(v.current)} 正在移動強盜${v.ships ? '或海盜' : ''}…`, wait: true };
     } else if (v.pending && v.pending.type === 'steal') {
       if (v.current === me) {
         wantDialog.kind = 'steal';
@@ -873,18 +915,47 @@ export class Game {
         const dev = playableDev(v, me);
         banner = { html: `你的回合：<b>擲骰</b>${dev.length ? '（也可以先使用發展卡）' : ''}` };
         hint = { text: '擲骰開始你的回合' };
-      } else if (this.mode) {
-        const ids = this.mode === 'road' ? legalRoadEdges(v, me) : this.mode === 'settlement' ? legalSettlementSpots(v, me) : legalCitySpots(v, me);
-        const name = { road: '道路', settlement: '村莊', city: '城市' }[this.mode];
+      } else if (this.mode === 'moveShip' || this.mode === 'moveShipTo') {
+        // (Seafarers) pick the ship, then where it sails
+        const picking = this.mode === 'moveShip';
+        const ids = picking ? movableShips(v, me).filter((e) => shipTargets(v, me, e).length) : shipTargets(v, me, this.moveFrom);
         inter = {
-          kind: this.mode === 'road' ? 'edge' : 'vertex',
+          kind: 'edge',
+          ids,
+          ghost: picking ? null : 'ship',
+          player: me,
+          onPick: (id) => {
+            if (picking) {
+              this.moveFrom = id;
+              this.mode = 'moveShipTo';
+              this.refresh();
+              return;
+            }
+            const from = this.moveFrom;
+            this.mode = null;
+            this.moveFrom = null;
+            this.dispatch({ type: 'moveShip', p: me, from, to: id });
+          },
+          onCancel: () => {
+            this.mode = null;
+            this.moveFrom = null;
+            this.refresh();
+          },
+        };
+        banner = { html: picking ? '選擇要移動的<b>船</b>（航線末端的船）' : '選擇船要開往的<b>航道</b>', buttons: [{ label: '取消', onClick: () => inter.onCancel() }] };
+        hint = { text: picking ? '點選要移動的船' : '點選白色條紋，船會移到那裡' };
+      } else if (this.mode) {
+        const ids = this.mode === 'road' ? legalRoadEdges(v, me) : this.mode === 'ship' ? legalShips(v, me) : this.mode === 'settlement' ? legalSettlementSpots(v, me) : legalCitySpots(v, me);
+        const name = { road: '道路', settlement: '村莊', city: '城市', ship: '船' }[this.mode];
+        inter = {
+          kind: this.mode === 'road' || this.mode === 'ship' ? 'edge' : 'vertex',
           ids,
           ghost: this.mode,
           player: me,
           onPick: (id) => {
             const m = this.mode;
             this.mode = null;
-            this.dispatch(m === 'road' ? { type: 'road', p: me, edge: id } : { type: m, p: me, vertex: id });
+            this.dispatch(m === 'road' || m === 'ship' ? { type: m, p: me, edge: id } : { type: m, p: me, vertex: id });
           },
           onCancel: () => {
             this.mode = null;
@@ -892,7 +963,7 @@ export class Game {
           },
         };
         banner = { html: `選擇<b>${name}</b>的位置`, buttons: [{ label: '取消', onClick: () => inter.onCancel() }] };
-        hint = { text: this.mode === 'road' ? '點選白色條紋建造道路（右鍵或 Esc 取消）' : `點選白色圓圈建造${name}（右鍵或 Esc 取消）` };
+        hint = { text: this.mode === 'road' || this.mode === 'ship' ? `點選白色條紋建造${name}（右鍵或 Esc 取消）` : `點選白色圓圈建造${name}（右鍵或 Esc 取消）` };
       } else banner = null;
     } else if (v.sub) {
       banner = { html: v.sub.k === 'pair' ? `${P(v.current)} 是第二位，接著 ${P(v.sub.lead)} 行動${me < 0 ? '（觀戰中）' : ''}` : `特別建造：${P(v.current)} 正在建造${me < 0 ? '（觀戰中）' : ''}`, wait: true };
@@ -920,6 +991,10 @@ export class Game {
       this.dialogs.discard(this.ctx(), amt, (cards) => {
         if (this.dispatch({ type: 'discard', p: me, cards })) this.dialogs.close(true);
       });
+    } else if (wantDialog.kind === 'gold' && dk !== 'gold') {
+      this.dialogs.gold(this.ctx(), v.pending.amounts[me], (res) => {
+        if (this.dispatch({ type: 'gold', p: me, res })) this.dialogs.close(true);
+      });
     } else if (wantDialog.kind === 'steal' && dk !== 'steal') {
       this.dialogs.steal(this.ctx(), v.pending.victims, (q) => {
         this.dialogs.close(true);
@@ -933,7 +1008,7 @@ export class Game {
       });
     } else {
       if (dk === 'trade' && (v.current !== me || v.phase !== 'play')) this.dialogs.close(true);
-      if ((dk === 'discard' && wantDialog.kind !== 'discard') || (dk === 'steal' && wantDialog.kind !== 'steal') || (dk === 'incoming' && wantDialog.kind !== 'incoming')) this.dialogs.close(true);
+      if ((dk === 'discard' && wantDialog.kind !== 'discard') || (dk === 'gold' && wantDialog.kind !== 'gold') || (dk === 'steal' && wantDialog.kind !== 'steal') || (dk === 'incoming' && wantDialog.kind !== 'incoming')) this.dialogs.close(true);
       this.dialogs.refresh(this.ctx());
     }
   }

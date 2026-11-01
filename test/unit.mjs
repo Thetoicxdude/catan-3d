@@ -10,7 +10,15 @@ import {
   makeView,
   legalSettlementSpots,
   totalVP,
+  publicVP,
+  distanceOK,
+  seaInfo,
+  pirateEdges,
+  shipTargets,
+  legalShips,
+  legalRoadEdges,
 } from '../src/engine/engine.js';
+import { tradeRouteFor } from '../src/engine/seafarers.js';
 
 let passed = 0;
 function test(name, fn) {
@@ -461,6 +469,284 @@ test('special building phase: everyone else builds in turn, no trades or cards, 
   for (const p of [3, 4, 0]) applyAction(st, { type: 'endTurn', p });
   assert.equal(st.phase, 'over');
   assert.equal(st.winner, 2);
+});
+
+// ── Seafarers (scenario 1) ──
+function freshSea(n = 4, seed = 21) {
+  const st = createGame({ seed, players: players(n), firstPlayer: 0, map: 'sea-1' });
+  st.phase = 'play';
+  st.turn = 5;
+  st.current = 0;
+  st.rolled = true;
+  return st;
+}
+// a coastal intersection of the home island with a pure-sea path next to it, and that path
+function harborSpot(st) {
+  const sea = seaInfo(st.board);
+  for (let v = 0; v < GEO.vertices.length; v++) {
+    if (!sea.coast[v] || !sea.home.has(sea.vIsland[v])) continue;
+    const seaEdge = GEO.vertices[v].edges.find((e) => sea.eLand[e] === 0 && sea.eSea[e] > 0 && !pirateEdges(st).includes(e));
+    if (seaEdge !== undefined) return { v, e: seaEdge };
+  }
+  throw new Error('no harbor spot');
+}
+const give = (st, p, res) => Object.assign(st.players[p].res, res);
+
+test('Seafarers scenario 1: the islands, pieces and points', () => {
+  const st = freshSea(4);
+  assert.equal(GEO.id, 'sea-1');
+  assert.equal(st.targetVP, 14);
+  const count = {};
+  for (const h of st.board.hexes) count[h.terrain] = (count[h.terrain] || 0) + 1;
+  assert.equal(count.gold, 2);
+  assert.equal(count.sea, 14);
+  assert.equal(count.desert, 1);
+  assert.equal(st.board.hexes[st.board.pirate].terrain, 'sea');
+  assert.equal(st.board.hexes[st.board.robber].terrain, 'desert');
+  assert.equal(st.board.harbors.length, 9);
+  const sea = seaInfo(st.board);
+  // harbors only round the home island
+  for (const hb of st.board.harbors) assert.ok(GEO.edges[hb.edge].hexes.some((h) => sea.home.has(sea.island[h])));
+  assert.ok(sea.islands >= 2, 'small islands besides the home island');
+  assert.equal(st.players[0].pieces.ships, 15);
+  assert.equal(st.ships.length, GEO.edges.length);
+});
+
+test('Seafarers: the frame round the map is sea', () => {
+  const st = createGame({ seed: 21, players: players(4), firstPlayer: 0, map: 'sea-1' });
+  const sea = seaInfo(st.board);
+  // a path along the map's edge on the home island: land on one side, the frame on the other
+  const spots = legalSettlementSpots(st, 0, true);
+  const e = GEO.edges.findIndex((x) => x.hexes.length === 1 && sea.land[x.hexes[0]] && sea.home.has(sea.island[x.hexes[0]]) && x.v.some((v) => spots.includes(v)));
+  assert.ok(e >= 0, 'the home island reaches the frame');
+  assert.equal(sea.eLand[e], 1);
+  assert.equal(sea.eSea[e], 1);
+  applyAction(st, { type: 'settlement', p: 0, vertex: GEO.edges[e].v.find((v) => spots.includes(v)) });
+  assert.ok(legalShips(st, 0).includes(e), 'a ship along the frame');
+  assert.ok(legalRoadEdges(st, 0).includes(e), 'or a road along the coast');
+});
+
+test('Seafarers: opening on the home island, a ship instead of a road', () => {
+  const st = createGame({ seed: 21, players: players(4), firstPlayer: 0, map: 'sea-1' });
+  const sea = seaInfo(st.board);
+  const spots = legalSettlementSpots(st, 0, true);
+  assert.ok(spots.length > 10 && spots.every((v) => sea.home.has(sea.vIsland[v])), 'opening spots on the home island only');
+  const { v, e } = harborSpot(st);
+  applyAction(st, { type: 'settlement', p: 0, vertex: v });
+  throwsRule(() => applyAction(st, { type: 'road', p: 0, edge: e }), /海上/);
+  applyAction(st, { type: 'ship', p: 0, edge: e });
+  assert.equal(st.ships[e], 0);
+  assert.equal(st.players[0].pieces.ships, 14);
+  assert.equal(st.setup.i, 1);
+});
+
+test('Seafarers: building ships, roads and ships meet only at a settlement', () => {
+  const st = freshSea(4);
+  const sea = seaInfo(st.board);
+  const { v, e } = harborSpot(st);
+  st.vertices[v] = { p: 0, t: 's' };
+  give(st, 0, { wood: 5, wool: 5, brick: 5 });
+  throwsRule(() => applyAction(st, { type: 'ship', p: 1, edge: e }));
+  applyAction(st, { type: 'ship', p: 0, edge: e });
+  assert.equal(st.players[0].res.wood, 4);
+  assert.equal(st.players[0].res.wool, 4);
+  // the next ship goes on from the ship's far end
+  const far = GEO.edges[e].v.find((x) => x !== v);
+  const next = GEO.vertices[far].edges.find((x) => x !== e && sea.eSea[x] > 0 && !pirateEdges(st).includes(x));
+  applyAction(st, { type: 'ship', p: 0, edge: next });
+  // a road can't continue from a ship's end (no settlement there)
+  const landFrom = GEO.vertices[far].edges.find((x) => x !== e && sea.eLand[x] > 0 && st.ships[x] === -1);
+  if (landFrom !== undefined) throwsRule(() => applyAction(st, { type: 'road', p: 0, edge: landFrom }));
+  // an inland path takes no ship
+  const inland = GEO.edges.findIndex((x, i) => sea.eSea[i] === 0 && x.hexes.length === 2);
+  throwsRule(() => applyAction(st, { type: 'ship', p: 0, edge: inland }));
+});
+
+test('Seafarers: no ship by the pirate; the pirate robs ship owners', () => {
+  const st = freshSea(4);
+  const sea = seaInfo(st.board);
+  // a ship of player 1 beside a sea hex, the pirate moved there by player 0's knight
+  const hex = GEO.hexes.find((h) => !sea.land[h.id] && h.id !== st.board.pirate && h.edges.some((e) => GEO.edges[e].v.some((v) => sea.coast[v])));
+  const e = hex.edges.find((x) => GEO.edges[x].v.some((v) => sea.coast[v]));
+  st.ships[e] = 1;
+  give(st, 1, { ore: 2 });
+  st.players[0].dev = [{ type: 'knight', turn: 1 }];
+  applyAction(st, { type: 'playDev', p: 0, card: 'knight' });
+  applyAction(st, { type: 'robber', p: 0, hex: hex.id });
+  assert.equal(st.board.pirate, hex.id);
+  assert.equal(st.players[0].res.ore, 1, 'stole from the ship owner');
+  // no new ship on the pirate's hex
+  const other = hex.edges.find((x) => x !== e && st.ships[x] === -1);
+  st.vertices[GEO.edges[other].v[0]] = { p: 1, t: 's' };
+  give(st, 1, { wood: 1, wool: 1 });
+  st.current = 1;
+  throwsRule(() => applyAction(st, { type: 'ship', p: 1, edge: other }), /海盜/);
+});
+
+test('Seafarers: a settlement reached by sea, and the bonus for a new island', () => {
+  const st = freshSea(4);
+  const sea = seaInfo(st.board);
+  // a coastal intersection of a small island, and a sea path from it
+  const v = GEO.vertices.findIndex((x, i) => sea.coast[i] && sea.vIsland[i] >= 0 && !sea.home.has(sea.vIsland[i]) && GEO.vertices[i].edges.some((e) => sea.eLand[e] === 0 && !pirateEdges(st).includes(e)));
+  const e = GEO.vertices[v].edges.find((x) => sea.eLand[x] === 0 && !pirateEdges(st).includes(x));
+  st.ships[e] = 0;
+  give(st, 0, { wood: 2, brick: 2, wool: 2, grain: 2 });
+  const before = publicVP(st, 0);
+  applyAction(st, { type: 'settlement', p: 0, vertex: v });
+  assert.equal(st.players[0].chits, 2);
+  assert.equal(publicVP(st, 0), before + 3, 'the settlement and two bonus points');
+  // a second settlement on the same island earns nothing more
+  const w = GEO.vertices.findIndex((x, i) => i !== v && sea.vIsland[i] === sea.vIsland[v] && distanceOK(st, i));
+  if (w >= 0) {
+    st.vertices[w] = null;
+    const ew = GEO.vertices[w].edges[0];
+    st.edges[ew] = sea.eLand[ew] ? 0 : -1;
+    st.ships[ew] = sea.eLand[ew] ? -1 : 0;
+    applyAction(st, { type: 'settlement', p: 0, vertex: w });
+    assert.equal(st.players[0].chits, 2);
+  }
+});
+
+test('Seafarers: moving a ship from the open end of a route, once a turn', () => {
+  const st = freshSea(4);
+  const sea = seaInfo(st.board);
+  const { v, e } = harborSpot(st);
+  st.vertices[v] = { p: 0, t: 's' };
+  const far = GEO.edges[e].v.find((x) => x !== v);
+  const next = GEO.vertices[far].edges.find((x) => x !== e && sea.eSea[x] > 0 && !pirateEdges(st).includes(x));
+  st.ships[e] = 0;
+  st.ships[next] = 0;
+  // the ship at the open end moves; the one between the settlement and the other ship does not
+  throwsRule(() => applyAction(st, { type: 'moveShip', p: 0, from: e, to: next }));
+  const targets = shipTargets(st, 0, next);
+  assert.ok(targets.length > 0);
+  applyAction(st, { type: 'moveShip', p: 0, from: next, to: targets[0] });
+  assert.equal(st.ships[next], -1);
+  assert.equal(st.ships[targets[0]], 0);
+  throwsRule(() => applyAction(st, { type: 'moveShip', p: 0, from: targets[0], to: next }), /每回合/);
+  // a ship built this turn stays put
+  applyAction(st, { type: 'endTurn', p: 0 });
+  for (const p of [1, 2, 3]) {
+    applyAction(st, { type: 'roll', p });
+    while (st.pending) {
+      if (st.pending.type === 'discard') for (const q of Object.keys(st.pending.amounts)) applyAction(st, { type: 'discard', p: +q, cards: st.players[q].res.wood >= st.pending.amounts[q] ? { wood: st.pending.amounts[q] } : (() => { const c = {}; let k = st.pending.amounts[q]; for (const r of ['wood', 'brick', 'wool', 'grain', 'ore']) { const t = Math.min(k, st.players[q].res[r]); if (t) c[r] = t; k -= t; } return c; })() });
+      else if (st.pending.type === 'robber') applyAction(st, { type: 'robber', p, hex: GEO.hexes.find((h) => sea.land[h.id] && h.id !== st.board.robber).id });
+      else if (st.pending.type === 'steal') applyAction(st, { type: 'steal', p, target: st.pending.victims[0] });
+      else if (st.pending.type === 'gold') for (const q of Object.keys(st.pending.amounts)) applyAction(st, { type: 'gold', p: +q, res: { ore: st.pending.amounts[q] } });
+    }
+    applyAction(st, { type: 'endTurn', p });
+  }
+  assert.equal(st.shipMoved, false);
+});
+
+test('Seafarers: a gold field gives the resources its owners choose', () => {
+  const st = freshSea(4);
+  const gold = GEO.hexes.find((h) => st.board.hexes[h.id].terrain === 'gold');
+  const n = st.board.hexes[gold.id].number;
+  st.vertices[gold.vertices[0]] = { p: 2, t: 'c' };
+  st.rolled = false;
+  // roll until the gold field's number comes up
+  for (let k = 0; k < 400 && !(st.pending && st.pending.type === 'gold'); k++) {
+    st.rolled = false;
+    st.pending = null;
+    applyAction(st, { type: 'roll', p: 0 });
+    if (st.dice[0] + st.dice[1] !== n) st.pending = null;
+  }
+  assert.deepEqual(st.pending, { type: 'gold', amounts: { 2: 2 } });
+  throwsRule(() => applyAction(st, { type: 'endTurn', p: 0 }));
+  throwsRule(() => applyAction(st, { type: 'gold', p: 2, res: { ore: 1 } }), /2 張/);
+  const ore = st.players[2].res.ore;
+  applyAction(st, { type: 'gold', p: 2, res: { ore: 1, grain: 1 } });
+  assert.equal(st.players[2].res.ore, ore + 1);
+  assert.equal(st.pending, null);
+});
+
+// ── Seafarers (scenario 2: the four islands) ──
+test('Seafarers scenario 2: four islands, the robber on the 12, harbors round every island', () => {
+  const st = createGame({ seed: 5, players: players(4), firstPlayer: 0, map: 'sea-2' });
+  assert.equal(GEO.id, 'sea-2');
+  assert.equal(st.targetVP, 13);
+  const sea = seaInfo(st.board);
+  assert.equal(sea.islands, 4);
+  const count = {};
+  for (const h of st.board.hexes) count[h.terrain] = (count[h.terrain] || 0) + 1;
+  assert.equal(count.sea, 12);
+  assert.equal(count.desert, undefined);
+  assert.equal(count.gold, undefined);
+  assert.equal(st.board.hexes.filter((h) => h.number).length, 23);
+  assert.equal(st.board.hexes[st.board.robber].number, 12, 'the robber starts on the 12');
+  assert.equal(st.board.hexes[st.board.pirate].terrain, 'sea');
+  assert.equal(st.board.harbors.length, 9);
+  const per = [0, 0, 0, 0];
+  for (const hb of st.board.harbors) per[GEO.edges[hb.edge].hexes.map((h) => sea.island[h]).find((i) => i >= 0)]++;
+  assert.ok(per.every((k) => k >= 2), 'harbors on every island: ' + per);
+  const corners = new Set();
+  for (const hb of st.board.harbors) for (const v of GEO.edges[hb.edge].v) {
+    assert.ok(!corners.has(v), 'no two harbors share an intersection');
+    corners.add(v);
+  }
+});
+
+test('Seafarers scenario 2: the islands a player starts on are home; the others earn points', () => {
+  const st = createGame({ seed: 5, players: players(4), firstPlayer: 0, map: 'sea-2' });
+  const sea = seaInfo(st.board);
+  const isles = new Set(legalSettlementSpots(st, 0, true).map((v) => sea.vIsland[v]));
+  assert.equal(isles.size, 4, 'the opening may go on any island');
+  // but never out at sea
+  const wet = GEO.vertices.findIndex((x, i) => !sea.vLand[i]);
+  throwsRule(() => applyAction(st, { type: 'settlement', p: 0, vertex: wet }), /陸地/);
+  // player 0 starts on islands 0 and 1, the others on one island each (a ship where no road fits)
+  const plan = { 0: [0, 1], 1: [1, 1], 2: [2, 2], 3: [3, 3] };
+  const done = [0, 0, 0, 0];
+  while (st.phase === 'setup') {
+    const p = st.setup.order[st.setup.i];
+    const v = legalSettlementSpots(st, p, true).find((x) => sea.vIsland[x] === plan[p][done[p]]);
+    applyAction(st, { type: 'settlement', p, vertex: v });
+    const roads = legalRoadEdges(st, p);
+    applyAction(st, roads.length ? { type: 'road', p, edge: roads[0] } : { type: 'ship', p, edge: legalShips(st, p)[0] });
+    done[p]++;
+  }
+  assert.deepEqual([...st.players[0].home].sort(), [0, 1]);
+  assert.deepEqual(st.players[1].home, [1]);
+  assert.deepEqual(st.players[3].home, [3]);
+  st.current = 0;
+  st.rolled = true;
+  give(st, 0, { wood: 4, brick: 4, wool: 4, grain: 4 });
+  const reach = (isle) => {
+    const v = GEO.vertices.findIndex((x, i) => sea.vIsland[i] === isle && sea.coast[i] && distanceOK(st, i) && x.edges.some((e) => sea.eLand[e] === 0 && st.ships[e] === -1 && !pirateEdges(st).includes(e)));
+    const e = GEO.vertices[v].edges.find((x) => sea.eLand[x] === 0 && st.ships[x] === -1 && !pirateEdges(st).includes(x));
+    st.ships[e] = 0;
+    return v;
+  };
+  // island 2 is foreign to player 0: 2 points; island 1 is home: none
+  applyAction(st, { type: 'settlement', p: 0, vertex: reach(2) });
+  assert.equal(st.players[0].chits, 2);
+  assert.deepEqual(st.players[0].isles, [2]);
+  applyAction(st, { type: 'settlement', p: 0, vertex: reach(1) });
+  assert.equal(st.players[0].chits, 2, 'no points on a home island');
+  // the home islands travel to the other pages
+  const view = makeView(st, 1);
+  assert.deepEqual([...view.players[0].home].sort(), [0, 1]);
+});
+
+test('Seafarers: the longest trade route joins roads and ships at a settlement only', () => {
+  const st = freshSea(4);
+  const sea = seaInfo(st.board);
+  const { v, e } = harborSpot(st);
+  // a road of 2 to the coastal intersection, then 2 ships
+  const road1 = GEO.vertices[v].edges.find((x) => sea.eLand[x] > 0 && x !== e);
+  const v1 = GEO.edges[road1].v.find((x) => x !== v);
+  const road2 = GEO.vertices[v1].edges.find((x) => x !== road1 && sea.eLand[x] > 0);
+  st.edges[road1] = 0;
+  st.edges[road2] = 0;
+  const far = GEO.edges[e].v.find((x) => x !== v);
+  const next = GEO.vertices[far].edges.find((x) => x !== e && sea.eSea[x] > 0);
+  st.ships[e] = 0;
+  st.ships[next] = 0;
+  const len = (s) => tradeRouteFor(s, 0);
+  assert.equal(len(st), 2, 'without a settlement where they meet, the longer of the two');
+  st.vertices[v] = { p: 0, t: 's' };
+  assert.equal(len(st), 4, 'joined at the settlement');
 });
 
 console.log(`${passed} tests passed`);

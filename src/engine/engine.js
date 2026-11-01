@@ -8,6 +8,7 @@ import { GEO, useMap } from './geometry.js';
 import { generateBoard, RES, TERRAIN_RES, pips } from './board.js';
 import { mapDef, DEFAULT_MAP } from './maps.js';
 import { rngInt, shuffle, seedState } from './rng.js';
+import { seaInfo, roadEdge, shipEdge, shipLegal, legalShipEdges, movableShips, shipTargets, pirateVictims, pirateEdges, tradeRouteFor, SHIP_COST, SHIPS } from './seafarers.js';
 
 export { RES, TERRAIN_RES, pips };
 
@@ -24,6 +25,7 @@ export const COSTS = {
   settlement: { wood: 1, brick: 1, wool: 1, grain: 1 },
   city: { grain: 2, ore: 3 },
   dev: { wool: 1, grain: 1, ore: 1 },
+  ship: SHIP_COST, // (Seafarers)
 };
 export const DEV_COUNTS = { knight: 14, victoryPoint: 5, roadBuilding: 2, yearOfPlenty: 2, monopoly: 2 };
 export const DEV_TYPES = Object.keys(DEV_COUNTS);
@@ -89,7 +91,7 @@ export function createGame(opts) {
     seed,
     mapSeed: opts.mapSeed != null ? opts.mapSeed >>> 0 : seed,
     rng: holder.rng,
-    targetVP: opts.targetVP || 10,
+    targetVP: def.vp || opts.targetVP || 10,
     board,
     players: opts.players.map((p, i) => ({
       id: i,
@@ -132,7 +134,29 @@ export function createGame(opts) {
     st.rules = rules;
     if (rules.turns) st.sub = null;
   }
+  // Seafarers: ships beside the roads, the pirate on the board, bonus points for new islands
+  if (rules.seafarers) {
+    st.ships = new Array(GEO.edges.length).fill(-1);
+    st.newShips = [];
+    st.shipMoved = false;
+    for (const pl of st.players) {
+      pl.pieces.ships = SHIPS;
+      pl.chits = 0;
+      pl.isles = [];
+      pl.home = [];
+    }
+  }
   return st;
+}
+
+const seafarers = (st) => !!(st.rules && st.rules.seafarers);
+
+// (Seafarers) p's home islands: the islands of p's opening settlements (on a map with a home group,
+// a game saved before players kept them: that group's islands)
+export function homeIslands(st, p) {
+  const pl = st.players[p];
+  if (pl.home && pl.home.length) return pl.home;
+  return [...seaInfo(st.board).home];
 }
 
 export function cloneState(st) {
@@ -146,7 +170,7 @@ export function publicVP(st, p) {
   for (const b of st.vertices) if (b && b.p === p) vp += b.t === 'c' ? 2 : 1;
   if (st.longestRoad === p) vp += 2;
   if (st.largestArmy === p) vp += 2;
-  return vp;
+  return vp + (st.players[p].chits || 0);
 }
 export function hiddenVP(st, p) {
   const pl = st.players[p];
@@ -165,12 +189,20 @@ export function distanceOK(st, v) {
 
 export function settlementLegal(st, p, v, setup = false) {
   if (!distanceOK(st, v)) return false;
+  if (seafarers(st)) {
+    // on land; the opening settlements on the home island; later ones reached by a road or a ship
+    const sea = seaInfo(st.board);
+    if (!sea.vLand[v]) return false;
+    if (setup) return sea.home.has(sea.vIsland[v]);
+    return GEO.vertices[v].edges.some((e) => st.edges[e] === p || st.ships[e] === p);
+  }
   if (setup) return true;
   return GEO.vertices[v].edges.some((e) => st.edges[e] === p);
 }
 
 export function roadLegal(st, p, e) {
   if (st.edges[e] !== -1) return false;
+  if (seafarers(st) && (st.ships[e] !== -1 || !roadEdge(st, e))) return false;
   for (const v of GEO.edges[e].v) {
     const b = st.vertices[v];
     if (b && b.p === p) return true;
@@ -188,7 +220,7 @@ export function legalSettlementSpots(st, p, setup = false) {
 export function legalRoadEdges(st, p) {
   if (st.phase === 'setup') {
     if (st.setup.step !== 'road') return [];
-    return GEO.vertices[st.setup.last].edges.filter((e) => st.edges[e] === -1);
+    return GEO.vertices[st.setup.last].edges.filter((e) => st.edges[e] === -1 && (!seafarers(st) || (st.ships[e] === -1 && roadEdge(st, e))));
   }
   const out = [];
   for (let e = 0; e < GEO.edges.length; e++) if (roadLegal(st, p, e)) out.push(e);
@@ -200,6 +232,24 @@ export function legalCitySpots(st, p) {
     if (b && b.p === p && b.t === 's') out.push(v);
   });
   return out;
+}
+
+// Seafarers: where p may put a ship now (in the opening: beside the settlement just placed)
+export function legalShips(st, p) {
+  if (!seafarers(st)) return [];
+  if (st.phase === 'setup') {
+    if (st.setup.step !== 'road') return [];
+    return GEO.vertices[st.setup.last].edges.filter((e) => st.edges[e] === -1 && st.ships[e] === -1 && shipEdge(st, e));
+  }
+  return st.players[p].pieces.ships > 0 ? legalShipEdges(st, p) : [];
+}
+export { movableShips, shipTargets, seaInfo, pirateEdges };
+
+// can p lay a road (or, in Seafarers, a ship) anywhere? (the road building card)
+function canBuildPaths(st, p) {
+  const pl = st.players[p];
+  if (pl.pieces.roads > 0 && legalRoadEdges(st, p).length > 0) return true;
+  return seafarers(st) && pl.pieces.ships > 0 && legalShipEdges(st, p).length > 0;
 }
 
 export function tradeRatio(st, p, res) {
@@ -240,7 +290,7 @@ export function playableDev(st, p) {
   const out = new Set();
   for (const c of pl.dev) {
     if (c.type === 'victoryPoint' || c.turn >= st.turn) continue;
-    if (c.type === 'roadBuilding' && (pl.pieces.roads === 0 || legalRoadEdges(st, p).length === 0)) continue;
+    if (c.type === 'roadBuilding' && !canBuildPaths(st, p)) continue;
     out.add(c.type);
   }
   return [...out];
@@ -277,7 +327,7 @@ export function longestRoadFor(st, p) {
 export function actorsNow(st) {
   if (st.phase === 'over') return [];
   if (st.phase === 'setup') return [st.setup.order[st.setup.i]];
-  if (st.pending && st.pending.type === 'discard') return Object.keys(st.pending.amounts).map(Number);
+  if (st.pending && (st.pending.type === 'discard' || st.pending.type === 'gold')) return Object.keys(st.pending.amounts).map(Number);
   if (st.trade) {
     const waiting = Object.keys(st.trade.resp)
       .map(Number)
@@ -307,7 +357,8 @@ function validResMap(m) {
 const mapTotal = (m) => RES.reduce((s, k) => s + (m[k] || 0), 0);
 
 function updateLongestRoad(st, ev) {
-  const L = st.players.map((pl) => longestRoadFor(st, pl.id));
+  // (Seafarers: the longest trade route, roads and ships together)
+  const L = st.players.map((pl) => (seafarers(st) ? tradeRouteFor(st, pl.id) : longestRoadFor(st, pl.id)));
   st.roadLen = L;
   const max = Math.max(...L);
   const holder = st.longestRoad;
@@ -339,10 +390,23 @@ function updateLargestArmy(st, p, ev) {
 function produce(st, sum, ev) {
   const owed = {};
   const claims = [];
+  const gold = {};
   let blocked = -1;
   for (const hex of GEO.hexes) {
     const H = st.board.hexes[hex.id];
     if (H.number !== sum) continue;
+    if (H.terrain === 'gold') {
+      // (Seafarers) a gold field: each building's owner picks any resources (see H.gold)
+      if (st.board.robber === hex.id) {
+        if (hex.vertices.some((v) => st.vertices[v])) blocked = hex.id;
+        continue;
+      }
+      for (const v of hex.vertices) {
+        const b = st.vertices[v];
+        if (b) gold[b.p] = (gold[b.p] || 0) + (b.t === 'c' ? 2 : 1);
+      }
+      continue;
+    }
     const res = TERRAIN_RES[H.terrain];
     if (!res) continue;
     if (st.board.robber === hex.id) {
@@ -388,7 +452,12 @@ function produce(st, sum, ev) {
       shortages.push({ res, partial: false });
     }
   }
-  ev.push({ type: 'produce', sum, paid, shortages, blocked });
+  const e = { type: 'produce', sum, paid, shortages, blocked };
+  if (Object.keys(gold).length) {
+    e.gold = { ...gold };
+    st.pending = { type: 'gold', amounts: gold };
+  }
+  ev.push(e);
 }
 
 function nextSetupStep(st, ev) {
@@ -466,9 +535,16 @@ H.settlement = (st, a, ev) => {
     need(p === su.order[su.i], '還沒輪到你');
     need(su.step === 'settlement', '請先放置道路');
     need(distanceOK(st, v), st.vertices[v] ? '這個路口已有建築' : '距離規則：相鄰的路口不能有建築');
+    need(settlementLegal(st, p, v, true), GEO.def.setup && GEO.def.setup.group ? '開局的村莊要放在主島的陸地上' : '開局的村莊要放在陸地上');
     st.vertices[v] = { p, t: 's' };
     pl.pieces.settlements--;
     ev.push({ type: 'build', what: 'settlement', p, vertex: v, setup: true });
+    // (Seafarers) the islands a player starts on are that player's home islands
+    if (seafarers(st)) {
+      const isle = seaInfo(st.board).vIsland[v];
+      pl.home = pl.home || [];
+      if (isle >= 0 && !pl.home.includes(isle)) pl.home.push(isle);
+    }
     if (su.i >= st.players.length) {
       const gains = emptyRes();
       for (const h of GEO.vertices[v].hexes) {
@@ -490,11 +566,22 @@ H.settlement = (st, a, ev) => {
   need(pl.pieces.settlements > 0, '村莊已經用完了（可先升級城市）');
   need(canAfford(pl.res, COSTS.settlement), '資源不足：村莊需要 木材、磚塊、羊毛、小麥 各 1');
   need(distanceOK(st, v), st.vertices[v] ? '這個路口已有建築' : '距離規則：相鄰的路口不能有建築');
-  need(GEO.vertices[v].edges.some((e) => st.edges[e] === p), '村莊必須連接到你的道路');
+  need(settlementLegal(st, p, v), seafarers(st) ? '村莊必須連接到你的道路或船' : '村莊必須連接到你的道路');
   pay(st, pl, COSTS.settlement);
   st.vertices[v] = { p, t: 's' };
   pl.pieces.settlements--;
   ev.push({ type: 'build', what: 'settlement', p, vertex: v });
+  // Seafarers: a player's first settlement on each island beyond the home island(s) earns bonus points
+  const bonus = seafarers(st) && GEO.def.isleBonus;
+  if (bonus) {
+    const sea = seaInfo(st.board);
+    const isle = sea.vIsland[v];
+    if (isle >= 0 && !homeIslands(st, p).includes(isle) && !pl.isles.includes(isle)) {
+      pl.isles.push(isle);
+      pl.chits += bonus;
+      ev.push({ type: 'isleBonus', p, vertex: v, vp: bonus });
+    }
+  }
   updateLongestRoad(st, ev);
 };
 
@@ -507,8 +594,9 @@ H.road = (st, a, ev) => {
     const su = st.setup;
     need(p === su.order[su.i], '還沒輪到你');
     need(su.step === 'road', '請先放置村莊');
-    need(st.edges[e] === -1, '這條路已有道路');
+    need(st.edges[e] === -1 && (!seafarers(st) || st.ships[e] === -1), '這條路已有道路');
     need(GEO.edges[e].v.includes(su.last), '道路必須連接剛放置的村莊');
+    need(!seafarers(st) || roadEdge(st, e), '道路不能鋪在海上（可以改放船）');
     st.edges[e] = p;
     pl.pieces.roads--;
     ev.push({ type: 'build', what: 'road', p, edge: e, setup: true });
@@ -531,13 +619,93 @@ H.road = (st, a, ev) => {
   pl.pieces.roads--;
   ev.push({ type: 'build', what: 'road', p, edge: e, free });
   updateLongestRoad(st, ev);
-  if (free) {
-    st.pending.left--;
-    if (st.pending.left <= 0 || pl.pieces.roads === 0 || legalRoadEdges(st, p).length === 0) {
-      st.pending = null;
-      ev.push({ type: 'roadBuildingDone', p });
-    }
+  if (free) freeBuilt(st, p, ev);
+};
+
+// one of the road building card's free pieces is down: done when both are, or nothing more fits
+function freeBuilt(st, p, ev) {
+  st.pending.left--;
+  if (st.pending.left <= 0 || !canBuildPaths(st, p)) {
+    st.pending = null;
+    ev.push({ type: 'roadBuildingDone', p });
   }
+}
+
+// ── Seafarers: ships ──
+H.ship = (st, a, ev) => {
+  const p = a.p;
+  const e = a.edge;
+  need(seafarers(st), '這張地圖沒有船');
+  need(Number.isInteger(e) && e >= 0 && e < GEO.edges.length, '無效的位置');
+  const pl = st.players[p];
+  if (st.phase === 'setup') {
+    const su = st.setup;
+    need(p === su.order[su.i], '還沒輪到你');
+    need(su.step === 'road', '請先放置村莊');
+    need(st.edges[e] === -1 && st.ships[e] === -1, '這條航道已有道路或船');
+    need(GEO.edges[e].v.includes(su.last), '船必須連接剛放置的村莊');
+    need(shipEdge(st, e), '船只能放在海上或海岸邊');
+    st.ships[e] = p;
+    pl.pieces.ships--;
+    ev.push({ type: 'build', what: 'ship', p, edge: e, setup: true });
+    updateLongestRoad(st, ev);
+    nextSetupStep(st, ev);
+    return;
+  }
+  need(st.phase === 'play', '遊戲已結束');
+  need(p === st.current, '還沒輪到你');
+  const free = st.pending && st.pending.type === 'roadBuilding';
+  if (!free) {
+    requireMainTurn(st, p);
+    need(canAfford(pl.res, COSTS.ship), '資源不足：船需要 木材、羊毛 各 1');
+  }
+  need(pl.pieces.ships > 0, '船已經用完了');
+  need(shipLegal(st, p, e), pirateEdges(st).includes(e) ? '海盜旁邊不能造船' : '船必須接在你的船、或海岸邊的村莊或城市旁');
+  if (!free) pay(st, pl, COSTS.ship);
+  st.ships[e] = p;
+  pl.pieces.ships--;
+  st.newShips.push(e);
+  ev.push({ type: 'build', what: 'ship', p, edge: e, free });
+  updateLongestRoad(st, ev);
+  if (free) freeBuilt(st, p, ev);
+};
+
+// move one ship a turn: from the open end of a route, not one built this turn, not beside the pirate
+H.moveShip = (st, a, ev) => {
+  const p = a.p;
+  need(seafarers(st), '這張地圖沒有船');
+  requireMainTurn(st, p);
+  need(!inSub(st, 'sbp'), '特別建造階段不能移動船');
+  need(!st.shipMoved, '每回合只能移動一艘船');
+  need(movableShips(st, p).includes(a.from), '這艘船不能移動：只能移動航線末端、之前回合建造、不在海盜旁的船');
+  need(shipTargets(st, p, a.from).includes(a.to), '船不能移到那裡');
+  st.ships[a.from] = -1;
+  st.ships[a.to] = p;
+  st.shipMoved = true;
+  ev.push({ type: 'moveShip', p, from: a.from, to: a.to });
+  updateLongestRoad(st, ev);
+};
+
+// the resources a gold field gives: any, as many as owed (no more than the bank holds)
+H.gold = (st, a, ev) => {
+  const p = a.p;
+  need(st.pending && st.pending.type === 'gold', '現在不需要選擇金礦資源');
+  const amt = st.pending.amounts[p];
+  need(amt !== undefined, '你沒有金礦資源可選');
+  const res = a.res;
+  need(validResMap(res), '無效的選擇');
+  const want = Math.min(amt, mapTotal(st.bank));
+  need(mapTotal(res) === want, `請選擇 ${want} 張資源`);
+  for (const r of RES) need(st.bank[r] >= (res[r] || 0), '銀行沒有足夠的該種資源');
+  const pl = st.players[p];
+  for (const r of RES) {
+    const c = res[r] || 0;
+    st.bank[r] -= c;
+    pl.res[r] += c;
+  }
+  delete st.pending.amounts[p];
+  ev.push({ type: 'gold', p, res: { ...res }, count: want });
+  if (!Object.keys(st.pending.amounts).length) st.pending = null;
 };
 
 H.endRoadBuilding = (st, a, ev) => {
@@ -632,6 +800,20 @@ H.robber = (st, a, ev) => {
   need(p === st.current, '還沒輪到你');
   const hex = a.hex;
   need(Number.isInteger(hex) && hex >= 0 && hex < GEO.hexes.length, '無效的地形');
+  if (seafarers(st) && !seaInfo(st.board).land[hex]) {
+    // Seafarers: the pirate instead of the robber, onto another sea hex
+    need(hex !== st.board.pirate, '海盜必須移動到另一片海域');
+    const from = st.board.pirate;
+    st.board.pirate = hex;
+    ev.push({ type: 'pirate', p, from, to: hex, reason: st.pending.reason });
+    const victims = pirateVictims(st, hex, p, playerHandSize);
+    if (victims.length === 0) st.pending = null;
+    else if (victims.length === 1) {
+      st.pending = null;
+      stealFrom(st, p, victims[0], ev);
+    } else st.pending = { type: 'steal', hex, victims };
+    return;
+  }
   need(hex !== st.board.robber, '強盜必須移動到另一塊地形');
   const from = st.board.robber;
   st.board.robber = hex;
@@ -667,7 +849,7 @@ H.playDev = (st, a, ev) => {
   need(idx >= 0, pl.dev.some((c) => c.type === a.card) ? '本回合買的發展卡要下回合才能使用' : '你沒有這張發展卡');
 
   if (a.card === 'roadBuilding') {
-    need(pl.pieces.roads > 0 && legalRoadEdges(st, p).length > 0, '目前沒有可以建造道路的位置');
+    need(canBuildPaths(st, p), seafarers(st) ? '目前沒有可以建造道路或船的位置' : '目前沒有可以建造道路的位置');
   }
   let take = null;
   if (a.card === 'yearOfPlenty') {
@@ -690,7 +872,7 @@ H.playDev = (st, a, ev) => {
     updateLargestArmy(st, p, ev);
     st.pending = { type: 'robber', reason: 'knight' };
   } else if (a.card === 'roadBuilding') {
-    st.pending = { type: 'roadBuilding', left: Math.min(2, pl.pieces.roads) };
+    st.pending = { type: 'roadBuilding', left: Math.min(2, pl.pieces.roads + (pl.pieces.ships || 0)) };
     ev.push({ type: 'playDev', p, card: 'roadBuilding' });
   } else if (a.card === 'yearOfPlenty') {
     for (const r of take) {
@@ -831,6 +1013,10 @@ H.endTurn = (st, a, ev) => {
   if (st.sub) st.sub = null;
   st.current = (lead + 1) % n;
   st.turn++;
+  if (seafarers(st)) {
+    st.newShips = [];
+    st.shipMoved = false;
+  }
   st.rolled = false;
   st.dice = null;
   st.devPlayed = false;

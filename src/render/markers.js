@@ -155,7 +155,7 @@ export class Markers {
       const t = 0.2 + (i / S) * 0.6;
       const x = A.x + dx * t;
       const z = A.z + dz * t;
-      const y = this.terrain.heightAt(x, z) + 0.45;
+      const y = Math.max(0, this.terrain.heightAt(x, z)) + 0.45; // (at sea: on the water)
       for (const sd of [-1, 1]) {
         pos.push(x, y, z);
         perp.push(px, pz);

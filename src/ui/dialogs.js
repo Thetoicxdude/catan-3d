@@ -131,10 +131,51 @@ export class Dialogs {
     return this.open({ kind: 'discard', title: '強盜出沒：棄牌', body, foot: [auto, confirm], dismissable: false, cls: 'narrow' });
   }
 
+  // ── (Seafarers) a gold field's pick: any resources, as many as owed (the bank permitting) ──
+  gold(ctx, amount, onConfirm) {
+    const v = ctx.view;
+    const bankLeft = RES.reduce((t, r) => t + v.bank[r], 0);
+    const want = Math.min(amount, bankLeft);
+    const sel = emptyRes();
+    const body = el('div');
+    body.innerHTML = `<p class="lead">你的村莊或城市旁的金礦產出了！選擇 <b>${want}</b> 張任意資源（從銀行拿取）。</p><div class="res-grid"></div>`;
+    const grid = body.querySelector('.res-grid');
+    const confirm = button('確認', 'primary', () => onConfirm({ ...sel }));
+    const draw = () => {
+      grid.innerHTML = '';
+      for (const r of RES) {
+        const c = el('div', 'res-pick');
+        c.innerHTML = `${resCard(r)}<span class="sub">銀行 ${v.bank[r]}</span>`;
+        const st = el('div', 'stepper');
+        const minus = button('−', '', () => {
+          sel[r]--;
+          draw();
+        });
+        minus.className = '';
+        minus.disabled = sel[r] <= 0;
+        const plus = button('+', '', () => {
+          sel[r]++;
+          draw();
+        });
+        plus.className = '';
+        plus.disabled = sel[r] >= v.bank[r] || total(sel) >= want;
+        st.append(minus, el('span', 'v', String(sel[r])), plus);
+        c.appendChild(st);
+        grid.appendChild(c);
+      }
+      confirm.disabled = total(sel) !== want;
+      confirm.textContent = `確認（${total(sel)}/${want}）`;
+    };
+    draw();
+    return this.open({ kind: 'gold', title: '金礦產出', body, foot: [confirm], dismissable: false, cls: 'narrow' });
+  }
+
   // ── steal ──
   steal(ctx, victims, onPick) {
     const body = el('div');
-    body.innerHTML = `<p class="lead">強盜所在地形旁有多個國家，選擇要搶奪的對象（隨機抽走 1 張牌）。</p>`;
+    const v = ctx.view;
+    const pirate = !!(v.ships && v.pending && v.board.pirate === v.pending.hex);
+    body.innerHTML = pirate ? `<p class="lead">海盜所在海域旁有多個國家的船，選擇要搶奪的對象（隨機抽走 1 張牌）。</p>` : `<p class="lead">強盜所在地形旁有多個國家，選擇要搶奪的對象（隨機抽走 1 張牌）。</p>`;
     const list = el('div', 'resp-list');
     for (const q of victims) {
       const P = ctx.players[q];

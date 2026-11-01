@@ -1,5 +1,7 @@
 // Event → log/toast text (Traditional Chinese), and the rules reference.
 import { RES_NAMES, resIcon, icon, TERRAIN_NAMES } from './icons.js';
+import { seaInfo, homeIslands } from '../engine/engine.js';
+import { GEO } from '../engine/geometry.js';
 
 export const DEV_INFO = {
   knight: { name: '騎士', desc: '移動強盜到任一地形，並從該地形旁的一位玩家手中抽走 1 張資源卡。打出的騎士計入最大騎士團。', icon: 'knight' },
@@ -35,7 +37,7 @@ export function cardsText(map) {
   return parts.join('、') || '無';
 }
 
-const BUILD_NAMES = { road: '道路', settlement: '村莊', city: '城市' };
+const BUILD_NAMES = { road: '道路', settlement: '村莊', city: '城市', ship: '船' };
 
 // Returns { log: html|null, hl: bool, toast: {title, text, icon}|null }
 export function describe(e, players, me, view) {
@@ -55,8 +57,10 @@ export function describe(e, players, me, view) {
       for (const s of e.shortages) {
         lines.push(s.partial ? `銀行的${RES_NAMES[s.res]}不足，${W(s.p)} 只拿到 ${s.got} 張` : `銀行的${RES_NAMES[s.res]}不足，本次無人獲得${RES_NAMES[s.res]}`);
       }
+      // (Seafarers) gold fields: the owners pick their resources next
+      if (e.gold) for (const [q, n] of Object.entries(e.gold)) lines.push(`${W(+q)} 從金礦取得 ${n} 張任選資源`);
       if (!lines.length) lines.push('沒有人獲得資源');
-      return { log: lines.join('<br>'), hl: !!per[me] };
+      return { log: lines.join('<br>'), hl: !!per[me] || !!(e.gold && e.gold[me]) };
     }
     case 'build':
       return { log: `${W(e.p)} ${e.setup ? '放置了' : e.free ? '免費建造了' : '建造了'}${BUILD_NAMES[e.what]}`, hl: e.p === me };
@@ -86,6 +90,19 @@ export function describe(e, players, me, view) {
     }
     case 'robber':
       return { log: `${W(e.p)} 將強盜移到 ${hexName(e.to)}`, hl: e.p === me };
+    // (Seafarers)
+    case 'pirate':
+      return { log: `${W(e.p)} 讓海盜開往另一片海域`, hl: e.p === me };
+    case 'moveShip':
+      return { log: `${W(e.p)} 移動了一艘船`, hl: e.p === me };
+    case 'gold':
+      return { log: `${W(e.p)} 從金礦選了 ${cardsHtml(e.res, 14)}`, hl: e.p === me };
+    case 'isleBonus':
+      return {
+        log: `${W(e.p)} 首次登上新島嶼，獲得 ${e.vp} 分`,
+        hl: true,
+        toast: e.p === me ? { title: '登上新島嶼', text: `第一座村莊建在這座島上：+${e.vp} 分`, icon: 'isle' } : null,
+      };
     case 'steal': {
       if (e.res === undefined) return { log: null };
       const what = e.res && (e.p === me || e.from === me) ? ` ${RES_NAMES[e.res]}` : ' 1 張牌';
@@ -150,9 +167,28 @@ export function hexTooltip(view, hexId, players) {
   const res = { forest: 'wood', hills: 'brick', pasture: 'wool', fields: 'grain', mountains: 'ore' }[H.terrain];
   const pip = H.number ? 6 - Math.abs(7 - H.number) : 0;
   const lines = [];
-  lines.push(`<p>${TERRAIN_NAMES[H.terrain]}${res ? `，產出 <b>${RES_NAMES[res]}</b>` : '，沒有產出'}</p>`);
+  if (H.terrain === 'fog') {
+    // (Seafarers, the fog islands)
+    return '<h5>未探索</h5><p>霧裡可能是陸地、金礦或海。道路或船抵達旁邊的路口就會揭開：揭開陸地的國家得到 1 張那種資源（金礦任選）。</p>';
+  }
+  if (H.terrain === 'sea') {
+    // (Seafarers)
+    lines.push('<p>海域：船可以在這裡航行</p>');
+    if (view.board.pirate === hexId) lines.push('<p><b style="color:#e07a6a">海盜出沒</b>：旁邊不能造船，旁邊的船也不能移動</p>');
+    return `<h5>海域</h5>${lines.join('')}`;
+  }
+  if (H.terrain === 'gold') lines.push('<p>金礦：產出時由你<b>任選資源</b></p>');
+  else lines.push(`<p>${TERRAIN_NAMES[H.terrain]}${res ? `，產出 <b>${RES_NAMES[res]}</b>` : '，沒有產出'}</p>`);
   if (H.number) lines.push(`<p>擲出 <b>${H.number}</b> 時產出 · 機率 <b>${pip}/36</b>（約 ${Math.round((pip / 36) * 100)}%）</p>`);
   if (view.board.robber === hexId) lines.push(`<p><b style="color:#e07a6a">強盜佔領中</b>，暫停產出</p>`);
+  // (Seafarers) the viewer's home island, or an island where a first settlement earns points
+  const me = view.viewer;
+  if (view.ships && GEO.def.isleBonus && me != null && me >= 0 && view.players[me]) {
+    const isle = seaInfo(view.board).island[hexId];
+    const home = view.phase === 'setup' && !(view.players[me].home || []).length && !(GEO.def.setup && GEO.def.setup.group) ? null : homeIslands(view, me);
+    if (home && home.includes(isle)) lines.push('<p>你的本島</p>');
+    else if (home && !(view.players[me].isles || []).includes(isle)) lines.push(`<p>外島：你在這座島的第一座村莊 <b>+${GEO.def.isleBonus} 分</b></p>`);
+  }
   return `<h5>${esc(H.name)}</h5>${lines.join('')}`;
 }
 
@@ -202,11 +238,28 @@ export function rulesHtml() {
 <li><b>配對回合</b>（官方現行規則）：每回合有兩位玩家。主要玩家照常擲骰、交易、建造、使用發展卡；結束後由他左手邊第三位（六人局就是對面）的玩家接著行動，可以建造、和銀行或港口交易、使用一張發展卡，但不能擲骰，也不能和其他國家交易。兩人都可能在這個回合獲勝；主要玩家達到勝利分數就立刻獲勝。</li>
 <li><b>特別建造階段</b>（舊規則，可在開局設定選用）：每位玩家結束回合後，其他人依序可以建造或購買發展卡，但不能交易、不能使用發展卡；在這個階段達到勝利分數，要等到自己的回合才算獲勝。</li>
 </ul>
+<h4>航海家：駛向新海岸</h4>
+<ul>
+<li>目標 <b>14 分</b>。主島在西邊，東邊海上是每局不同的小島（含 2 塊<b>金礦</b>）。開局的兩個村莊都要在主島上；海邊的開局村莊可以放<b>船</b>代替道路。</li>
+<li><b>船</b>（木材＋羊毛，每人 15 艘）：放在海上或海岸邊的航道（地圖外框也算海），接在你的船、或海邊的村莊或城市旁；同一條海岸邊只能有道路或船其中一種。道路和船只在你的村莊或城市處相接。船隊到達的海岸可以建村莊。</li>
+<li><b>移船</b>：每回合一次（擲骰後），只能移動航線末端、之前回合建造、不在海盜旁的船。</li>
+<li><b>海盜</b>：擲出 7 或打出騎士時，可以改移海盜到另一片海域，搶奪旁邊有船的國家一張牌；海盜旁不能造船，旁邊的船也不能移動。</li>
+<li><b>金礦</b>：擲出時旁邊的村莊得 1 張、城市得 2 張，資源任選。</li>
+<li><b>最長貿易路線</b>取代最長道路：道路與船一起算（只在你的村莊或城市處相連）。<b>道路建設</b>卡可以建 2 條道路、2 艘船或各 1。</li>
+<li><b>小島加分</b>：你在每座小島上的第一個村莊額外 <b>+2 分</b>（別人先登島也照樣算）。</li>
+</ul>
+<h4>航海家：四座島嶼</h4>
+<ul>
+<li>目標 <b>13 分</b>。四座島之間隔著海峽，沒有沙漠也沒有金礦；強盜一開始在數字 12 的地形上。</li>
+<li>開局的兩個村莊可以放在<b>任何島上</b>（同一座或兩座）：開局所在的島是你的<b>本島</b>，其他的島對你來說是外島。</li>
+<li><b>外島加分</b>：你在每座外島上的第一個村莊額外 <b>+2 分</b>（別人先登島也照樣算）。只有一座本島的話，最多可以拿 6 分。</li>
+<li>船、移船、海盜與最長貿易路線的規則和「駛向新海岸」相同。</li>
+</ul>
 <h4>操作</h4>
 <ul>
 <li>滾輪或雙指縮放，拖曳或 WASD 平移；拉遠會切換成紙本地圖。</li>
 <li>轉動與傾斜：右鍵（或中鍵）拖曳、Q／E 旋轉、Z／X 或 Shift＋滾輪調整斜度、雙指旋轉；小地圖旁的羅盤與滑桿也可以調整，Home 回到預設視角。</li>
-<li>快捷鍵：R 擲骰、1 道路、2 村莊、3 城市、4 發展卡、T 交易、Space 結束回合、M 切換地圖模式、Esc 取消。</li>
+<li>快捷鍵：R 擲骰、1 道路、2 村莊、3 城市、4 發展卡、5 船與 6 移船（航海家）、T 交易、Space 結束回合、M 切換地圖模式、Esc 取消。</li>
 </ul>
 <h4>素材</h4>
 <p>樹木、灌木、岩石、地表照片材質，以及城堡塔樓、木碼頭、帆船與道具來自 <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>；村莊與城市的中世紀木構房屋來自 <a href="https://www.blendswap.com/blends/view/75519" target="_blank" rel="noopener">Blend Swap 的 Daniel74</a>；有動畫的農場動物來自 <a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a>。皆為 CC0 公眾領域授權。</p>

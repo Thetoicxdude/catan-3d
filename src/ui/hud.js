@@ -13,6 +13,9 @@ import {
   publicVP,
   handSize,
   tradeRatios,
+  legalShips,
+  movableShips,
+  shipTargets,
 } from '../engine/engine.js';
 import { resCard, icon, dieFace, RES_NAMES, RES_EN } from './icons.js';
 import { Fx } from './fx.js';
@@ -28,8 +31,9 @@ const BUILD = {
   settlement: { name: '村莊', en: 'Settlement', fx: '+1 勝利分數。相鄰地形擲出點數時產出 1 張資源。', cost: COSTS.settlement, piece: 'settlements', unit: '座' },
   city: { name: '城市', en: 'City', fx: '由村莊升級：再 +1 勝利分數，產出加倍。', cost: COSTS.city, piece: 'cities', unit: '座' },
   dev: { name: '發展卡', en: 'Development', fx: '抽 1 張：騎士、道路建設、豐收之年、壟斷或分數卡。', cost: COSTS.dev },
+  ship: { name: '船', en: 'Ship', fx: '在海上或海岸邊，接在你的船或海邊的村莊、城市旁。船隊能把村莊送到別的島。', cost: COSTS.ship, piece: 'ships', unit: '艘' },
 };
-const TERRAIN_HEX = { forest: '#2f6b2f', hills: '#b5532c', pasture: '#8fcf4f', fields: '#e8c547', mountains: '#8d8d96', desert: '#d9c48e' };
+const TERRAIN_HEX = { forest: '#2f6b2f', hills: '#b5532c', pasture: '#8fcf4f', fields: '#e8c547', mountains: '#8d8d96', desert: '#d9c48e', gold: '#f0b62a', fog: '#7d8790' };
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -242,6 +246,9 @@ export class Hud {
       ['settlement', 'settlement', '村莊', '2', COSTS.settlement],
       ['city', 'city', '城市', '3', COSTS.city],
       ['dev', 'devbuy', '發展卡', '4', COSTS.dev],
+      // (Seafarers; shown only on maps with the sea)
+      ['ship', 'ship', '船', '5', COSTS.ship],
+      ['moveShip', 'moveShip', '移船', '6'],
       ['sep'],
       ['trade', 'trade', '交易', 'T'],
       ['cards', 'cards', '手中卡牌', 'C'],
@@ -309,6 +316,25 @@ export class Hud {
     this.tip = el('div', 'tooltip');
     this.tip.hidden = true;
     r.appendChild(this.tip);
+  }
+
+  // the part of the screen the map shows unhidden (client pixels): below the top bar and the cards that
+  // hang from it, above the action bar, left of the nations panel while it is open (the opening view
+  // puts the land there)
+  freeRect() {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const out = { left: 0, top: 0, right: W, bottom: H };
+    let top = this.top.getBoundingClientRect().bottom;
+    for (const c of this.top.querySelectorAll('.tb-res > *')) top = Math.max(top, c.getBoundingClientRect().bottom);
+    if (top > 0 && top < H / 3) out.top = top;
+    const bar = this.bar.getBoundingClientRect();
+    if (bar.height && bar.top > H / 2) out.bottom = bar.top;
+    if (!this.outliner.classList.contains('closed')) {
+      const o = this.outliner.getBoundingClientRect();
+      if (o.width && o.left > W / 2) out.right = o.left;
+    }
+    return out;
   }
 
   setNet(net) {
@@ -448,7 +474,8 @@ export class Hud {
         const vp = publicVP(v, p.id) + ((isMe || v.phase === 'over') && p.dev ? p.dev.filter((c) => c.type === 'victoryPoint').length : 0);
         const kind = P.away ? '電腦代管' : P.kind === 'ai' ? `電腦·${{ easy: '簡單', normal: '普通', hard: '困難' }[P.ai.level] || '普通'}` : isMe ? '你' : P.kind === 'remote' ? '線上玩家' : ctx.online ? '主持人' : '玩家';
         const badges = [];
-        if (v.longestRoad === p.id) badges.push(`<span class="badge" title="最長道路 +2">${icon('road2', 12)}最長道路</span>`);
+        if (v.longestRoad === p.id) badges.push(v.ships ? `<span class="badge" title="最長貿易路線（道路與船）+2">${icon('road2', 12)}貿易路線</span>` : `<span class="badge" title="最長道路 +2">${icon('road2', 12)}最長道路</span>`);
+        if (p.chits) badges.push(`<span class="badge" title="新島嶼的第一座村莊 +${GEO.def.isleBonus || 2}">${icon('isle', 12)}島嶼 +${p.chits}</span>`);
         if (v.largestArmy === p.id) badges.push(`<span class="badge" title="最大騎士團 +2">${icon('knight', 12)}騎士團</span>`);
         const thinking = ctx.thinking === p.id ? `<span class="thinking"><span class="spinner"></span>思考中</span>` : '';
         const lead = v.sub && v.sub.lead === p.id && v.phase !== 'over';
@@ -526,6 +553,17 @@ export class Hud {
     set('settlement', okSet, okSet ? '建造村莊（2）：木材＋磚塊＋羊毛＋小麥' : why(COSTS.settlement, setts, pl ? pl.pieces.settlements : 1, '村莊'), { on: ctx.mode === 'settlement' });
     set('city', okCity, okCity ? '升級城市（3）：小麥×2＋礦石×3' : why(COSTS.city, cities, pl ? pl.pieces.cities : 1, '城市'), { on: ctx.mode === 'city' });
     set('dev', okDev, okDev ? '購買發展卡（4）：羊毛＋小麥＋礦石' : v.devDeckCount === 0 ? '發展卡已賣完' : why(COSTS.dev, 1, 1, '發展卡'));
+    // (Seafarers) build a ship, move one
+    const seafaring = !!v.ships;
+    this.btns.ship.hidden = !seafaring;
+    this.btns.moveShip.hidden = !seafaring;
+    if (seafaring) {
+      const ships = free && v.rolled ? legalShips(v, me).length : 0;
+      const okShip = free && v.rolled && pl.pieces.ships > 0 && canAfford(pl.res, COSTS.ship) && ships > 0;
+      set('ship', okShip, okShip ? '建造船（5）：木材＋羊毛' : why(COSTS.ship, ships, pl ? pl.pieces.ships : 1, '船'), { on: ctx.mode === 'ship' });
+      const movable = free && v.rolled && !v.shipMoved && !(v.sub && v.sub.k === 'sbp') ? movableShips(v, me).filter((e) => shipTargets(v, me, e).length).length : 0;
+      set('moveShip', movable > 0, movable ? '移動一艘船（6）：航線末端、之前回合建造的船，每回合一次' : !myTurn ? turnWhy() : v.pending || v.trade ? pendingWhy() : !v.rolled ? '請先擲骰' : v.shipMoved ? '這回合已經移過船了' : '沒有可以移動的船（只能移動航線末端、之前回合建造、不在海盜旁的船）', { on: ctx.mode === 'moveShip' || ctx.mode === 'moveShipTo' });
+    }
     // 5–6 players: the special building phase allows no trading at all; the second player of a paired
     // turn trades with the bank only (the trade dialog shows just that)
     const sbp = !!v.sub && v.sub.k === 'sbp';
@@ -850,6 +888,34 @@ export class Hud {
       g.lineWidth = 3;
       g.stroke();
     });
+    // (Seafarers) ships as short dashes, the pirate as a black flag
+    if (view.ships) {
+      g.setLineDash([3, 3]);
+      view.ships.forEach((p, e) => {
+        if (p < 0) return;
+        const ge = GEO.edges[e];
+        const A = GEO.vertices[ge.v[0]];
+        const B = GEO.vertices[ge.v[1]];
+        g.strokeStyle = players[p].color;
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(sx(A.x), sz(A.z));
+        g.lineTo(sx(B.x), sz(B.z));
+        g.stroke();
+      });
+      g.setLineDash([]);
+      const ph = view.board.pirate;
+      if (ph != null && ph >= 0) {
+        const h = GEO.hexes[ph];
+        g.fillStyle = '#111';
+        g.beginPath();
+        g.arc(sx(h.x), sz(h.z), 6, 0, Math.PI * 2);
+        g.fill();
+        g.strokeStyle = '#e8d9b0';
+        g.lineWidth = 1.5;
+        g.stroke();
+      }
+    }
     view.vertices.forEach((b, vid) => {
       if (!b) return;
       const V = GEO.vertices[vid];

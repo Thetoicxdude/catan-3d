@@ -63,6 +63,25 @@ function cityGeometry(color) {
   return merge(parts);
 }
 
+// (Seafarers) a ship: dark hull along +x (bow at +x), a mast, the sail in the player's colour.
+// The pirate's is all black.
+function shipGeometry(color, pirate = false) {
+  const hull = pirate ? '#1c1714' : WOOD;
+  const sail = pirate ? '#26211d' : color;
+  const trim = pirate ? '#8a1c14' : shade(color, 0.6);
+  return merge([
+    part(new THREE.BoxGeometry(2.0, 0.42, 0.78), hull, { y: 0.16 }),
+    part(new THREE.CylinderGeometry(0.02, 0.39, 0.62, 4, 1), hull, { x: 1.28, y: 0.16, rz: -Math.PI / 2, ry: Math.PI / 4, sz: 1, sy: 1 }),
+    part(new THREE.BoxGeometry(0.62, 0.26, 0.8), hull, { x: -0.86, y: 0.49 }),
+    part(new THREE.BoxGeometry(2.06, 0.07, 0.84), trim, { y: 0.39 }),
+    part(new THREE.CylinderGeometry(0.035, 0.045, 2.1, 6), '#3b2a1c', { x: 0.12, y: 1.32 }),
+    part(new THREE.CylinderGeometry(0.025, 0.025, 1.18, 5), '#3b2a1c', { x: 0.12, y: 1.92, rx: Math.PI / 2 }),
+    part(new THREE.BoxGeometry(0.04, 1.02, 1.12), sail, { x: 0.2, y: 1.38 }),
+    part(new THREE.BoxGeometry(0.04, 0.42, 0.58), sail, { x: 0.12, y: 2.24 }),
+    part(new THREE.ConeGeometry(0.36, 0.78, 3, 1), sail, { x: 0.86, y: 1.0, rx: Math.PI / 2, rz: Math.PI / 2, sz: 0.06 }),
+  ]);
+}
+
 function waveFlagMaterial(tex, timeU) {
   const m = new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.8 });
   m.onBeforeCompile = (s) => {
@@ -144,7 +163,7 @@ float cobble(vec2 p) {
         .replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb *= 0.8 + 0.22 * cobble(vRW.xz * 2.6);');
     };
     this.roadMat.customProgramCacheKey = () => 'road-cobble';
-    this.geo = players.map((p) => ({ s: settlementGeometry(p.color), c: cityGeometry(p.color) }));
+    this.geo = players.map((p) => ({ s: settlementGeometry(p.color), c: cityGeometry(p.color), ship: shipGeometry(p.color) }));
     this.flagMats = players.map((p, i) => {
       const t = new THREE.CanvasTexture(flagCanvas(p.color, i));
       t.colorSpace = THREE.SRGBColorSpace;
@@ -157,6 +176,8 @@ float cobble(vec2 p) {
     this.streetMats = [];
     this.buildings = new Map(); // vertex → {mesh, yard, type, p}
     this.roads = new Map(); // edge → {mesh, p}
+    this.ships = new Map(); // edge → {mesh, p} (Seafarers)
+    this.pirate = null; // the pirate's ship and the hex it is on
     this.anims = [];
     this.scale = 1;
     this.yardScale = 1;
@@ -190,13 +211,14 @@ float cobble(vec2 p) {
     this.anims = [];
   }
 
+  // (never below the water: Seafarers has paths and intersections out at sea)
   vertexPos(v) {
     const g = GEO.vertices[v];
-    return new THREE.Vector3(g.x, this.terrain.heightAt(g.x, g.z), g.z);
+    return new THREE.Vector3(g.x, Math.max(0, this.terrain.heightAt(g.x, g.z)), g.z);
   }
   edgeMid(e) {
     const g = GEO.edges[e];
-    return new THREE.Vector3(g.x, this.terrain.heightAt(g.x, g.z), g.z);
+    return new THREE.Vector3(g.x, Math.max(0, this.terrain.heightAt(g.x, g.z)), g.z);
   }
   setScale(s, roadW, settled = true) {
     this.scale = s;
@@ -461,6 +483,44 @@ float cobble(vec2 p) {
     return g;
   }
 
+  // (Seafarers) a ship on a path: afloat at the path's middle, along it
+  makeShip(e, p, ghost = null) {
+    const g = new THREE.Group();
+    const mesh = new THREE.Mesh(this.geo[p].ship, ghost || this.mat);
+    mesh.castShadow = !ghost;
+    g.add(mesh);
+    const E = GEO.edges[e];
+    const A = GEO.vertices[E.v[0]];
+    const B = GEO.vertices[E.v[1]];
+    g.position.set(E.x, 0.04, E.z);
+    g.rotation.y = -Math.atan2(B.z - A.z, B.x - A.x) + (hash01(e) > 0.5 ? Math.PI : 0);
+    g.userData.phase = hash01(e * 7 + 1) * 6.28;
+    return g;
+  }
+
+  // (Seafarers) the pirate's black ship, in the middle of its sea hex
+  setPirate(hex) {
+    if (hex == null || hex < 0) {
+      if (this.pirate) this.group.remove(this.pirate.mesh);
+      this.pirate = null;
+      return;
+    }
+    if (this.pirate && this.pirate.hex === hex) return;
+    if (!this.pirate) {
+      const g = new THREE.Group();
+      const m = new THREE.Mesh(shipGeometry('#000', true), this.mat);
+      m.castShadow = true;
+      g.add(m);
+      g.scale.setScalar(1.25);
+      this.group.add(g);
+      this.pirate = { mesh: g, hex };
+    }
+    const h = GEO.hexes[hex];
+    this.pirate.hex = hex;
+    this.pirate.mesh.position.set(h.x - 2.2, 0.04, h.z + 1.4);
+    this.pirate.mesh.rotation.y = 0.5;
+  }
+
   makeYard(v, type) {
     if (!this.models) return null;
     const V = GEO.vertices[v];
@@ -537,6 +597,33 @@ float cobble(vec2 p) {
       }
       changed = true;
     });
+    // (Seafarers) ships and the pirate
+    if (st.ships) {
+      st.ships.forEach((p, e) => {
+        const cur = this.ships.get(e);
+        if (p < 0) {
+          if (cur) {
+            this.group.remove(cur.mesh);
+            this.ships.delete(e);
+            changed = true;
+          }
+          return;
+        }
+        if (cur && cur.p === p) return;
+        if (cur) this.group.remove(cur.mesh);
+        const mesh = this.makeShip(e, p);
+        mesh.scale.setScalar(animate ? 0.01 : this.scale);
+        this.group.add(mesh);
+        const rec = { mesh, p, anim: animate };
+        this.ships.set(e, rec);
+        if (animate) {
+          this.anims.push({ kind: 'pop', rec, t: 0, dur: 0.5 });
+          this.spawnDust(mesh.position, 0.9);
+        }
+        changed = true;
+      });
+      this.setPirate(st.board.pirate);
+    }
     return changed;
   }
 
@@ -550,6 +637,9 @@ float cobble(vec2 p) {
     let obj;
     if (kind === 'road') {
       obj = new THREE.Mesh(this.roadGeometry(id, this.players[p].color, this.roadWidth * 1.05), mat);
+    } else if (kind === 'ship') {
+      obj = this.makeShip(id, p, mat);
+      obj.scale.setScalar(this.scale);
     } else {
       obj = this.makeBuilding(id, p, kind === 'city' ? 'c' : 's', mat);
       obj.scale.setScalar(this.scale);
@@ -573,6 +663,19 @@ float cobble(vec2 p) {
   update(t, dt) {
     this.timeU.value = t;
     let busy = false;
+    // ships ride the swell
+    for (const r of this.ships.values()) {
+      const ph = r.mesh.userData.phase || 0;
+      r.mesh.position.y = 0.04 + Math.sin(t * 1.5 + ph) * 0.05;
+      r.mesh.rotation.x = Math.sin(t * 1.2 + ph) * 0.04;
+      if (!r.anim && r.mesh.scale.x !== this.scale) r.mesh.scale.setScalar(this.scale);
+    }
+    if (this.pirate) {
+      this.pirate.mesh.position.y = 0.04 + Math.sin(t * 1.3) * 0.06;
+      this.pirate.mesh.rotation.z = Math.sin(t * 1.1) * 0.04;
+      // (larger when far away, like the ships and buildings)
+      if (this.pirate.mesh.scale.x !== 1.25 * this.scale) this.pirate.mesh.scale.setScalar(1.25 * this.scale);
+    }
     this.anims = this.anims.filter((a) => {
       a.t += dt;
       if (a.t < 0) return true;

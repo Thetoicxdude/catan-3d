@@ -55,6 +55,18 @@ function check(st, where) {
   st.edges.forEach((p) => {
     if (p >= 0) cnt[p].r++;
   });
+  if (st.ships) {
+    const ships = st.players.map(() => 0);
+    st.ships.forEach((p, e) => {
+      if (p < 0) return;
+      ships[p]++;
+      if (st.edges[e] !== -1) fail(`a road and a ship on path ${e}`);
+    });
+    st.players.forEach((pl, i) => {
+      if (ships[i] + pl.pieces.ships !== 15) fail(`ship pieces p${i}`);
+    });
+    if (st.pending && st.pending.type === 'gold' && !Object.keys(st.pending.amounts).length) fail('empty gold choice');
+  }
   st.players.forEach((pl, i) => {
     if (cnt[i].s + pl.pieces.settlements !== 5) fail(`settlement pieces p${i}`);
     if (cnt[i].c + pl.pieces.cities !== 4) fail(`city pieces p${i}`);
@@ -111,6 +123,10 @@ for (let g = 0; g < GAMES; g++) {
           if (e.type === 'trade') stats.trades++;
           if (e.type === 'bankTrade') stats.bank++;
           if (e.type === 'playDev') stats.devPlays[e.card] = (stats.devPlays[e.card] || 0) + 1;
+          if (e.type === 'build' && e.what === 'ship') stats.ships = (stats.ships || 0) + 1;
+          if (e.type === 'gold') stats.gold = (stats.gold || 0) + 1;
+          if (e.type === 'isleBonus') stats.isles = (stats.isles || 0) + 1;
+          if (e.type === 'pirate') stats.pirate = (stats.pirate || 0) + 1;
         }
       } catch (err) {
         if (!(err instanceof RuleError)) throw err;
@@ -157,6 +173,10 @@ console.log(
       finished: `${stats.games}/${GAMES}`,
       subTurns: stats.subTurns || 0,
       subBuilds: stats.subBuilds || 0,
+      ships: stats.ships || 0,
+      goldChoices: stats.gold || 0,
+      isleBonuses: stats.isles || 0,
+      pirateMoves: stats.pirate || 0,
       avgRounds: MAP === 'base-4' ? +(avg / 3.8).toFixed(1) : undefined,
       avgTurns: +avg.toFixed(1),
       medianTurns: stats.turns[Math.floor(stats.turns.length / 2)],
