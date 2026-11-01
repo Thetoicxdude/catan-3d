@@ -1,4 +1,4 @@
-// Continuous island terrain: a heightfield built from the 19 hexes (each hex shapes its own
+// Continuous island terrain: a heightfield built from the map's land hexes (each hex shapes its own
 // landform), an organic coastline, flattened plateaus at every intersection, and a custom
 // shaded MeshStandardMaterial (procedural albedo, province lines, map modes, paper map).
 import * as THREE from 'three';
@@ -6,10 +6,26 @@ import { GEO, HEX_SIZE, worldToAxial, AXIAL_DIRS, axialToWorld } from '../engine
 import { pips } from '../engine/board.js';
 import { makeNoise, GLSL_NOISE } from './noise.js';
 
+// The square of the world the terrain covers (centred on the origin): the standard island's is
+// −64…64; larger maps widen it (fitDomain, when the terrain is built).
 export const DOMAIN = { min: -64, size: 128 };
 export const TERRAIN_IDS = { forest: 1, hills: 2, pasture: 3, fields: 4, mountains: 5, desert: 6 };
 const TYPES = ['forest', 'hills', 'pasture', 'fields', 'mountains', 'desert'];
 const APOTHEM = HEX_SIZE * 0.8660254;
+
+export function fitDomain(geo = GEO) {
+  const b = geo.bounds;
+  const half = Math.max(64, Math.ceil(Math.max(-b.minX, b.maxX, -b.minZ, b.maxZ) + 20.6));
+  DOMAIN.min = -half;
+  DOMAIN.size = 2 * half;
+  return DOMAIN;
+}
+
+// The hex lookup window (axial coordinates, one hex of margin round the map) for the hex data texture.
+export function hexWindow(geo = GEO) {
+  const b = geo.bounds;
+  return { q0: b.minQ - 1, r0: b.minR - 1, w: b.maxQ - b.minQ + 3, h: b.maxR - b.minR + 3 };
+}
 
 const smooth = (e0, e1, x) => {
   const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
@@ -22,10 +38,13 @@ function hexNorm(dx, dz) {
 }
 
 export function buildTerrain(board, seed, quality = 'high') {
-  const N = quality === 'low' ? 256 : quality === 'medium' ? 368 : 448;
+  fitDomain(GEO);
+  // the same ground resolution on every map (bigger maps get more grid points, within reason)
+  const base = quality === 'low' ? 256 : quality === 'medium' ? 368 : 448;
+  const N = Math.min(Math.round(base * 1.6), Math.round(((base - 1) * DOMAIN.size) / 128) + 1);
   const nz = makeNoise(seed);
-  const landHexes = GEO.hexes.map((h) => ({ x: h.x, z: h.z, q: h.q, r: h.r, type: board.hexes[h.id].terrain }));
-  const hexByQR = new Map(GEO.hexes.map((h) => [h.q + ',' + h.r, h.id]));
+  const landHexes = GEO.hexes.filter((h) => !h.sea).map((h) => ({ x: h.x, z: h.z, q: h.q, r: h.r, type: board.hexes[h.id].terrain }));
+  const hexByQR = new Map(landHexes.map((h, i) => [h.q + ',' + h.r, i]));
   const coastVerts = GEO.vertices.filter((v) => v.coastal);
 
   function coastDist(x, z) {
@@ -297,17 +316,19 @@ export function buildTerrain(board, seed, quality = 'high') {
     return Math.hypot(dx, dz) / (2 * e);
   }
 
-  // hex data texture (7×7 axial window): terrain id, pips, land flag, selectable flag
-  const hexData = new Uint8Array(7 * 7 * 4);
+  // hex data texture (an axial window round the map): terrain id, pips, land flag, selectable flag
+  const win = hexWindow(GEO);
+  const hexSlot = (h) => ((h.r - win.r0) * win.w + (h.q - win.q0)) * 4;
+  const hexData = new Uint8Array(win.w * win.h * 4);
   for (const h of GEO.hexes) {
-    const k = ((h.r + 3) * 7 + (h.q + 3)) * 4;
+    const k = hexSlot(h);
     const H2 = board.hexes[h.id];
-    hexData[k] = TERRAIN_IDS[H2.terrain] * 32;
+    hexData[k] = (TERRAIN_IDS[H2.terrain] || 0) * 32;
     hexData[k + 1] = Math.round((pips(H2.number) / 5) * 255);
-    hexData[k + 2] = 255;
+    hexData[k + 2] = h.sea ? 0 : 255;
     hexData[k + 3] = 0;
   }
-  const hexTex = new THREE.DataTexture(hexData, 7, 7, THREE.RGBAFormat);
+  const hexTex = new THREE.DataTexture(hexData, win.w, win.h, THREE.RGBAFormat);
   hexTex.magFilter = THREE.NearestFilter;
   hexTex.minFilter = THREE.NearestFilter;
   hexTex.needsUpdate = true;
@@ -324,6 +345,7 @@ export function buildTerrain(board, seed, quality = 'high') {
     uTerritory: { value: null },
     uBorder: { value: null },
     uHexTex: { value: hexTex },
+    uHexWin: { value: new THREE.Vector4(win.q0, win.r0, win.w, win.h) },
     uDomain: { value: new THREE.Vector4(DOMAIN.min, DOMAIN.min, DOMAIN.size, DOMAIN.size) },
     uRobber: { value: new THREE.Vector2(99, 99) },
     uHover: { value: new THREE.Vector4(99, 99, 0, 0) },
@@ -377,7 +399,7 @@ vWNrm = normalize(mat3(modelMatrix) * objectNormal);`,
       )
       .replace('#include <fog_fragment>', TERRAIN_FRAG_POST + '\n#include <fog_fragment>');
   };
-  mat.customProgramCacheKey = () => 'catan-terrain-v4';
+  mat.customProgramCacheKey = () => 'catan-terrain-v5';
 
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;
@@ -404,7 +426,7 @@ vWNrm = normalize(mat3(modelMatrix) * objectNormal);`,
     uniforms.uTexOn.value = 1;
   }
 
-  return { mesh, uniforms, heightAt, coastAt, weightsAt, slopeAt, heightTex, hexTex, hexData, N, step, setLayers, setRock };
+  return { mesh, uniforms, heightAt, coastAt, weightsAt, slopeAt, heightTex, hexTex, hexData, hexSlot, N, step, setLayers, setRock };
 }
 
 // layer order must match the asset pack's terrain manifest
@@ -438,6 +460,7 @@ uniform vec3 uSunDir;
 uniform sampler2D uTerritory;
 uniform sampler2D uBorder;
 uniform sampler2D uHexTex;
+uniform vec4 uHexWin;
 uniform vec4 uDomain;
 uniform vec2 uRobber;
 uniform vec4 uHover;
@@ -471,8 +494,8 @@ vec2 axialOf(vec2 p) {
 vec2 hexCenter(vec2 qr) { return vec2(HS * SQ3 * (qr.x + qr.y * 0.5), HS * 1.5 * qr.y); }
 float hexInner(vec2 d) { vec2 a = abs(d); return HS * 0.8660254 - max(a.x, 0.5 * a.x + 0.8660254 * a.y); }
 vec4 hexData(vec2 qr) {
-  ivec2 c = ivec2(int(qr.x) + 3, int(qr.y) + 3);
-  if (c.x < 0 || c.y < 0 || c.x > 6 || c.y > 6) return vec4(0.0);
+  ivec2 c = ivec2(int(qr.x) - int(uHexWin.x), int(qr.y) - int(uHexWin.y));
+  if (c.x < 0 || c.y < 0 || c.x >= int(uHexWin.z) || c.y >= int(uHexWin.w)) return vec4(0.0);
   return texelFetch(uHexTex, c, 0);
 }
 bool sameHex(vec2 a, vec2 b) { return abs(a.x - b.x) < 0.5 && abs(a.y - b.y) < 0.5; }

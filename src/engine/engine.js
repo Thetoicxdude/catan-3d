@@ -1,13 +1,23 @@
-// Catan base-game rules engine (3–4 players), following the 5th-edition rulebook & almanac.
+// Catan base-game rules engine (2–4 players, and 5–6 with the extension's turn rules), following the
+// 5th-edition rulebook & almanac.
 // Pure & deterministic: state is plain JSON; all randomness comes from the seeded rng in state.
 // applyAction(state, action) validates, then mutates state and returns a list of events.
 // Illegal actions throw RuleError (with a Traditional Chinese message) and leave state untouched.
 
-import { GEO } from './geometry.js';
+import { GEO, useMap } from './geometry.js';
 import { generateBoard, RES, TERRAIN_RES, pips } from './board.js';
+import { mapDef, DEFAULT_MAP } from './maps.js';
 import { rngInt, shuffle, seedState } from './rng.js';
 
 export { RES, TERRAIN_RES, pips };
+
+// Put the map a state is played on in play (GEO). States saved before maps existed are on the
+// standard island.
+export function ensureMap(st) {
+  const id = (st && st.map) || DEFAULT_MAP;
+  if (GEO.id !== id) useMap(st.mapDef || id);
+  return GEO;
+}
 
 export const COSTS = {
   road: { wood: 1, brick: 1 },
@@ -51,7 +61,10 @@ export function missingFor(res, cost) {
 
 // ───────────────────────── game creation ─────────────────────────
 
+// opts.map: the map's id (maps.js); the standard island when left out
 export function createGame(opts) {
+  const def = mapDef(opts.map);
+  useMap(def);
   const seed = opts.seed >>> 0;
   const holder = { rng: seedState(seed) };
   const board = generateBoard(holder, opts.board || {});
@@ -59,16 +72,19 @@ export function createGame(opts) {
   // dev-card order and dice cannot be reconstructed from the board.
   if (opts.entropy) holder.rng = opts.entropy.slice(0, 4).map((x) => x >>> 0);
   const n = opts.players.length;
-  if (n < 2 || n > 4) throw new RuleError('玩家人數需為 2–4 人');
+  const [lo, hi] = def.players || [2, 4];
+  if (n < lo || n > hi) throw new RuleError(`這張地圖需要 ${lo}–${hi} 位玩家`);
   const deck = [];
-  for (const [t, c] of Object.entries(DEV_COUNTS)) for (let i = 0; i < c; i++) deck.push(t);
+  for (const [t, c] of Object.entries(def.dev || DEV_COUNTS)) for (let i = 0; i < c; i++) deck.push(t);
   shuffle(holder, deck);
   const start = opts.firstPlayer !== undefined ? opts.firstPlayer : rngInt(holder, 0, n - 1);
   const order = [];
   for (let i = 0; i < n; i++) order.push((start + i) % n);
   for (let i = n - 1; i >= 0; i--) order.push((start + i) % n);
+  const bank = def.bank || BANK_START;
+  const pieces = def.pieces || PIECES;
 
-  return {
+  const st = {
     v: 1,
     seed,
     mapSeed: opts.mapSeed != null ? opts.mapSeed >>> 0 : seed,
@@ -85,11 +101,11 @@ export function createGame(opts) {
       dev: [],
       played: { knight: 0, roadBuilding: 0, yearOfPlenty: 0, monopoly: 0 },
       knights: 0,
-      pieces: { ...PIECES },
+      pieces: { ...pieces },
     })),
     vertices: new Array(GEO.vertices.length).fill(null),
     edges: new Array(GEO.edges.length).fill(-1),
-    bank: { wood: BANK_START, brick: BANK_START, wool: BANK_START, grain: BANK_START, ore: BANK_START },
+    bank: { wood: bank, brick: bank, wool: bank, grain: bank, ore: bank },
     devDeck: deck,
     phase: 'setup',
     setup: { order, i: 0, step: 'settlement', last: -1 },
@@ -106,7 +122,17 @@ export function createGame(opts) {
     winner: -1,
     seq: 0,
     rolls: new Array(13).fill(0),
+    map: def.id,
   };
+  // a map that is not built in (one a player made) travels with the game
+  if (mapDef(def.id) !== def) st.mapDef = def;
+  // the map's rules (5–6 players: how the turn is shared), which a room may change
+  const rules = { ...(def.rules || {}), ...(opts.rules || {}) };
+  if (Object.keys(rules).length) {
+    st.rules = rules;
+    if (rules.turns) st.sub = null;
+  }
+  return st;
 }
 
 export function cloneState(st) {
@@ -210,7 +236,7 @@ export function playerHandSize(st, p) {
 export function playableDev(st, p) {
   // Dev card types this player could play right now (ignores the extra parameters).
   const pl = st.players[p];
-  if (st.phase !== 'play' || st.current !== p || st.devPlayed || st.pending || st.trade || !pl.dev) return [];
+  if (st.phase !== 'play' || st.current !== p || st.devPlayed || st.pending || st.trade || !pl.dev || inSub(st, 'sbp')) return [];
   const out = new Set();
   for (const c of pl.dev) {
     if (c.type === 'victoryPoint' || c.turn >= st.turn) continue;
@@ -389,6 +415,19 @@ function requireMainTurn(st, p, { needRoll = true } = {}) {
   need(!st.pending, pendingMsg(st.pending));
   need(!st.trade, '請先處理目前的交易提議');
   if (needRoll) need(st.rolled, '請先擲骰');
+}
+
+// ── 5–6 players: the part of a turn after the main player's ──
+// st.rules.turns: 'paired' — when the main player ends, the player three seats on (opposite at six)
+// takes a second part: bank and harbor trades, building, one development card; no dice, no trading
+// with players. 'sbp' — the special building phase: every other player in turn may build or buy
+// development cards, nothing else. st.sub = { k: 'pair' | 'sbp', lead: the main player, rest: the
+// players still to come } while it lasts (absent on maps without these rules).
+export function inSub(st, k) {
+  return !!st.sub && (!k || st.sub.k === k);
+}
+function noSub(st, what) {
+  need(!st.sub, st.sub && st.sub.k === 'pair' ? `第二位不能${what}` : `特別建造階段不能${what}`);
 }
 function pendingMsg(pd) {
   if (!pd) return '';
@@ -619,6 +658,7 @@ H.playDev = (st, a, ev) => {
   const pl = st.players[p];
   need(st.phase === 'play', '現在不能使用發展卡');
   need(p === st.current, '只能在自己的回合使用發展卡');
+  need(!inSub(st, 'sbp'), '特別建造階段不能使用發展卡');
   need(!st.pending, pendingMsg(st.pending));
   need(!st.trade, '請先處理目前的交易提議');
   need(!st.devPlayed, '每回合只能使用一張發展卡');
@@ -680,6 +720,7 @@ H.bankTrade = (st, a, ev) => {
   const p = a.p;
   const pl = st.players[p];
   requireMainTurn(st, p);
+  need(!inSub(st, 'sbp'), '特別建造階段不能交易');
   need(RES.includes(a.give) && RES.includes(a.get), '無效的交易');
   need(a.give !== a.get, '不能用相同的資源交換');
   const ratio = tradeRatio(st, p, a.give);
@@ -696,6 +737,7 @@ H.offer = (st, a, ev) => {
   const p = a.p;
   const pl = st.players[p];
   requireMainTurn(st, p);
+  noSub(st, '與其他玩家交易');
   need(validResMap(a.give) && validResMap(a.get), '無效的交易');
   need(mapTotal(a.give) > 0 && mapTotal(a.get) > 0, '交易雙方都必須給出至少一張牌（不能贈送）');
   for (const r of RES) need(!((a.give[r] || 0) > 0 && (a.get[r] || 0) > 0), '不能用相同的資源交換');
@@ -767,7 +809,27 @@ H.endTurn = (st, a, ev) => {
     ev.push({ type: 'offerCancelled', p });
   }
   ev.push({ type: 'turnEnd', p, turn: st.turn });
-  st.current = (st.current + 1) % st.players.length;
+  const n = st.players.length;
+  const mode = st.rules && st.rules.turns;
+  if ((mode === 'paired' || mode === 'sbp') && !st.sub) {
+    // the main player is done: the second player, or everyone else in turn, follows
+    const lead = st.current;
+    const queue = mode === 'paired' ? [(lead + 3) % n] : Array.from({ length: n - 1 }, (_, i) => (lead + 1 + i) % n);
+    st.sub = { k: mode === 'paired' ? 'pair' : 'sbp', lead, rest: queue.slice(1) };
+    st.current = queue[0];
+    st.devPlayed = false;
+    ev.push({ type: 'turnStart', p: st.current, turn: st.turn, sub: st.sub.k, lead });
+    return;
+  }
+  if (st.sub && st.sub.rest.length) {
+    st.current = st.sub.rest.shift();
+    st.devPlayed = false;
+    ev.push({ type: 'turnStart', p: st.current, turn: st.turn, sub: st.sub.k, lead: st.sub.lead });
+    return;
+  }
+  const lead = st.sub ? st.sub.lead : st.current;
+  if (st.sub) st.sub = null;
+  st.current = (lead + 1) % n;
   st.turn++;
   st.rolled = false;
   st.dice = null;
@@ -778,18 +840,25 @@ H.endTurn = (st, a, ev) => {
 export const ACTION_TYPES = Object.keys(H);
 
 export function applyAction(st, action) {
+  ensureMap(st);
   if (!action || !H[action.type]) throw new RuleError('未知的動作');
   if (st.phase === 'over') throw new RuleError('遊戲已結束');
   if (!Number.isInteger(action.p) || !st.players[action.p]) throw new RuleError('無效的玩家');
   const ev = [];
   H[action.type](st, action, ev);
   st.seq++;
-  if (st.phase === 'play' && st.winner < 0 && totalVP(st, st.current) >= st.targetVP) {
-    st.winner = st.current;
-    st.phase = 'over';
-    st.pending = null;
-    st.trade = null;
-    ev.push({ type: 'gameOver', winner: st.current, vp: totalVP(st, st.current) });
+  // A player wins on their own turn. A paired turn belongs to both its players (the main player
+  // first when both have reached the target); the special building phase is nobody's turn.
+  if (st.phase === 'play' && st.winner < 0 && !inSub(st, 'sbp')) {
+    const turnOf = inSub(st, 'pair') ? [st.sub.lead, st.current] : [st.current];
+    const w = turnOf.find((q) => totalVP(st, q) >= st.targetVP);
+    if (w !== undefined) {
+      st.winner = w;
+      st.phase = 'over';
+      st.pending = null;
+      st.trade = null;
+      ev.push({ type: 'gameOver', winner: w, vp: totalVP(st, w) });
+    }
   }
   return ev;
 }
@@ -809,6 +878,7 @@ export function isLegal(st, action) {
 // A view is the state as one seat may see it: other players' hands become counts,
 // the dev deck becomes a count, and the rng is removed. UI and AI work on views only.
 export function makeView(st, viewer) {
+  ensureMap(st);
   const over = st.phase === 'over';
   const view = { ...st, viewer, rng: null, seed: over ? st.seed : null, devDeck: null, devDeckCount: st.devDeck.length };
   view.players = st.players.map((pl) => {

@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import { GEO } from '../engine/geometry.js';
 import { DOMAIN } from './terrain.js';
 
-const RES = 320;
+// texture size: 320 for the standard island's 128-unit domain, more for bigger maps
+const resFor = (size) => Math.min(512, Math.round((320 * size) / 128));
 
 function hexToRgb(hex) {
   const n = parseInt(hex.slice(1), 16);
@@ -14,6 +15,7 @@ function hexToRgb(hex) {
 
 export class Territory {
   constructor(players, terrain) {
+    const RES = (this.res = resFor(DOMAIN.size));
     this.players = players;
     this.terrain = terrain;
     this.fill = new Uint8Array(RES * RES * 4);
@@ -44,6 +46,7 @@ export class Territory {
   }
 
   update(st) {
+    const RES = this.res;
     const key = st.vertices.map((b) => (b ? b.p + b.t : '-')).join('') + st.edges.join(',');
     if (key === this.key) return false;
     this.key = key;

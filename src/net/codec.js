@@ -1,10 +1,13 @@
 // Compact wire format for online play. The host publishes the public part of the game state
 // (plus recent public events) in its room presence; each remote seat's hand travels encrypted.
 // All keys are identifiers and every string stays well under 1 KiB (room presence limits).
-import { GEO } from '../engine/geometry.js';
+import { GEO, useMap } from '../engine/geometry.js';
 import { RES } from '../engine/engine.js';
+import { generateBoard } from '../engine/board.js';
+import { seedState } from '../engine/rng.js';
+import { DEFAULT_MAP } from '../engine/maps.js';
 
-const TER = { forest: 'f', hills: 'h', pasture: 'p', fields: 'g', mountains: 'm', desert: 'd' };
+const TER = { forest: 'f', hills: 'h', pasture: 'p', fields: 'g', mountains: 'm', desert: 'd', sea: 's' };
 const TER_R = Object.fromEntries(Object.entries(TER).map(([k, v]) => [v, k]));
 const HB = { any: 'a', wood: 'w', brick: 'b', wool: 'l', grain: 'g', ore: 'o' };
 const HB_R = Object.fromEntries(Object.entries(HB).map(([k, v]) => [v, k]));
@@ -32,19 +35,68 @@ const resFull = (s) => {
 };
 
 // ── static board + seats (sent with every snapshot; small) ──
+// The standard island travels in full. Other maps send only the map, the seed and the number method:
+// every page lays the same board out itself (the generator is deterministic), and hk — a checksum of
+// the host's board — catches a page running another version of the game. ru: the turn rule (5–6
+// players: 'p' paired turns, 's' special building phase).
 export function encodeBoard(st) {
-  return {
-    h: st.board.hexes.map((h) => TER[h.terrain] + String(h.number).padStart(2, '0')).join(''),
-    n: st.board.hexes.map((h) => h.name).join('|'),
-    hb: st.board.harbors.map((h) => h.edge + HB[h.type]).join(','),
-    m: st.board.method === 'spiral' ? 's' : 'b',
-    ts: st.mapSeed >>> 0,
-  };
+  let b;
+  if (st.map && st.map !== DEFAULT_MAP) b = { mp: st.map, m: st.board.method === 'spiral' ? 's' : 'b', ts: st.mapSeed >>> 0, hk: boardHash(st.board) };
+  else {
+    b = {
+      h: st.board.hexes.map((h) => TER[h.terrain] + String(h.number).padStart(2, '0')).join(''),
+      n: st.board.hexes.map((h) => h.name).join('|'),
+      hb: st.board.harbors.map((h) => h.edge + HB[h.type]).join(','),
+      m: st.board.method === 'spiral' ? 's' : 'b',
+      ts: st.mapSeed >>> 0,
+    };
+  }
+  if (st.rules && st.rules.turns) b.ru = st.rules.turns === 'sbp' ? 's' : 'p';
+  return b;
 }
+
+// a short checksum of a board's layout (FNV-1a over terrain, numbers, names and harbors)
+export function boardHash(board) {
+  const text = board.hexes.map((h) => `${h.terrain}${h.number}${h.name}`).join('|') + '#' + board.harbors.map((h) => h.edge + h.type).join(',');
+  let x = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    x ^= text.charCodeAt(i);
+    x = Math.imul(x, 0x01000193) >>> 0;
+  }
+  return x.toString(36);
+}
+
+export class BoardMismatch extends Error {
+  constructor() {
+    super('主持人的遊戲版本和你的不同，請重新整理頁面後再加入');
+    this.name = 'BoardMismatch';
+  }
+}
+
+const laidOut = new Map();
+function layOut(b) {
+  const key = `${b.mp}:${b.ts}:${b.m}`;
+  let hit = laidOut.get(key);
+  if (!hit) {
+    const board = generateBoard({ rng: seedState(b.ts >>> 0) }, { numbers: b.m === 's' ? 'spiral' : 'balanced' });
+    hit = { board, hash: boardHash(board) };
+    if (laidOut.size > 6) laidOut.clear();
+    laidOut.set(key, hit);
+  }
+  if (b.hk && hit.hash !== b.hk) throw new BoardMismatch();
+  return hit.board;
+}
+
+// (puts the board's map in play)
 export function decodeBoard(b, robber) {
+  useMap(b.mp || DEFAULT_MAP);
+  if (!b.h) {
+    const board = layOut(b);
+    return { hexes: board.hexes, harbors: board.harbors, vertexHarbor: board.vertexHarbor, robber, method: board.method };
+  }
   const names = b.n.split('|');
   const hexes = [];
-  for (let i = 0; i < 19; i++) {
+  for (let i = 0; i < GEO.hexes.length; i++) {
     const t = b.h.slice(i * 3, i * 3 + 3);
     hexes.push({ terrain: TER_R[t[0]], number: Number(t.slice(1)), name: names[i] || '' });
   }
@@ -101,7 +153,7 @@ export function encodeEvent(e) {
     case 'largestArmy':
       return ['G', e.from, e.to, e.size];
     case 'turnStart':
-      return ['N', e.p, e.turn];
+      return e.sub ? ['N', e.p, e.turn, e.sub === 'sbp' ? 's' : 'p', e.lead] : ['N', e.p, e.turn];
     case 'phase':
       return ['H'];
     case 'roadBuildingDone':
@@ -187,7 +239,7 @@ export function decodeEvent(a) {
     case 'G':
       return { type: 'largestArmy', from: a[1], to: a[2], size: a[3] };
     case 'N':
-      return { type: 'turnStart', p: a[1], turn: a[2] };
+      return a[3] ? { type: 'turnStart', p: a[1], turn: a[2], sub: a[3] === 's' ? 'sbp' : 'pair', lead: a[4] } : { type: 'turnStart', p: a[1], turn: a[2] };
     case 'H':
       return { type: 'phase', phase: 'play' };
     case 'w':
@@ -222,7 +274,7 @@ export function encodePublic(st) {
   }
   const t = st.trade;
   const trade = t ? [t.id, t.from, resStr(t.give), resStr(t.get), Object.entries(t.resp).map(([q, r]) => `${q}${r === 'yes' ? 'y' : r === 'no' ? 'n' : r === 'lack' ? 'l' : 'w'}`).join('.')] : 0;
-  return {
+  const pub = {
     s: st.seq,
     ph: st.phase === 'setup' ? 'S' : st.phase === 'over' ? 'O' : 'P',
     tv: st.targetVP,
@@ -246,6 +298,9 @@ export function encodePublic(st) {
     dc: st.devDeck.length,
     pl: st.players.map((p) => [RES.reduce((s, r) => s + p.res[r], 0), p.dev.length, p.knights, `${p.played.knight}.${p.played.roadBuilding}.${p.played.yearOfPlenty}.${p.played.monopoly}`, `${p.pieces.roads}.${p.pieces.settlements}.${p.pieces.cities}`, st.phase === 'over' ? p.dev.filter((c) => c.type === 'victoryPoint').length : -1]),
   };
+  // 5–6 players: the part of the turn after the main player's
+  if (st.sub) pub.sb = [st.sub.k === 'sbp' ? 's' : 'p', st.sub.lead, st.sub.rest.join('')];
+  return pub;
 }
 
 export function encodePrivate(st, seat) {
@@ -312,14 +367,15 @@ export function decodeView(board, seats, pub, priv, seat) {
     };
   });
   const dice = pub.di ? [Math.floor(pub.di / 10), pub.di % 10] : null;
-  return {
+  const decoded = decodeBoard(board, pub.rb);
+  const view = {
     v: 1,
     viewer: seat,
     seed: null,
     mapSeed: board.ts,
     rng: null,
     targetVP: pub.tv,
-    board: decodeBoard(board, pub.rb),
+    board: decoded,
     players,
     vertices,
     edges,
@@ -341,7 +397,13 @@ export function decodeView(board, seats, pub, priv, seat) {
     winner: pub.w,
     seq: pub.s,
     rolls: String(pub.rs).split('.').map(Number),
+    map: board.mp || DEFAULT_MAP,
   };
+  if (board.ru) {
+    view.rules = { turns: board.ru === 's' ? 'sbp' : 'paired' };
+    view.sub = pub.sb ? { k: pub.sb[0] === 's' ? 'sbp' : 'pair', lead: pub.sb[1], rest: [...String(pub.sb[2] || '')].map(Number) } : null;
+  }
+  return view;
 }
 
 // ── the whole game, for the player who takes over as host ──

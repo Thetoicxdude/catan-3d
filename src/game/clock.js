@@ -1,11 +1,12 @@
 // Turn time limits for online games. Each opening placement (a village and its road) gets 2 minutes
-// and each later turn 3 minutes. When a player's time runs out the host does the least it can for
+// and each later turn 3 minutes; with 5–6 players the second player of a paired turn gets 90 seconds
+// and each step of the special building phase 45. When a player's time runs out the host does the least it can for
 // them: the computer finishes a placement, a discard or a robber move, an open offer is withdrawn,
 // the dice are rolled, and the turn ends. Nothing is built or traded on anyone's behalf.
 import { actorsNow, makeView } from '../engine/engine.js';
 import { aiAct } from '../ai/ai.js';
 
-export const TURN_LIMITS = { setup: 120000, play: 180000 };
+export const TURN_LIMITS = { setup: 120000, play: 180000, pair: 90000, sbp: 45000 };
 
 export function limits() {
   const t = typeof window !== 'undefined' && window.__turnMs; // test hook
@@ -16,12 +17,13 @@ export function limits() {
 export function turnKey(st) {
   if (!st || st.phase === 'over') return null;
   if (st.phase === 'setup') return `S${st.setup.i}`;
-  return `P${st.turn}:${st.current}`;
+  return `P${st.turn}:${st.current}${st.sub ? st.sub.k : ''}`;
 }
 
 export function turnLimit(st) {
   const l = limits();
-  return st.phase === 'setup' ? l.setup : l.play;
+  if (st.phase === 'setup') return l.setup;
+  return st.sub ? l[st.sub.k] || l.play : l.play;
 }
 
 // the smallest move that gets the game going again for player p, whose time is up

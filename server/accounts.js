@@ -86,11 +86,11 @@ export function cleanResult(r) {
   const gid = typeof r.gid === 'string' && /^[A-Za-z0-9:_.-]{4,80}$/.test(r.gid) ? r.gid : null;
   const mode = MODES.includes(r.mode) ? r.mode : null;
   const vp = int(r.vp, 0, 30);
-  const place = int(r.place, 1, 4);
-  const n = int(r.n, 2, 4);
+  const place = int(r.place, 1, 6);
+  const n = int(r.n, 2, 6);
   const turns = int(r.turns, 0, 2000);
   if (!gid || !mode || vp == null || place == null || n == null || turns == null || typeof r.won !== 'boolean') return null;
-  if (r.won && place !== 1) return null;
+  if ((r.won && place !== 1) || place > n) return null;
   return { gid, mode, won: r.won ? 1 : 0, vp, place, n, turns };
 }
 

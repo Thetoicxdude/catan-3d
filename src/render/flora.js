@@ -600,6 +600,7 @@ export function buildFlora(terrain, board, seed, quality, pack = null, sunDir = 
   sailGeo.computeVertexNormals();
   const sailMat = new THREE.MeshStandardMaterial({ color: 0xf3ede0, side: THREE.DoubleSide, roughness: 0.8 });
   const boats = [];
+  const boatC = GEO.center; // they sail round the middle of the land
   for (let b = 0; b < 4; b++) {
     const g = new THREE.Group();
     if (M && M.ships) {
@@ -620,7 +621,7 @@ export function buildFlora(terrain, board, seed, quality, pack = null, sunDir = 
       g.scale.setScalar(1.1);
     }
     group.add(g);
-    boats.push({ g, r: 54 + rnd() * 6, ph: rnd() * Math.PI * 2, sp: (0.006 + rnd() * 0.006) * (b % 2 ? 1 : -1) });
+    boats.push({ g, r: (54 + rnd() * 6) * GEO.scale, ph: rnd() * Math.PI * 2, sp: (0.006 + rnd() * 0.006) * (b % 2 ? 1 : -1) });
   }
 
   function update(t, dt) {
@@ -648,8 +649,8 @@ export function buildFlora(terrain, board, seed, quality, pack = null, sunDir = 
     }
     for (const b of boats) {
       const a = b.ph + t * b.sp;
-      const x = Math.cos(a) * b.r;
-      const z = Math.sin(a) * b.r * 0.88;
+      const x = boatC.x + Math.cos(a) * b.r;
+      const z = boatC.z + Math.sin(a) * b.r * 0.88;
       b.g.position.set(x, 0.05 + Math.sin(t * 1.6 + b.ph) * 0.06, z);
       b.g.rotation.set(Math.sin(t * 1.3 + b.ph) * 0.05, -a + (b.sp > 0 ? -Math.PI / 2 : Math.PI / 2), 0);
     }

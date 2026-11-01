@@ -278,10 +278,14 @@ export class MapView {
     const sm = quality === 'low' ? 1024 : quality === 'medium' ? 2048 : 3072;
     sun.shadow.mapSize.set(sm, sm);
     const sc = sun.shadow.camera;
-    sc.left = -66;
-    sc.right = 66;
-    sc.top = 66;
-    sc.bottom = -66;
+    // the shadow map covers the whole map when zoomed out (66 each way for the standard island)
+    const gb = GEO.bounds;
+    const FULL = Math.max(66, Math.ceil(Math.max(-gb.minX, gb.maxX, -gb.minZ, gb.maxZ) + 22));
+    this.shadowFull = FULL;
+    sc.left = -FULL;
+    sc.right = FULL;
+    sc.top = FULL;
+    sc.bottom = -FULL;
     sc.near = 10;
     sc.far = 260;
     sun.shadow.bias = -0.0004;
@@ -292,11 +296,12 @@ export class MapView {
     sun.updateMatrixWorld();
     sun.target.updateMatrixWorld();
     sun.shadow.updateMatrices(sun);
-    this.shadowBox = { x0: -66, x1: 66, y0: -66, y1: 66 };
+    this.shadowBox = { x0: -FULL, x1: FULL, y0: -FULL, y1: FULL };
 
     this.terrain = buildTerrain(state.board, seed, quality);
     scene.add(this.terrain.mesh);
     this.camera.heightAt = this.terrain.heightAt;
+    this.camera.setMap(GEO);
     this.sky = skyMesh();
     scene.add(this.sky);
 
@@ -534,7 +539,8 @@ export class MapView {
     this.markers.clear();
     this.pieces.ghost(null);
     const hexData = this.terrain.hexData;
-    for (const h of GEO.hexes) hexData[((h.r + 3) * 7 + (h.q + 3)) * 4 + 3] = 0;
+    const slot = this.terrain.hexSlot;
+    for (const h of GEO.hexes) hexData[slot(h) + 3] = 0;
     this.terrain.uniforms.uSelect.value = 0;
     this.terrain.uniforms.uHover.value.set(99, 99, 0, 0);
     this.canvas.style.cursor = '';
@@ -545,10 +551,7 @@ export class MapView {
     const color = spec.player != null && this.players[spec.player] ? this.players[spec.player].color : '#ffffff';
     this.markers.show(spec.kind, spec.ids, color);
     if (spec.kind === 'hex') {
-      for (const id of spec.ids) {
-        const h = GEO.hexes[id];
-        hexData[((h.r + 3) * 7 + (h.q + 3)) * 4 + 3] = 255;
-      }
+      for (const id of spec.ids) hexData[slot(GEO.hexes[id]) + 3] = 255;
       this.terrain.uniforms.uSelect.value = 1;
     }
     this.terrain.hexTex.needsUpdate = true;
@@ -807,8 +810,9 @@ export class MapView {
     const moving = this.time - (this.lastMoveAt == null ? -1 : this.lastMoveAt) < 0.2;
     const H = this.camera.h;
     const EQ = this.camera.equivH();
-    const zoom01 = Math.min(1, (EQ - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN));
-    const paper = smooth(150, 205, EQ);
+    const MS = this.camera.scale;
+    const zoom01 = Math.min(1, (EQ - ZOOM_MIN) / (ZOOM_MAX * MS - ZOOM_MIN));
+    const paper = smooth(150 * MS, 205 * MS, EQ);
     const cloud = 0; // no cloud layer: it hid the board when zoomed out a little
 
     // map-mode transitions
@@ -906,7 +910,7 @@ export class MapView {
     const inv = sc.matrixWorldInverse;
     const r = this.camera.screenRect();
     const v = new THREE.Vector3();
-    const FULL = 66;
+    const FULL = this.shadowFull;
     let x0 = Infinity;
     let x1 = -Infinity;
     let y0 = Infinity;

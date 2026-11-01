@@ -10,9 +10,13 @@ let checked = 0;
 let maxSize = 0;
 let fullMax = 0;
 let seatsChecked = 0;
-for (let g = 0; g < 40; g++) {
-  const players = Array.from({ length: g % 3 ? 4 : 3 }, (_, i) => ({ name: ['曙光王國', '蒼藍聯邦', '琥珀公國', '白楊共和國'][i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' } }));
-  const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4] });
+let bigMax = 0;
+const NAMES = ['曙光王國', '蒼藍聯邦', '琥珀公國', '白楊共和國', '紫晶公國', '翡翠王朝'];
+// 40 standard games, then 5–6 player games on the large island (paired turns, then the special building phase)
+for (let g = 0; g < 52; g++) {
+  const big = g >= 40;
+  const players = Array.from({ length: big ? 5 + (g % 2) : g % 3 ? 4 : 3 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' } }));
+  const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4], map: big ? 'base-6' : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
   const rnd = makeRng(g);
   const mem = players.map(() => ({}));
   let guard = 0;
@@ -34,6 +38,7 @@ for (let g = 0; g < 40; g++) {
       assert.equal(dec.type, e.type);
       if (e.type === 'produce') assert.equal(dec.paid.length, e.paid.length);
       if (e.type === 'build') assert.equal(dec.vertex ?? dec.edge, e.vertex ?? e.edge);
+      if (e.type === 'turnStart') assert.deepEqual([dec.p, dec.turn, dec.sub, dec.lead], [e.p, e.turn, e.sub, e.lead]);
     }
     if (guard % 7 !== 0 && st.phase !== 'over') continue;
     const board = C.encodeBoard(st);
@@ -44,6 +49,9 @@ for (let g = 0; g < 40; g++) {
       const got = C.decodeView(board, seats, pub, priv, seat);
       const want = makeView(st, seat);
       for (const k of KEYS) assert.deepEqual(got[k], want[k], `${k} differs (game ${g}, seq ${st.seq})`);
+      assert.deepEqual(got.sub, want.sub, `sub differs (game ${g}, seq ${st.seq})`);
+      assert.deepEqual(got.rules, want.rules);
+      assert.equal(got.map, want.map);
       assert.deepEqual(got.board.hexes, want.board.hexes);
       assert.deepEqual(got.board.vertexHarbor, want.board.vertexHarbor);
       assert.equal(got.board.robber, want.board.robber);
@@ -86,7 +94,15 @@ for (let g = 0; g < 40; g++) {
     }
     fullMax = Math.max(fullMax, C.utf8Size(full));
     const size = C.utf8Size({ bd: board, ps: C.encodeSeats(st), pub });
-    maxSize = Math.max(maxSize, size);
+    if (big) bigMax = Math.max(bigMax, size);
+    else maxSize = Math.max(maxSize, size);
   }
 }
-console.log(`codec ok: ${checked} views compared, largest public snapshot ${maxSize} bytes, largest takeover snapshot ${fullMax} bytes`);
+// a page on another version lays out another board: it must notice
+{
+  const players = Array.from({ length: 5 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai' }));
+  const st = createGame({ seed: 4321, players, map: 'base-6' });
+  const bd = { ...C.encodeBoard(st), hk: 'zzzz' };
+  assert.throws(() => C.decodeBoard(bd, 0), (e) => e instanceof C.BoardMismatch);
+}
+console.log(`codec ok: ${checked} views compared, largest public snapshot ${maxSize} bytes (5–6 players on the large island: ${bigMax}), largest takeover snapshot ${fullMax} bytes`);

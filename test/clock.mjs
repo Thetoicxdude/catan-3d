@@ -10,16 +10,19 @@ const ALLOWED = new Set(['settlement', 'road', 'discard', 'robber', 'steal', 'ca
 let checked = 0;
 let games = 0;
 const kinds = {};
-for (let g = 0; g < 40; g++) {
-  const players = [0, 1, 2, 3].map((i) => ({ name: 'p' + i, color: '#000', kind: 'ai', ai: { level: 'normal' } }));
-  const st = createGame({ seed: 1000 + g, players, targetVP: 10 });
+// 40 standard games, then 5–6 player games on the large island (paired turns, then the special building phase)
+for (let g = 0; g < 52; g++) {
+  const big = g >= 40;
+  const n = big ? 5 + (g % 2) : 4;
+  const players = Array.from({ length: n }, (_, i) => ({ name: 'p' + i, color: '#000', kind: 'ai', ai: { level: 'normal' } }));
+  const st = createGame({ seed: 1000 + g, players, targetVP: 10, map: big ? 'base-6' : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
   const mem = players.map(() => ({}));
   const rnd = makeRng(77 + g);
   let steps = 0;
   while (st.phase !== 'over' && steps < 3000) {
     steps++;
     assert.ok(turnKey(st), 'a running game has a clock');
-    assert.equal(turnLimit(st), st.phase === 'setup' ? 120000 : 180000);
+    assert.equal(turnLimit(st), st.phase === 'setup' ? 120000 : !st.sub ? 180000 : st.sub.k === 'pair' ? 90000 : 45000);
     for (const p of actorsNow(st)) {
       const a = timeoutAction(st, p, {}, rnd);
       if (!a) continue;

@@ -1,0 +1,359 @@
+{
+ "geometry": "9c8d4fccce43dfde",
+ "games": [
+  {
+   "seed": 1000,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "7bb1cbc26d309f1f",
+   "trail": [
+    "ef3f73e817c53f7b",
+    "3d89c9fcc7e2a70b",
+    "c6f6b28ea5aab61e",
+    "bfa76c0e47dfd62b",
+    "aecf97d8d30edc4a"
+   ],
+   "end": "ed3647710677af98"
+  },
+  {
+   "seed": 8919,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "df3b0650fd085df0",
+   "trail": [
+    "338c20a6cea377d8",
+    "5fe819e01a4af0d8",
+    "2ee6dc1885a22aa4",
+    "bdf7eca7cbb8b0ba",
+    "45f3fe76b30e7ea6",
+    "1a4c9154d6d2fe7a"
+   ],
+   "end": "e312cb5072213d16"
+  },
+  {
+   "seed": 16838,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "53ea062909bbdabc",
+   "trail": [
+    "9b93e522d6d246a9",
+    "61b65432c7ab3d9f",
+    "be3c8b8259e1afcf",
+    "2e9aaf4695695806",
+    "0af41091ba4be40b",
+    "8cfdd6428c91a2cf"
+   ],
+   "end": "fde2b741337f6129"
+  },
+  {
+   "seed": 24757,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "062464c1693c7f05",
+   "trail": [
+    "7f307bb5c333bfae",
+    "8d350ddbabe6c8b5",
+    "e0ffd98880c68adc",
+    "241f2988657fa0e4",
+    "281b2fcdd8e1ca00",
+    "a2bcebbedc10bd5d",
+    "4283c73e220624f6",
+    "313c1238a7e25dd6"
+   ],
+   "end": "4a64e2cab9cd8dc4"
+  },
+  {
+   "seed": 32676,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "fd4ba689b82c7eb6",
+   "trail": [
+    "bd7cc55216e9a32a",
+    "54dd82aaa0bcc627",
+    "43dae4705f8960cf",
+    "457fe507538aa487",
+    "733c37cbcd61292d"
+   ],
+   "end": "0177b706bae94e1e"
+  },
+  {
+   "seed": 40595,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "141160317da0c9db",
+   "trail": [
+    "6eb9711d23d02d02",
+    "c78cb9c2e80ceb6a",
+    "8b811a57facba52b",
+    "e635a57edbe7664f",
+    "0b370a81dca1a771",
+    "5f247fbabceedd8c"
+   ],
+   "end": "3e7379673572922a"
+  },
+  {
+   "seed": 48514,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "3b12aaee8813a2f0",
+   "trail": [
+    "e7d36add18bd4f49",
+    "7144c70e5457e83b",
+    "6510b07d504f8bf7",
+    "c29cc927fd5c15d0",
+    "b9c82b8a81ad3f63",
+    "efe254d439c4c35e"
+   ],
+   "end": "198ad90f81023344"
+  },
+  {
+   "seed": 56433,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "19b6af35d8ca1f3c",
+   "trail": [
+    "cb9cf9b4bfeb0b4a",
+    "d845429e4d4e77cb",
+    "260339e8cd3ceb01",
+    "c30c12f9e05afc8c",
+    "87626606ab19a96b"
+   ],
+   "end": "e43f6620c333ec16"
+  },
+  {
+   "seed": 64352,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "0daf7ff2c0ff0090",
+   "trail": [
+    "e7c2154b02d9692b",
+    "aba567f6d4e7bf36",
+    "0517c17a095c26de"
+   ],
+   "end": "26b3e6264e993d3b"
+  },
+  {
+   "seed": 72271,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "f586ce8e0afb85dc",
+   "trail": [
+    "2124ecb2e1083891",
+    "7b9bae681d37e9f4",
+    "8aee48201f22a4f9",
+    "a50b987793e2ba2c",
+    "eadb7369bf7f32cf",
+    "4afa71ea706531b1"
+   ],
+   "end": "4cd8bd274ea4c95d"
+  },
+  {
+   "seed": 80190,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "e89a75504a89e5c0",
+   "trail": [
+    "8e720cb49a0444d3",
+    "3d1126773e31f258",
+    "eeb95c4db0c86862",
+    "e85459e7f341e381",
+    "b0371d6d798dddf9"
+   ],
+   "end": "60cfbf033ac03ace"
+  },
+  {
+   "seed": 88109,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "e2247fd617211786",
+   "trail": [
+    "a24812882745b25b",
+    "f6b012fcaad6c3d2",
+    "5b7f1f0874d1eff0",
+    "a6adf47b97211d25",
+    "b1f37b4a8e5cbf54"
+   ],
+   "end": "90955fafe20578f4"
+  },
+  {
+   "seed": 96028,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "00e527cd4b126f16",
+   "trail": [
+    "8dacb9beda32e72d",
+    "61bc1986f69ce470",
+    "27aba8120a6a7e87",
+    "649d89d074cb7933"
+   ],
+   "end": "0e8495f465a9eda6"
+  },
+  {
+   "seed": 103947,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "eac9abf2d2be5199",
+   "trail": [
+    "2514e02586bf5010",
+    "22dc4ff41f028bd3",
+    "32d26816f442dd4d",
+    "faf2f95695e8f86e",
+    "0a0cc1a49d7d92a0",
+    "f07113cb1c99e86c",
+    "3bbcfe804aa999b1"
+   ],
+   "end": "c37ab3425cd28c88"
+  },
+  {
+   "seed": 111866,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "e6e840bea4320dcf",
+   "trail": [
+    "a4e0ddedc4dd0ec2",
+    "269e2caf8ad5c410",
+    "9f8973179b125227",
+    "ee2f6cb0c38c435d",
+    "c28d97ee64682a78"
+   ],
+   "end": "526a329fcc1decfc"
+  },
+  {
+   "seed": 119785,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "64f42094dd6ae9d1",
+   "trail": [
+    "e7c61e928894661c",
+    "1eaab86b4b1a9090",
+    "9973a7993c369213",
+    "f0e1f232d4de46e7",
+    "3dd6a0be95fda416",
+    "f5db762d44e8a12d",
+    "18cd7c364f3dd455"
+   ],
+   "end": "392e2b52d58105b4"
+  },
+  {
+   "seed": 127704,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "7f2275d3602dfdfd",
+   "trail": [
+    "c41951b782605e8d",
+    "8f55f57ca1b3d677",
+    "9970f169f260befa",
+    "8ba1246fa60639af"
+   ],
+   "end": "6b11e2ca57e29d6f"
+  },
+  {
+   "seed": 135623,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "78db5aed377dffca",
+   "trail": [
+    "6978fcc60aee7271",
+    "c84353fbf0016f54",
+    "f2edc28978f00dca",
+    "a68f48a5668c08be",
+    "cd89cf721208aeaf",
+    "01ae2728022ca24b",
+    "37ca39c047d0d858"
+   ],
+   "end": "fca53f5a9fe14377"
+  },
+  {
+   "seed": 143542,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "824dc5f5ea4bd0c0",
+   "trail": [
+    "5bd10141ffc6c77d",
+    "d1f89596c2842147",
+    "ce5b0d69ca657ab7",
+    "004e8b2402250a50",
+    "fc8be2d8bd577555"
+   ],
+   "end": "4c0a3edf7a317c26"
+  },
+  {
+   "seed": 151461,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "fb4cef43f9dd171e",
+   "trail": [
+    "88ad2b3ab4c18e7f",
+    "6a7e102c1b3c6360",
+    "22a4a5c82e467a35",
+    "29dcb5348f1a9414",
+    "7b187f26c3330259",
+    "e311e7b7a10864bd",
+    "a90d68d194b0d6be",
+    "c831a9d922fd6e76"
+   ],
+   "end": "54c1c1696877e9fc"
+  },
+  {
+   "seed": 159380,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "0ea735abe7e47711",
+   "trail": [
+    "e811967e335816fc",
+    "5d373ccb09b98d57",
+    "45e7d48164f484c8",
+    "ae28676c538e58b0",
+    "42d21cb2aa0ffaea",
+    "affc318843947062",
+    "82801db913fc2f54"
+   ],
+   "end": "8d55baddf10b64dc"
+  },
+  {
+   "seed": 167299,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "3dd323d48fbe019c",
+   "trail": [
+    "4e3157037fc38eaf",
+    "f95a7cbe4d2238d8",
+    "d3f4ecd888ff67c6",
+    "ddbf26fec85f22e2"
+   ],
+   "end": "99bad7797562b1b7"
+  },
+  {
+   "seed": 175218,
+   "numbers": "balanced",
+   "n": 3,
+   "board": "ad55d7c769e57439",
+   "trail": [
+    "0b2c5ef8cd58c8fd",
+    "b844d88933a01b46",
+    "dd518c3e4c597f21",
+    "bc93f8701c8c370d",
+    "632cd3e70d94369a",
+    "6a0afe43cd36e368"
+   ],
+   "end": "9ce26cf067aeed05"
+  },
+  {
+   "seed": 183137,
+   "numbers": "spiral",
+   "n": 4,
+   "board": "f4d049198cc1a347",
+   "trail": [
+    "51d671cdc3ba89cc",
+    "72fe7a02e3e13748",
+    "f0b1bea52730344b",
+    "b3a1e90c9153b95c",
+    "512b08b11b8ffc29",
+    "1e8bd2258ed3f742",
+    "c497024526a0aa7e",
+    "a934067b2a85d81e"
+   ],
+   "end": "66253133feff058a"
+  }
+ ]
+}

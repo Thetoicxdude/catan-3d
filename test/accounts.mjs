@@ -90,6 +90,9 @@ if (args[0] === '--keys') {
   assert.equal(cleanResult({ ...ok, gid: 'x' }), null);
   assert.equal(cleanResult({ ...ok, gid: '<script>' }), null);
   assert.equal(cleanResult({ ...ok, won: 'yes' }), null);
+  assert.deepEqual(cleanResult({ ...ok, won: false, place: 6, n: 6 }), { ...ok, won: 0, place: 6, n: 6 }, 'six-player games count');
+  assert.equal(cleanResult({ ...ok, won: false, place: 5, n: 4 }), null, 'no place below the last');
+  assert.equal(cleanResult({ ...ok, n: 7 }), null);
   console.log('result checks ok');
 }
 

@@ -280,8 +280,9 @@ export class Hud {
     this.miniCanvas = this.mini.querySelector('canvas');
     this.miniCanvas.addEventListener('click', (e) => {
       const rr = this.miniCanvas.getBoundingClientRect();
-      const x = ((e.clientX - rr.left) / rr.width) * 120 - 60;
-      const z = ((e.clientY - rr.top) / rr.height) * 98 - 49;
+      const f = this.miniFrame();
+      const x = f.cx + (((e.clientX - rr.left) / rr.width) * f.W - f.W / 2) / f.k;
+      const z = f.cz + (((e.clientY - rr.top) / rr.height) * f.H - f.H / 2) / f.k;
       this.h.focus(x, z);
     });
     const modes = this.mini.querySelector('.mapmodes');
@@ -367,7 +368,11 @@ export class Hud {
     const sub = this.top.querySelector('.tb-sub');
     if (v.phase === 'setup') sub.innerHTML = '開局佈置';
     else if (v.phase === 'over') sub.innerHTML = '戰役結束';
-    else sub.innerHTML = v.current === me ? '<b>你的回合</b>' : `${esc(players[v.current].name)} 的回合`;
+    else if (v.sub) {
+      // 5–6 players: the part of the turn after the main player's
+      const who = v.current === me ? '<b>你</b>' : esc(players[v.current].name);
+      sub.innerHTML = v.sub.k === 'pair' ? `${who}（第二位）` : `特別建造：${who}`;
+    } else sub.innerHTML = v.current === me ? '<b>你的回合</b>' : `${esc(players[v.current].name)} 的回合`;
 
     // resources
     if (viewer && viewer.res) {
@@ -446,7 +451,8 @@ export class Hud {
         if (v.longestRoad === p.id) badges.push(`<span class="badge" title="最長道路 +2">${icon('road2', 12)}最長道路</span>`);
         if (v.largestArmy === p.id) badges.push(`<span class="badge" title="最大騎士團 +2">${icon('knight', 12)}騎士團</span>`);
         const thinking = ctx.thinking === p.id ? `<span class="thinking"><span class="spinner"></span>思考中</span>` : '';
-        return `<div class="nation${v.current === p.id && v.phase !== 'over' ? ' current' : ''}" data-p="${p.id}">
+        const lead = v.sub && v.sub.lead === p.id && v.phase !== 'over';
+        return `<div class="nation${v.current === p.id && v.phase !== 'over' ? ' current' : ''}${lead ? ' lead' : ''}" data-p="${p.id}">
           <img class="flag" alt="" src="${flagURL(P.color, p.id)}">
           <div class="nm" style="color:${P.color}">${esc(P.name)}<em>${kind}</em></div>
           <div class="vp" title="${isMe ? '你的分數（含分數卡）' : '公開分數'}"><b class="num">${vp}</b><span>分</span></div>
@@ -461,6 +467,8 @@ export class Hud {
       })
       .join('');
     this.olBody.innerHTML = `<div class="ol-head"><span>諸國</span></div>${rows}`;
+    // five or six nations: tighter rows (and the list scrolls when the screen is short)
+    this.outliner.classList.toggle('many', v.players.length > 4);
     this.bankShown = { ...v.bank, dev: v.devDeckCount };
     this.paintBank();
   }
@@ -518,12 +526,15 @@ export class Hud {
     set('settlement', okSet, okSet ? '建造村莊（2）：木材＋磚塊＋羊毛＋小麥' : why(COSTS.settlement, setts, pl ? pl.pieces.settlements : 1, '村莊'), { on: ctx.mode === 'settlement' });
     set('city', okCity, okCity ? '升級城市（3）：小麥×2＋礦石×3' : why(COSTS.city, cities, pl ? pl.pieces.cities : 1, '城市'), { on: ctx.mode === 'city' });
     set('dev', okDev, okDev ? '購買發展卡（4）：羊毛＋小麥＋礦石' : v.devDeckCount === 0 ? '發展卡已賣完' : why(COSTS.dev, 1, 1, '發展卡'));
-    const canTrade = myTurn && v.rolled && !v.pending;
-    set('trade', canTrade, canTrade ? '交易（T）' : !myTurn ? turnWhy() : v.pending ? pendingWhy() : '擲骰後才能交易', { on: !!(v.trade && v.trade.from === me) });
+    // 5–6 players: the special building phase allows no trading at all; the second player of a paired
+    // turn trades with the bank only (the trade dialog shows just that)
+    const sbp = !!v.sub && v.sub.k === 'sbp';
+    const canTrade = myTurn && v.rolled && !v.pending && !sbp;
+    set('trade', canTrade, canTrade ? (v.sub ? '海上貿易（T）：第二位只能和銀行交易' : '交易（T）') : !myTurn ? turnWhy() : v.pending ? pendingWhy() : sbp ? '特別建造階段不能交易' : '擲骰後才能交易', { on: !!(v.trade && v.trade.from === me) });
     const playable = pl ? playableDev(v, me).length : 0;
     set('cards', !!pl, '手中的發展卡（C）', { count: pl && pl.dev && pl.dev.length ? pl.dev.length : null, on: playable > 0 && myTurn });
     const canEnd = myTurn && v.rolled && !v.pending;
-    set('end', canEnd, canEnd ? '結束回合（Space）' : !myTurn ? turnWhy() : v.pending ? pendingWhy() : '請先擲骰');
+    set('end', canEnd, canEnd ? (v.sub ? '結束（Space）' : '結束回合（Space）') : !myTurn ? turnWhy() : v.pending ? pendingWhy() : '請先擲骰');
     this.bar.style.visibility = v.phase === 'over' ? 'hidden' : '';
     this.popCtx = { res: pl ? pl.res : null, pieces: pl ? pl.pieces : null, deck: v.devDeckCount };
     if (this.popFor) this.renderPop();
@@ -778,29 +789,40 @@ export class Hud {
   }
 
   // ── minimap ──
+  // the part of the world the minimap shows (the whole map with a margin), k pixels per world unit
+  miniFrame() {
+    const c = this.miniCanvas;
+    const b = GEO.bounds;
+    const x0 = b.minX - 16.7;
+    const x1 = b.maxX + 16.7;
+    const z0 = b.minZ - 9;
+    const z1 = b.maxZ + 9;
+    return { W: c.width, H: c.height, k: Math.min(c.width / (x1 - x0), c.height / (z1 - z0)), cx: (x0 + x1) / 2, cz: (z0 + z1) / 2 };
+  }
+
   drawMinimap(view, players, viewport) {
     const c = this.miniCanvas;
     if (!c.offsetParent) return;
     const g = c.getContext('2d');
-    const W = c.width;
-    const H = c.height;
-    const sx = (x) => ((x + 60) / 120) * W;
-    const sz = (z) => ((z + 49) / 98) * H;
+    const { W, H, k, cx, cz } = this.miniFrame();
+    const sx = (x) => W / 2 + (x - cx) * k;
+    const sz = (z) => H / 2 + (z - cz) * k;
     g.fillStyle = '#244258';
     g.fillRect(0, 0, W, H);
-    const s = (10 / 120) * W;
+    const s = 10 * k;
     for (const h of GEO.hexes) {
       const Hx = view.board.hexes[h.id];
+      if (Hx.terrain === 'sea') continue;
       g.beginPath();
       for (let i = 0; i < 6; i++) {
         const a = (Math.PI / 180) * (60 * i + 30);
-        const x = sx(h.x) + Math.cos(a) * s * 1.0;
-        const y = sz(h.z) + Math.sin(a) * ((10 / 98) * H);
+        const x = sx(h.x) + Math.cos(a) * s;
+        const y = sz(h.z) + Math.sin(a) * s;
         if (i) g.lineTo(x, y);
         else g.moveTo(x, y);
       }
       g.closePath();
-      g.fillStyle = TERRAIN_HEX[Hx.terrain];
+      g.fillStyle = TERRAIN_HEX[Hx.terrain] || '#8a8a7a';
       g.fill();
       g.strokeStyle = 'rgba(20,16,10,0.55)';
       g.lineWidth = 1;

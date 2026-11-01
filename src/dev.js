@@ -57,7 +57,7 @@ if (params.get('still')) {
       st.edges.forEach((p, e) => p < 0 && ids.push(e));
       view.setInteraction({ kind: 'edge', ids: ids.filter((e, i) => i % 4 === 0), player: 0, onPick() {} });
     } else if (marks === 'hex') {
-      view.setInteraction({ kind: 'hex', ids: [...Array(19).keys()].filter((h) => h !== st.board.robber), player: 0, onPick() {} });
+      view.setInteraction({ kind: 'hex', ids: [...Array(GEO.hexes.length).keys()].filter((h) => h !== st.board.robber), player: 0, onPick() {} });
     } else view.setInteraction(null);
     for (const k of Object.keys(view.modeT)) view.modeT[k] = k === mode ? 1 : 0;
     const t1 = performance.now();

@@ -569,7 +569,10 @@ function mainMove(view, p, mem, lvl, rnd) {
 
   if (canAfford(me.res, top.cost)) return planToAction(p, top);
 
-  const tradeOk = (t) => t && mem.bankTrades < 5 && !mem.got[t.give];
+  // the special building phase allows building only; the second player of a paired turn may trade
+  // with the bank but not with other players
+  const sbp = !!view.sub && view.sub.k === 'sbp';
+  const tradeOk = (t) => t && !sbp && mem.bankTrades < 5 && !mem.got[t.give];
   const doTrade = (t) => {
     mem.bankTrades++;
     mem.got[t.get] = true;
@@ -584,7 +587,7 @@ function mainMove(view, p, mem, lvl, rnd) {
 
   // One domestic offer per turn toward the top plan when it is close.
   const { count } = missingFor(me.res, top.cost);
-  if (lvl.domestic && count <= 2 && mem.offerTurn !== view.turn) {
+  if (lvl.domestic && !view.sub && count <= 2 && mem.offerTurn !== view.turn) {
     const offer = domesticOfferFor(view, p, top.cost);
     if (offer) {
       mem.offerTurn = view.turn;

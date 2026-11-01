@@ -39,6 +39,7 @@ export class StrategyCamera {
     this.pointers = new Map();
     this.pinch = null;
     this.bounds = { minX: -58, maxX: 58, minZ: -54, maxZ: 60 };
+    this.scale = 1; // the map's size relative to the standard island (setMap)
     this.ray = new THREE.Raycaster();
     this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.8);
     this.sig = 0;
@@ -46,9 +47,17 @@ export class StrategyCamera {
     this.apply();
   }
 
+  // the map in play (geometry.js): how far the camera may pan, and how far out it may zoom
+  setMap(geo) {
+    const b = geo.bounds;
+    this.bounds = { minX: b.minX - 14.7, maxX: b.maxX + 14.7, minZ: b.minZ - 14, maxZ: b.maxZ + 20 };
+    this.scale = geo.scale || 1;
+    this.clampGoal();
+  }
+
   // effective tilt (radians from vertical) for a distance and user tilt
   effPitch(d = this.h, p = this.pitch) {
-    const far = smooth(150, 235, d * this.aspectFactor());
+    const far = smooth(150 * this.scale, 235 * this.scale, d * this.aspectFactor());
     const near = 1 - smooth(ZOOM_MIN, 55, d);
     let ph = p + near * 8;
     ph = ph * (1 - far) + Math.min(ph, 16) * far;
@@ -128,7 +137,8 @@ export class StrategyCamera {
   // narrow (portrait) screens need more distance to take in the whole island
   zoomMax() {
     const a = this.cam.aspect || 1.6;
-    return a >= 1.6 ? ZOOM_MAX : Math.min(560, (ZOOM_MAX * 1.6) / Math.max(0.45, a));
+    const s = this.scale;
+    return a >= 1.6 ? ZOOM_MAX * s : Math.min(560 * s, (ZOOM_MAX * s * 1.6) / Math.max(0.45, a));
   }
   // desktop-equivalent zoom: thresholds (paper map, clouds) follow how much ground is visible
   equivH() {
@@ -136,7 +146,8 @@ export class StrategyCamera {
   }
   fitIsland(margin = 1) {
     const a = this.cam.aspect || 1.6;
-    return Math.min(this.zoomMax(), Math.max(110, (118 * margin) / (0.65 * Math.min(a, 1.75))));
+    const s = this.scale;
+    return Math.min(this.zoomMax(), Math.max(110 * s, (118 * s * margin) / (0.65 * Math.min(a, 1.75))));
   }
 
   clampGoal() {

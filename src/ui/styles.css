@@ -188,6 +188,15 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .nation .meta b { font-family: var(--font-num); font-size: 15px; color: var(--ink); font-weight: 600; }
 .badge { display: inline-flex; align-items: center; gap: 3px; padding: 0 5px; height: 18px; border-radius: 2px; font-size: 11px; background: rgba(199, 166, 96, 0.16); color: var(--brass-hi); border: 1px solid rgba(199, 166, 96, 0.35); }
 .thinking { position: absolute; right: 60px; top: 10px; color: var(--ink-faint); font-size: 11px; display: flex; gap: 4px; align-items: center; }
+/* the main player while the second player of a paired turn acts */
+.nation.lead::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; background: var(--brass-hi); opacity: 0.4; }
+/* five or six nations */
+.outliner.many .nation { padding: 5px 12px; gap: 1px 9px; }
+.outliner.many .nation .vp { height: 34px; min-width: 36px; }
+.outliner.many .nation .vp b { font-size: 20px; }
+.outliner.many .nation .meta b { font-size: 14px; }
+.outliner.many .thinking { top: 6px; right: 54px; }
+.outliner .ol-body { overflow-y: auto; max-height: calc(100vh - var(--tb-h) - var(--safe-t) - 300px); min-height: 140px; }
 
 /* ───────── action bar ───────── */
 .actionbar {
@@ -375,6 +384,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 /* settings / menu forms */
 .form-grid { display: grid; grid-template-columns: 112px 1fr; gap: 12px 14px; align-items: center; }
 .form-grid label { color: var(--ink-dim); font-size: 13px; }
+.form-grid .form-note { margin: -4px 0 0; color: var(--ink-faint); font-size: 12px; line-height: 1.55; }
 .form-grid input[type="text"], .form-grid input[type="number"], .form-grid select {
   width: 100%; box-sizing: border-box; height: 36px; padding: 0 10px; border-radius: 2px;
   background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(199, 166, 96, 0.3); color: var(--ink); font: inherit;
@@ -465,6 +475,15 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .online-screen .seat .nm em { font-style: normal; font-family: var(--font-body); font-weight: 400; font-size: 11px; color: var(--ink-faint); margin-left: 6px; }
 .online-screen .seat select { height: 32px; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(199, 166, 96, 0.25); color: var(--ink); font: inherit; border-radius: 2px; }
 .online-card { display: flex; flex-direction: column; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid rgba(199, 166, 96, 0.14); }
+/* the host's lobby: island, seats and turn rule */
+.room-layout { display: flex; flex-direction: column; gap: 8px; margin: 2px 0 12px; }
+.room-layout .layout-row { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; gap: 10px; }
+.room-layout .layout-row .row-label { margin: 0; }
+.room-layout .seg { flex-wrap: wrap; }
+.room-terms { margin: 4px 0 10px; color: var(--gold, #e3c27a); letter-spacing: 0.04em; }
+@media (max-width: 520px) {
+  .room-layout .layout-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
 .online-card:last-child { border-bottom: 0; padding-bottom: 0; }
 .online-card .lead { margin: 0; }
 .online-card > .btn { align-self: flex-start; }

@@ -1,9 +1,10 @@
 // Boot: title screen over a live island preview → campaign. Handles saves and settings.
-import { createGame } from './engine/engine.js';
+import { createGame, ensureMap } from './engine/engine.js';
+import { GEO } from './engine/geometry.js';
 import { randomSeed } from './engine/rng.js';
 import { MapView } from './render/scene.js';
 import { Game, loadSave, clearSave } from './game/game.js';
-import { showMenu, defaultSettings, playersFromSettings, PALETTE, buildInfo } from './ui/menu.js';
+import { showMenu, defaultSettings, playersFromSettings, PALETTE, buildInfo, fitSettings, gameSetup } from './ui/menu.js';
 import { showHome } from './ui/home.js';
 import { Dialogs } from './ui/dialogs.js';
 import { HostSession, ClientSession, MatchSession, showOnlineEntry, rememberedRoom, forgetRoom } from './net/online.js';
@@ -30,9 +31,9 @@ function loadSettings() {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
     // quality follows the device unless the player has picked one in the settings
     if (s && typeof s === 'object') {
-      const seats = Array.isArray(s.seats) && s.seats.length === 3 ? s.seats.map((x) => (x && x.name === '白楊共和國' ? { ...x, name: '碧海共和國' } : x)) : d.seats;
+      const seats = Array.isArray(s.seats) && s.seats.length >= 3 ? s.seats.map((x) => (x && x.name === '白楊共和國' ? { ...x, name: '碧海共和國' } : x)) : d.seats;
       const color = PALETTE.some((p) => p.hex === s.color) ? s.color : d.color;
-      return { ...d, ...s, color, quality: s.qualityPicked ? s.quality || d.quality : d.quality, seats };
+      return fitSettings({ ...d, ...s, color, quality: s.qualityPicked ? s.quality || d.quality : d.quality, seats });
     }
   } catch {
     /* storage unavailable */
@@ -97,7 +98,8 @@ function loading(on, text = '測繪島嶼地形') {
 }
 
 function buildMap(state, players, quality) {
-  const key = `${state.mapSeed != null ? state.mapSeed : state.seed}:${state.board.method}:${state.board.hexes.map((h) => h.terrain[0] + h.number).join('')}:${quality}`;
+  ensureMap(state);
+  const key = `${state.map || ''}:${state.mapSeed != null ? state.mapSeed : state.seed}:${state.board.method}:${state.board.hexes.map((h) => h.terrain[0] + h.number).join('')}:${quality}`;
   if (map && mapKey === key) {
     map.setPlayers(state, players);
     return map;
@@ -123,7 +125,7 @@ async function showPreview(reroll) {
     return; // a campaign started meanwhile: never replace its map with a preview
   }
   const players = playersFromSettings(settings);
-  const st = createGame({ seed: previewSeed, players, board: { numbers: settings.numbers } });
+  const st = createGame({ seed: previewSeed, players, board: { numbers: settings.numbers }, ...gameSetup(settings) });
   try {
     buildMap(st, players, settings.quality);
   } catch (e) {
@@ -133,14 +135,16 @@ async function showPreview(reroll) {
   }
   loading(false);
   map.setMapMode('terrain');
-  map.camera.goal.set(0, 0, 6);
-  map.camera.goalH = 100;
+  const mc = GEO.center;
+  const mk = GEO.scale;
+  map.camera.goal.set(mc.x, 0, mc.z + 6);
+  map.camera.goalH = 100 * mk;
   let t = 0;
   // title screen: a slow orbit around the island at a low, cinematic angle
   drift = (dt) => {
     t += dt;
-    map.camera.goal.set(Math.sin(t * 0.05) * 12, 0, 6 + Math.cos(t * 0.04) * 8);
-    map.camera.goalH = 100 + Math.sin(t * 0.07) * 12;
+    map.camera.goal.set(mc.x + Math.sin(t * 0.05) * 12 * mk, 0, mc.z + 6 + Math.cos(t * 0.04) * 8 * mk);
+    map.camera.goalH = (100 + Math.sin(t * 0.07) * 12) * mk;
     map.camera.goalYaw = t * 0.045;
     map.camera.goalPitch = 56;
   };
@@ -309,8 +313,8 @@ async function startOnlineHost(players, net, official = false) {
   loading(true, '佈置戰場');
   await nextFrame();
   // official rooms play the standard game (10 points, balanced numbers) on the island they listed
-  const gs = official ? { ...settings, target: 10, numbers: 'balanced' } : settings;
-  const preview = createGame({ seed: previewSeed, players, targetVP: gs.target, board: { numbers: gs.numbers } });
+  const gs = official ? { ...settings, target: 10, numbers: 'balanced', map: 'base-4' } : settings;
+  const preview = createGame({ seed: previewSeed, players, targetVP: gs.target, board: { numbers: gs.numbers }, ...gameSetup(gs) });
   buildMap(preview, players, settings.quality);
   map.onFrame = null;
   map.holdAssets(false);
@@ -551,7 +555,7 @@ async function startGame(saved) {
     settings = { ...settings, ...(saved.settings || {}), quality: settings.quality };
   } else {
     players = playersFromSettings(settings);
-    state = createGame({ seed: previewSeed, players, targetVP: settings.target, board: { numbers: settings.numbers } });
+    state = createGame({ seed: previewSeed, players, targetVP: settings.target, board: { numbers: settings.numbers }, ...gameSetup(settings) });
   }
   try {
     buildMap(state, players, settings.quality);

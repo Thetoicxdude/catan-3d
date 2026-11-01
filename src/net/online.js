@@ -12,7 +12,8 @@ import { randomState } from '../engine/rng.js';
 import { flagURL } from '../ui/flags.js';
 import { esc } from '../ui/text.js';
 import { icon } from '../ui/icons.js';
-import { PALETTE, AI_NAMES } from '../ui/menu.js';
+import { PALETTE, AI_NAMES, fitSettings, gameSetup } from '../ui/menu.js';
+import { mapDef, MAP_LIST, DEFAULT_MAP } from '../engine/maps.js';
 
 const APP = 'catan3d';
 const V = 1;
@@ -114,6 +115,15 @@ function sanitizeAction(a, seat) {
   return out;
 }
 
+// the room's terms in one line: island, seats, turn rule, victory points
+function roomTerms(mp, ru, n, tv) {
+  const def = mapDef(mp || DEFAULT_MAP);
+  const parts = [`${esc(def.name)}`, `${n} 席`];
+  if (ru) parts.push(ru === 's' ? '特別建造階段' : '配對回合');
+  if (tv) parts.push(`${tv} 分勝利`);
+  return parts.join('・');
+}
+
 function seatRows(seats, me, opts = {}) {
   return seats
     .map((s, i) => {
@@ -147,7 +157,7 @@ const PERF_MARGIN = 1.15; // the room moves to a device at least this much faste
 const RETRY_MS = 30000; // after a handover nobody took up, wait this long before offering it again
 const PRESENCE_BUDGET = 3900;
 // presence keys of each role, cleared when a page changes role
-const HOST_KEYS = ['code', 'st', 'lob', 'bd', 'ps', 'pub', 'px', 'ack', 'err', 'ev', 'tv', 'off', 'rem', 'ep', 'pn', 'bk', 'ho', 'dl', 'hn', 'hc'];
+const HOST_KEYS = ['code', 'st', 'lob', 'bd', 'ps', 'pub', 'px', 'ack', 'err', 'ev', 'tv', 'off', 'rem', 'ep', 'pn', 'bk', 'ho', 'dl', 'hn', 'hc', 'mp', 'ru'];
 const PLAYER_KEYS = ['name', 'color', 'sid', 'out', 'perf', 'vis', 'bye', 'gm'];
 
 // of two pages hosting the same room, the real host: the newer claim, then the smaller peer id
@@ -462,6 +472,45 @@ export class HostSession {
     this.publish();
   }
 
+  // the island, the number of seats and the turn rule (a custom room, before the campaign starts):
+  // seats are added as open seats, or taken away from the end (open and computer seats only)
+  setLayout(mapId, count, turns) {
+    if (this.phase !== 'lobby' || this.official) return;
+    const def = mapDef(mapId);
+    const lo = Math.max(3, def.players[0]);
+    count = Math.min(def.players[1], Math.max(lo, count));
+    const people = this.seats.filter((s) => s.kind === 'host' || s.kind === 'remote').length;
+    if (people > count) {
+      this.toast('席位不夠', `房間裡已經有 ${people} 位玩家，請先移除玩家再減少席位`, 'people');
+      return;
+    }
+    while (this.seats.length > count) {
+      let i = this.seats.length - 1;
+      while (i > 0 && this.seats[i].kind !== 'open' && this.seats[i].kind !== 'ai') i--;
+      this.seats.splice(i, 1);
+    }
+    while (this.seats.length < count) this.seats.push({ kind: 'open', level: 'normal' });
+    this.hostSeat = Math.max(0, this.seats.findIndex((s) => s.kind === 'host'));
+    this.settings.map = def.id;
+    this.settings.opponents = count - 1;
+    if (turns) this.settings.turns = turns;
+    fitSettings(this.settings);
+    this.ui && this.ui.render && this.ui.render();
+    this.publish();
+  }
+
+  // the room's island and rules as the lobby shows them: mp (a map other than the standard island),
+  // ru (the turn rule) — null when not set, which clears them from the presence
+  layout() {
+    const out = { mp: null, ru: null };
+    if (this.official) return out;
+    // a running campaign says it itself (this page may have taken it over from another)
+    const g = this.state ? { map: this.state.map || DEFAULT_MAP, rules: this.state.rules } : gameSetup(this.settings);
+    if (g.map !== DEFAULT_MAP) out.mp = g.map;
+    if (g.rules && g.rules.turns) out.ru = g.rules.turns === 'sbp' ? 's' : 'p';
+    return out;
+  }
+
   lob() {
     return this.seats.map((s) => [s.kind[0], s.name || '', s.color || '', s.peer || '', s.level || 'normal', s.away ? 1 : 0]);
   }
@@ -572,6 +621,8 @@ export class HostSession {
     const rem = this.remaining();
     // the room listing in the lobby only changes with seats and phase: send it only when it does
     const listing = { code: this.code, nm: hs.name, n: this.seats.length, f: open, st: this.phase, off: this.official ? 1 : 0, ts: this.createdAt };
+    const lay = this.layout();
+    if (lay.mp) listing.mp = lay.mp;
     if (this.mapSeed != null) listing.ms = this.mapSeed >>> 0;
     const lk = JSON.stringify(listing);
     if (lk !== this.listingKey || (rem != null && Date.now() - (this.listingAt || 0) > 5000)) {
@@ -580,7 +631,7 @@ export class HostSession {
       this.lobby.presence({ app: APP, v: V, host: { ...listing, rem } }).catch(() => {});
     }
     if (this.phase === 'lobby' || !this.state) {
-      await this.ch.presence({ app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: this.phase, lob, tv: this.settings.target || 10, off: this.official ? 1 : 0, rem, ep: this.ep });
+      await this.ch.presence({ app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: this.phase, lob, tv: this.settings.target || 10, off: this.official ? 1 : 0, rem, ep: this.ep, ...lay });
       return;
     }
     const st = this.state;
@@ -604,7 +655,7 @@ export class HostSession {
     const ho = this.handing ? { to: this.handing.to, at: this.handing.at, bye: this.handing.bye ? 1 : 0 } : null;
     const dl = this.game && this.game.clockLeft ? this.game.clockLeft() : null;
     const ack = this.seats.filter((s) => s.kind === 'remote' && s.peer).map((s) => [s.peer, s.lastN || 0]);
-    const base = { app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: 'play', lob, bd: C.encodeBoard(st), ps: C.encodeSeats(st), pub: C.encodePublic(st), px, ack, err: this.err, ep: this.ep, pn: ++this.pn, hn: hs.name, hc: hs.color, bk, ho, dl, tv: this.settings.target || 10, off: this.official ? 1 : 0 };
+    const base = { app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: 'play', lob, bd: C.encodeBoard(st), ps: C.encodeSeats(st), pub: C.encodePublic(st), px, ack, err: this.err, ep: this.ep, pn: ++this.pn, hn: hs.name, hc: hs.color, bk, ho, dl, tv: this.settings.target || 10, off: this.official ? 1 : 0, mp: null, ru: null };
     if (this.becoming) for (const k of PLAYER_KEYS) base[k] = null;
     // the presence holds this page's chat lines too
     const budget = PRESENCE_BUDGET - (this.chat.items.length ? C.utf8Size({ chat: this.chat.items.map(([n, t]) => [n, t]) }) : 0);
@@ -746,7 +797,38 @@ export class HostSession {
     const foot = scr.querySelector('.modal-foot');
     const render = () => {
       const me = this.me();
-      body.innerHTML = `<div class="code-box"><span class="lbl">房間代碼</span><b class="num">${this.code.toUpperCase()}</b></div><div class="row-label">席位</div><div class="seat-list"></div><div class="waiting"></div>`;
+      body.innerHTML = `<div class="code-box"><span class="lbl">房間代碼</span><b class="num">${this.code.toUpperCase()}</b></div><div class="room-layout"></div><div class="row-label">席位</div><div class="seat-list"></div><div class="waiting"></div>`;
+      // the island and how many play (and on the large island, how the turn is shared)
+      const lay = body.querySelector('.room-layout');
+      const cur = mapDef(this.settings.map);
+      const segRow = (label, opts, on, pick) => {
+        const row = el('div', 'layout-row');
+        row.appendChild(el('span', 'row-label', label));
+        const seg = el('div', 'seg');
+        for (const [val, text] of opts) {
+          const b = el('button', val === on ? 'on' : '', text);
+          b.type = 'button';
+          b.addEventListener('click', () => val !== on && pick(val));
+          seg.appendChild(b);
+        }
+        row.appendChild(seg);
+        lay.appendChild(row);
+      };
+      segRow('地圖', MAP_LIST.map((d) => [d.id, d.name]), cur.id, (id) => this.setLayout(id, mapDef(id).players[1], this.settings.turns));
+      const lo = Math.max(3, cur.players[0]);
+      const counts = [];
+      for (let n = lo; n <= cur.players[1]; n++) counts.push([n, `${n} 席`]);
+      segRow('人數', counts, this.seats.length, (n) => this.setLayout(cur.id, n, this.settings.turns));
+      if (cur.rules && cur.rules.turns)
+        segRow(
+          '回合規則',
+          [
+            ['paired', '配對回合'],
+            ['sbp', '特別建造階段'],
+          ],
+          this.settings.turns === 'sbp' ? 'sbp' : 'paired',
+          (t) => this.setLayout(cur.id, this.seats.length, t),
+        );
       const box = body.querySelector('.code-box');
       const link = selfHosted();
       const copy = btn(link ? '複製邀請連結' : '複製代碼', 'ghost', () => {
@@ -939,7 +1021,7 @@ export class ClientSession {
     const seat = seats.findIndex((s) => s.peer === me);
     this.seat = seat;
     if (pr.st !== 'play' || !pr.pub) {
-      if (this.ui) this.ui.render(seats, seat);
+      if (this.ui) this.ui.render(seats, seat, { mp: pr.mp || null, ru: pr.ru || null, tv: pr.tv });
       if (this.onLobby) this.onLobby(seats, seat, typeof pr.rem === 'number' ? pr.rem : null, Date.now());
       return;
     }
@@ -971,7 +1053,19 @@ export class ClientSession {
       if (!priv) return;
     } else if (!this.game && this.ui) this.ui.status('戰役已經開始而且沒有空位，以觀戰模式進入…');
     const seatInfo = C.decodeSeats(pr.ps);
-    const view = C.decodeView(pr.bd, seatInfo, pr.pub, priv, seat);
+    let view;
+    try {
+      view = C.decodeView(pr.bd, seatInfo, pr.pub, priv, seat);
+    } catch (e) {
+      // this page lays the island out differently from the host's: another version of the game
+      if (!(e instanceof C.BoardMismatch)) throw e;
+      if (!this.mismatch) {
+        this.mismatch = true;
+        this.toast('版本不同', e.message, 'cross');
+        if (this.ui) this.ui.status(e.message);
+      }
+      return;
+    }
     const players = seatInfo.map((s, i) => ({ ...s, away: seats[i] && seats[i].away }));
     const evs = [];
     if (this.game) {
@@ -1211,11 +1305,14 @@ export class ClientSession {
     this.app.appendChild(scr);
     const statusEl = scr.querySelector('.status');
     const list = scr.querySelector('.seat-list');
+    const termsEl = el('p', 'lead room-terms');
+    list.before(termsEl);
     this.ui = {
-      render: (seats, seat) => {
+      render: (seats, seat, lay = {}) => {
         // before the host has seen us arrive there may still be open seats: we are about to get one
         const open = seats.some((s) => s.kind === 'open');
         statusEl.textContent = seat >= 0 ? `你坐在第 ${seat + 1} 席，等待主持人開始戰役…` : open ? '正在取得席位…' : '席位已滿，目前在旁觀望。';
+        termsEl.innerHTML = roomTerms(lay.mp, lay.ru, seats.length, lay.tv);
         list.innerHTML = seatRows(seats, this.me());
       },
       status: (t) => (statusEl.textContent = t),
@@ -1614,7 +1711,8 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
         const h = r.presence.host;
         const row = el('div', 'resp');
         const playing = h.st === 'play';
-        row.innerHTML = `<b class="num" style="letter-spacing:.12em">${esc(String(h.code).toUpperCase())}</b><span>${esc(cleanName(h.nm, '主持人'))} 的房間</span><span class="st">${playing ? '戰役進行中' : `空位 ${Number(h.f) || 0}/${Math.max(0, (Number(h.n) || 1) - 1)}`}</span>`;
+        const isle = h.mp && MAP_LIST.some((d) => d.id === h.mp) ? `・${mapDef(h.mp).name}` : '';
+        row.innerHTML = `<b class="num" style="letter-spacing:.12em">${esc(String(h.code).toUpperCase())}</b><span>${esc(cleanName(h.nm, '主持人'))} 的房間${esc(isle)}</span><span class="st">${playing ? '戰役進行中' : `空位 ${Number(h.f) || 0}/${Math.max(0, (Number(h.n) || 1) - 1)}`}</span>`;
         const b = btn(playing ? '重新加入／觀戰' : '加入', playing ? '' : 'primary', () => {
           cleanup();
           onJoin(normCode(h.code));

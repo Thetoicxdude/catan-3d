@@ -2,7 +2,8 @@
 // takes most of it; beside it only the room's terms, its seats and the countdown) and the ways to
 // play as a hand of cards in the same frames as the resource cards. Pressing the official board
 // joins matchmaking right here; pressing it again leaves.
-import { GEO, HEX_SIZE } from '../engine/geometry.js';
+import { HEX_SIZE, geometryOf, withMap } from '../engine/geometry.js';
+import { DEFAULT_MAP } from '../engine/maps.js';
 import { generateBoard } from '../engine/board.js';
 import { seedState } from '../engine/rng.js';
 import { PALETTE } from './menu.js';
@@ -12,7 +13,6 @@ import { emblemSvg, seatShield } from './emblems.js';
 import { mountAccount } from './account-ui.js';
 
 const APP = 'catan3d';
-const SQRT3 = Math.sqrt(3);
 // the paper map's terrain colours
 const TERRAIN = { forest: '#3d6b39', hills: '#c0683f', pasture: '#8cc055', fields: '#eabf48', mountains: '#878b99', desert: '#dfca91' };
 
@@ -23,13 +23,14 @@ function el(tag, cls, html) {
   return e;
 }
 
-// the island an official game on this map seed is played on (official rooms use the balanced numbers)
+// the island an official game on this map seed is played on (official rooms play the standard
+// island with the balanced numbers)
 const boards = new Map();
 export function officialBoard(seed) {
   const k = seed >>> 0;
   if (!boards.has(k)) {
     if (boards.size > 8) boards.clear();
-    boards.set(k, generateBoard({ rng: seedState(k) }, { numbers: 'balanced' }));
+    boards.set(k, withMap(DEFAULT_MAP, () => generateBoard({ rng: seedState(k) }, { numbers: 'balanced' })));
   }
   return boards.get(k);
 }
@@ -110,7 +111,9 @@ function glyph(g, terrain, x, y, u) {
   g.restore();
 }
 
-export function drawBoardArt(canvas, board) {
+// geo: the geometry of the board's map (the standard island unless given)
+export function drawBoardArt(canvas, board, geo = geometryOf(DEFAULT_MAP)) {
+  const GEO = geo;
   const r = canvas.getBoundingClientRect();
   if (r.width < 2 || r.height < 2) return;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -152,7 +155,9 @@ export function drawBoardArt(canvas, board) {
     g.restore();
   };
   if (!board) return;
-  const span = { x: HEX_SIZE * SQRT3 * 5 + 14, z: HEX_SIZE * 8 + 10 };
+  const gb = GEO.bounds;
+  const span = { x: gb.maxX - gb.minX + 14, z: gb.maxZ - gb.minZ + 10 };
+  const mid = { x: (gb.minX + gb.maxX) / 2, z: (gb.minZ + gb.maxZ) / 2 };
   // (clear of the frame's medallions, which reach a little into the picture)
   const s = Math.min((W * 0.9) / span.x, (H * 0.86) / span.z);
   // old-chart dressing in the open sea: a compass rose, swell marks and a few sails
@@ -208,7 +213,7 @@ export function drawBoardArt(canvas, board) {
   };
   sail(W * 0.17, H * 0.62, H * 0.045, false);
   sail(W * 0.85, H * 0.3, H * 0.04, true);
-  const P = (x, z) => [cx + x * s, cz + z * s];
+  const P = (x, z) => [cx + (x - mid.x) * s, cz + (z - mid.z) * s];
   const hexPath = (x, z, rad) => {
     g.beginPath();
     for (let i = 0; i < 6; i++) {

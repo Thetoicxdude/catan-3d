@@ -15,6 +15,7 @@ import {
   publicVP,
   RES,
   COSTS,
+  ensureMap,
 } from '../engine/engine.js';
 import { GEO } from '../engine/geometry.js';
 import { aiAct } from '../ai/ai.js';
@@ -25,6 +26,7 @@ import { describe, hexTooltip, esc, DEV_INFO } from '../ui/text.js';
 import { sfx, setSfx } from '../ui/sfx.js';
 import { TERRAIN_RES } from '../engine/board.js';
 import { turnKey, turnLimit, timeoutAction } from './clock.js';
+import { gameSetup } from '../ui/menu.js';
 
 const SAVE_KEY = 'catan3d-save-v1';
 const SPEED = { slow: 1.7, normal: 1, fast: 0.45, turbo: 0.12 };
@@ -92,9 +94,10 @@ export class Game {
         }
       }
     } else {
-      this.state = createGame({ seed, players, targetVP: settings.target || 10, board: { numbers: settings.numbers }, entropy: net && net.entropy ? net.entropy : undefined });
+      this.state = createGame({ seed, players, targetVP: settings.target || 10, board: { numbers: settings.numbers }, ...gameSetup(settings), entropy: net && net.entropy ? net.entropy : undefined });
       this.mem = players.map(() => ({}));
     }
+    ensureMap(this.state);
     this.players = this.state.players.map((p) => ({ name: p.name, color: p.color, kind: p.kind, ai: p.ai }));
     this.rnd = makeRng((this.state.seed ^ 0x5bd1e995) >>> 0);
     this.humans = this.client ? [net.seat] : this.players.map((p, i) => (p.kind === 'human' ? i : -1)).filter((i) => i >= 0);
@@ -155,7 +158,7 @@ export class Game {
     this.map.sync(this.view(), [], false);
     if (!switched) {
       this.map.camera.resetView();
-      if (this.state.phase === 'setup') this.map.focus(0, 5, this.map.camera.fitIsland(1.12));
+      if (this.state.phase === 'setup') this.map.focus(GEO.center.x, GEO.center.z + 5, this.map.camera.fitIsland(1.12));
       this.hud.log(`戰役開始：${this.players.map((p, i) => `<span class="who" style="color:${p.color}">${i === this.viewer ? '你' : esc(p.name)}</span>`).join('、')}`, { hl: true });
       if (this.state.phase === 'setup') this.hud.log('開局：依序放置村莊與道路（第二輪順序相反）。', {});
     }
@@ -489,7 +492,7 @@ export class Game {
         const info = DEV_INFO[e.card];
         const note = e.card === 'victoryPoint' ? '已秘密計入你的分數' : '下回合起可以使用（可在擲骰前打出）';
         fx.devReveal({ type: e.card, name: info.name, desc: info.desc, note }, this.hud.top.querySelector('.stat.devs'));
-      } else if (e.type === 'turnStart' && e.p === me) sfx.turn();
+      } else if (e.type === 'turnStart' && e.p === me && e.sub !== 'sbp') sfx.turn();
       else if (e.type === 'gameOver') sfx.fanfare(true);
     }
   }
@@ -858,6 +861,13 @@ export class Game {
         hint = { text: '回覆交易提議' };
       }
       else banner = { html: `${P(t.from)} 正在考慮交易對象…`, wait: true };
+    } else if (v.current === me && v.sub && !this.mode) {
+      // 5–6 players: the part of the turn after the main player's
+      banner =
+        v.sub.k === 'pair'
+          ? { html: `${P(v.sub.lead)} 的回合由你接著行動（<b>第二位</b>）：可以建造、和銀行交易、使用一張發展卡；不能擲骰或和其他國家交易` }
+          : { html: `<b>特別建造</b>（${P(v.sub.lead)} 的回合之後）：可以建造或購買發展卡；不能交易或使用發展卡` };
+      hint = { text: '完成後按「結束」' };
     } else if (v.current === me) {
       if (!v.rolled) {
         const dev = playableDev(v, me);
@@ -884,6 +894,8 @@ export class Game {
         banner = { html: `選擇<b>${name}</b>的位置`, buttons: [{ label: '取消', onClick: () => inter.onCancel() }] };
         hint = { text: this.mode === 'road' ? '點選白色條紋建造道路（右鍵或 Esc 取消）' : `點選白色圓圈建造${name}（右鍵或 Esc 取消）` };
       } else banner = null;
+    } else if (v.sub) {
+      banner = { html: v.sub.k === 'pair' ? `${P(v.current)} 是第二位，接著 ${P(v.sub.lead)} 行動${me < 0 ? '（觀戰中）' : ''}` : `特別建造：${P(v.current)} 正在建造${me < 0 ? '（觀戰中）' : ''}`, wait: true };
     } else {
       banner = { html: `${P(v.current)} 的回合${me < 0 ? '（觀戰中）' : ''}`, wait: true };
     }
@@ -971,7 +983,9 @@ export class Game {
       if (!action) continue;
       // let dice and flying cards finish before the computer moves on
       const hold = Math.max(0, (this.fxHold || 0) - performance.now());
-      const delay = Math.max((DELAY[action.type] || 700) * (SPEED[this.settings.speed] || 1), hold);
+      // a computer player passing on its step of the special building phase does not hold the game up
+      const pass = action.type === 'endTurn' && this.state.sub && this.state.sub.k === 'sbp';
+      const delay = Math.max((pass ? 150 : DELAY[action.type] || 700) * (SPEED[this.settings.speed] || 1), hold);
       this.thinking = p;
       this.hud.renderOutliner(this.ctx());
       this.timer = setTimeout(() => {

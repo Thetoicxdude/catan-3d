@@ -164,11 +164,14 @@ export class Dialogs {
       const pl = v.players[me];
       const ratios = tradeRatios(v, me);
       body.innerHTML = '';
+      // the second player of a paired turn trades with the bank only
+      if (v.sub) tab = 'bank';
       const tabs = el('div', 'tabs');
       for (const [k, label] of [
         ['bank', '海上貿易'],
         ['players', '與其他國家交易'],
       ]) {
+        if (v.sub && k === 'players') continue;
         const b = el('button', tab === k ? 'on' : '', label);
         b.type = 'button';
         b.addEventListener('click', () => {

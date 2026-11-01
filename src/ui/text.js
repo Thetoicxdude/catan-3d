@@ -130,6 +130,9 @@ export function describe(e, players, me, view) {
         toast: { title: '最大騎士團', text: `${e.to === me ? '你' : players[e.to].name} 擁有最強的軍隊（${e.size} 位騎士），獲得 2 分`, icon: 'knight' },
       };
     case 'turnStart':
+      if (e.sub === 'pair') return { log: `${W(e.p)} 接著行動（第二位）`, hl: e.p === me };
+      // (each player's building step is not logged, only what they build)
+      if (e.sub === 'sbp') return { log: e.p === me ? '特別建造：輪到你建造' : null, hl: true };
       return { log: `<span class="t">第 ${e.turn} 回合</span>${W(e.p)} 的回合`, sep: true, hl: e.p === me };
     case 'phase':
       return { log: '開局完成，遊戲正式開始', hl: true };
@@ -192,6 +195,12 @@ export function rulesHtml() {
 <ul>
 <li><b>最長道路</b>：最先擁有連續 5 段以上道路者取得，被超越時轉手；平手時由原持有者保留，若道路被截斷導致多人平手則暫時無人持有。</li>
 <li><b>最大騎士團</b>：最先打出 3 張騎士者取得，他人打出更多時轉手。</li>
+</ul>
+<h4>5–6 人（大島嶼）</h4>
+<ul>
+<li>30 塊地形（森林、牧場、田地各 6，丘陵、山脈各 5，沙漠 2）、28 個數字牌、11 個港口；銀行每種資源 24 張；發展卡 34 張（騎士 20、分數卡 5、道路建設、豐收之年、壟斷各 3）。</li>
+<li><b>配對回合</b>（官方現行規則）：每回合有兩位玩家。主要玩家照常擲骰、交易、建造、使用發展卡；結束後由他左手邊第三位（六人局就是對面）的玩家接著行動，可以建造、和銀行或港口交易、使用一張發展卡，但不能擲骰，也不能和其他國家交易。兩人都可能在這個回合獲勝；主要玩家達到勝利分數就立刻獲勝。</li>
+<li><b>特別建造階段</b>（舊規則，可在開局設定選用）：每位玩家結束回合後，其他人依序可以建造或購買發展卡，但不能交易、不能使用發展卡；在這個階段達到勝利分數，要等到自己的回合才算獲勝。</li>
 </ul>
 <h4>操作</h4>
 <ul>

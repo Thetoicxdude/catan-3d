@@ -347,4 +347,120 @@ test('views hide other hands', () => {
   assert.equal(v.rng, null);
 });
 
+// ── 5–6 players ──
+function fresh6(n = 6, turns) {
+  const st = createGame({ seed: 9, players: players(n), firstPlayer: 0, map: 'base-6', rules: turns ? { turns } : undefined });
+  st.phase = 'play';
+  st.turn = 5;
+  st.current = 0;
+  st.rolled = true;
+  return st;
+}
+
+test('5–6 player island: pieces, bank, deck, player range', () => {
+  const st = fresh6(5);
+  assert.equal(GEO.id, 'base-6');
+  assert.equal(GEO.hexes.length, 30);
+  const count = {};
+  for (const h of st.board.hexes) count[h.terrain] = (count[h.terrain] || 0) + 1;
+  assert.deepEqual(count, { forest: 6, pasture: 6, fields: 6, hills: 5, mountains: 5, desert: 2 });
+  assert.equal(st.board.hexes.filter((h) => h.number).length, 28);
+  assert.equal(st.board.harbors.length, 11);
+  assert.equal(st.board.harbors.filter((h) => h.type === 'any').length, 5);
+  assert.equal(st.board.harbors.filter((h) => h.type === 'wool').length, 2);
+  assert.equal(new Set(st.board.harbors.map((h) => h.edge)).size, 11);
+  assert.deepEqual(st.bank, { wood: 24, brick: 24, wool: 24, grain: 24, ore: 24 });
+  assert.equal(st.devDeck.length, 34);
+  assert.equal(st.devDeck.filter((c) => c === 'knight').length, 20);
+  assert.equal(st.rules.turns, 'paired');
+  throwsRule(() => createGame({ seed: 1, players: players(4), map: 'base-6' }), /5–6/);
+  throwsRule(() => createGame({ seed: 1, players: players(5), map: 'base-4' }), /2–4/);
+});
+
+test('paired turns: the second player builds and trades with the bank only', () => {
+  const st = fresh6(6);
+  applyAction(st, { type: 'endTurn', p: 0 });
+  assert.deepEqual(st.sub, { k: 'pair', lead: 0, rest: [] });
+  assert.equal(st.current, 3);
+  assert.equal(st.turn, 5);
+  throwsRule(() => applyAction(st, { type: 'roll', p: 3 }));
+  st.players[3].res = { wood: 4, brick: 1, wool: 0, grain: 0, ore: 0 };
+  throwsRule(() => applyAction(st, { type: 'offer', p: 3, give: { wood: 1 }, get: { ore: 1 } }), /第二位/);
+  applyAction(st, { type: 'bankTrade', p: 3, give: 'wood', get: 'ore' });
+  assert.equal(st.players[3].res.ore, 1);
+  // one development card, bought on an earlier turn
+  st.players[3].dev = [{ type: 'monopoly', turn: 4 }, { type: 'yearOfPlenty', turn: 5 }];
+  throwsRule(() => applyAction(st, { type: 'playDev', p: 3, card: 'yearOfPlenty', res: ['ore', 'ore'] }), /下回合/);
+  applyAction(st, { type: 'playDev', p: 3, card: 'monopoly', res: 'wool' });
+  // the markers pass left: the next main player rolls
+  applyAction(st, { type: 'endTurn', p: 3 });
+  assert.equal(st.sub, null);
+  assert.equal(st.current, 1);
+  assert.equal(st.turn, 6);
+  assert.equal(st.rolled, false);
+  applyAction(st, { type: 'roll', p: 1 });
+  applyAction(st, { type: 'endTurn', p: 1 });
+  assert.equal(st.current, 4);
+  // five players: still three seats on
+  const s5 = fresh6(5);
+  s5.current = 3;
+  applyAction(s5, { type: 'endTurn', p: 3 });
+  assert.equal(s5.current, 1);
+});
+
+test('paired turns: the second player can win; the main player wins at once', () => {
+  const st = fresh6(6);
+  st.targetVP = 3;
+  st.vertices[0] = { p: 3, t: 'c' };
+  st.vertices[10] = { p: 3, t: 's' };
+  applyAction(st, { type: 'endTurn', p: 0 });
+  assert.equal(st.phase, 'over');
+  assert.equal(st.winner, 3);
+});
+
+test('paired turns: the main player wins in the second part too, before the second player', () => {
+  const st = fresh6(6);
+  st.targetVP = 4;
+  // the second player's part ends with both at the target: the main player wins
+  applyAction(st, { type: 'endTurn', p: 0 });
+  st.vertices[0] = { p: 0, t: 'c' };
+  st.vertices[10] = { p: 0, t: 'c' };
+  st.vertices[20] = { p: 3, t: 'c' };
+  st.vertices[30] = { p: 3, t: 'c' };
+  st.players[3].res.wood = 4;
+  applyAction(st, { type: 'bankTrade', p: 3, give: 'wood', get: 'ore' });
+  assert.equal(st.phase, 'over');
+  assert.equal(st.winner, 0);
+});
+
+test('special building phase: everyone else builds in turn, no trades or cards, no win', () => {
+  const st = fresh6(5, 'sbp');
+  applyAction(st, { type: 'endTurn', p: 0 });
+  assert.deepEqual(st.sub, { k: 'sbp', lead: 0, rest: [2, 3, 4] });
+  assert.equal(st.current, 1);
+  st.players[1].res = { wood: 4, brick: 1, wool: 1, grain: 1, ore: 1 };
+  throwsRule(() => applyAction(st, { type: 'bankTrade', p: 1, give: 'wood', get: 'ore' }), /特別建造/);
+  throwsRule(() => applyAction(st, { type: 'offer', p: 1, give: { wood: 1 }, get: { ore: 1 } }), /特別建造/);
+  st.players[1].dev = [{ type: 'monopoly', turn: 1 }];
+  throwsRule(() => applyAction(st, { type: 'playDev', p: 1, card: 'monopoly', res: 'wool' }), /特別建造/);
+  applyAction(st, { type: 'buyDev', p: 1 });
+  // reaching the target in the building phase does not win until the player's own turn
+  st.targetVP = 2;
+  st.vertices[0] = { p: 2, t: 'c' };
+  applyAction(st, { type: 'endTurn', p: 1 });
+  assert.equal(st.current, 2);
+  assert.equal(st.phase, 'play');
+  for (const p of [2, 3, 4]) applyAction(st, { type: 'endTurn', p });
+  assert.equal(st.sub, null);
+  assert.equal(st.current, 1);
+  assert.equal(st.turn, 6);
+  applyAction(st, { type: 'roll', p: 1 });
+  applyAction(st, { type: 'endTurn', p: 1 });
+  applyAction(st, { type: 'endTurn', p: 2 });
+  // player 2's own turn begins as soon as the building phase after player 1 is over
+  for (const p of [3, 4, 0]) applyAction(st, { type: 'endTurn', p });
+  assert.equal(st.phase, 'over');
+  assert.equal(st.winner, 2);
+});
+
 console.log(`${passed} tests passed`);
