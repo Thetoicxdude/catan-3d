@@ -14,12 +14,12 @@ let bigMax = 0;
 const NAMES = ['曙光王國', '蒼藍聯邦', '琥珀公國', '白楊共和國', '紫晶公國', '翡翠王朝'];
 let seaMax = 0;
 // 40 standard games, 5–6 player games on the large island (paired turns, then the special building
-// phase), then Seafarers games (scenario 1, 2 and 3)
-for (let g = 0; g < 80; g++) {
+// phase), then Seafarers games (scenario 1, 2, 3 and 9)
+for (let g = 0; g < 88; g++) {
   const big = g >= 40 && g < 52;
   const sea = g >= 52;
   const players = Array.from({ length: big ? 5 + (g % 2) : g % 3 ? 4 : 3 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' } }));
-  const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4], map: big ? 'base-6' : sea ? (g >= 72 ? 'sea-3' : g >= 64 ? 'sea-2' : 'sea-1') : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
+  const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4], map: big ? 'base-6' : sea ? (g >= 80 ? 'sea-9' : g >= 72 ? 'sea-3' : g >= 64 ? 'sea-2' : 'sea-1') : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
   const rnd = makeRng(g);
   const mem = players.map(() => ({}));
   let guard = 0;

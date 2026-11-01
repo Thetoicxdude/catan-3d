@@ -619,7 +619,8 @@ H.settlement = (st, a, ev) => {
   ev.push({ type: 'build', what: 'settlement', p, vertex: v });
   // Seafarers: a player's first settlement on each island beyond the home island(s) earns bonus points
   const bonus = seafarers(st) && GEO.def.isleBonus;
-  if (bonus) {
+  // (on the new world only one island counts: isleBonusMax)
+  if (bonus && !(GEO.def.isleBonusMax && pl.isles.length >= GEO.def.isleBonusMax)) {
     const sea = seaInfo(st.board);
     const isle = sea.vIsland[v];
     if (isle >= 0 && !homeIslands(st, p).includes(isle) && !pl.isles.includes(isle)) {

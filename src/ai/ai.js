@@ -649,7 +649,8 @@ function devMove(view, p, lvl, rnd, plans) {
 
   if (devs.includes('knight')) {
     const rob = view.board.robber;
-    const hurtsMe = GEO.hexes[rob].vertices.some((v) => view.vertices[v] && view.vertices[v].p === p) && pips(view.board.hexes[rob].number) >= 3;
+    // (the robber may still be off the board: the new world)
+    const hurtsMe = rob >= 0 && GEO.hexes[rob].vertices.some((v) => view.vertices[v] && view.vertices[v].p === p) && pips(view.board.hexes[rob].number) >= 3;
     const la = view.largestArmy;
     const laSize = la >= 0 ? view.players[la].knights : 2;
     const grab = la !== p && me.knights + 1 > laSize && me.knights + 1 >= 3;
@@ -833,7 +834,7 @@ export function aiAct(view, p, mem = {}, rnd = Math.random) {
     const devs = playableDev(view, p);
     if (devs.includes('knight')) {
       const rob = view.board.robber;
-      const hurt = GEO.hexes[rob].vertices.some((v) => view.vertices[v] && view.vertices[v].p === p) && pips(view.board.hexes[rob].number) >= 4;
+      const hurt = rob >= 0 && GEO.hexes[rob].vertices.some((v) => view.vertices[v] && view.vertices[v].p === p) && pips(view.board.hexes[rob].number) >= 4;
       const la = view.largestArmy;
       const laSize = la >= 0 ? view.players[la].knights : 2;
       const grab = la !== p && view.players[p].knights + 1 > laSize && view.players[p].knights + 1 >= 3;

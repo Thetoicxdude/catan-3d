@@ -19,10 +19,14 @@
 //   pirate   [q, r] of the sea hex the pirate starts on
 //   setup    { group }: the opening settlements go on that group's island(s) (without it: on any
 //            island; the islands a player starts on are that player's home islands)
-//   robber   { number }: with no desert, the robber starts on the hex with that number
+//   robber   { number }: with no desert, the robber starts on the hex with that number; { off: true }:
+//            the robber (and the pirate, when the map names no sea hex for it) starts off the board
+//   islands  { count: [lo, hi], smallest, largest }: the '?' tiles are laid out as that many islands
+//            of land from the pool, never touching, the rest sea (the new world)
 //   vp       the victory points the map is played to
 //   rules    { seafarers: true } (ships, the pirate, gold fields, the longest trade route), turns (5–6)
-//   isleBonus  points for a player's first settlement on each island other than the home island(s)
+//   isleBonus  points for a player's first settlement on each island other than the home island(s);
+//            isleBonusMax: how many such islands count (once per player on the new world)
 //   harbors.perIsland  the harbors are shared among the islands by the length of their coasts
 //   fog      { pool, numbers }: what the 'fog' tiles hide (drawn when they are discovered)
 
@@ -201,10 +205,38 @@ export const SEA3 = Object.freeze({
   rules: { seafarers: true },
 });
 
-export const MAPS = { [BASE4.id]: BASE4, [BASE6.id]: BASE6, [SEA1.id]: SEA1, [SEA2.id]: SEA2, [SEA3.id]: SEA3 };
+// Seafarers, scenario 9 — The New World (3–4 players, 12 points). A new map every game: the 42 hexes of
+// the frame are laid out at random as a few islands (23 land, no desert, no gold) in 19 hexes of sea.
+// The opening may go on any island (home islands, as on the four islands); one settlement on a
+// foreign island earns 1 point, once per player. The robber and the pirate start off the board and
+// come in the first time they are moved.
+const R = 'R';
+export const SEA9 = Object.freeze({
+  id: 'sea-9',
+  name: '航海家：新世界',
+  players: [3, 4],
+  vp: 12,
+  tiles: offsetRows(
+    Array.from({ length: 6 }, () => [0, 1, 2, 3, 4, 5, 6].map((c) => [c, R])),
+    -2,
+    -3,
+    {},
+  ),
+  pool: { forest: 5, pasture: 5, fields: 5, hills: 4, mountains: 4 },
+  numbers: [2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12],
+  // how the land falls: this many islands, each this many hexes, never touching
+  islands: { count: [3, 5], smallest: 3, largest: 9 },
+  harbors: { types: ['any', 'any', 'any', 'any', 'wood', 'brick', 'wool', 'grain', 'ore'], perIsland: true },
+  robber: { off: true },
+  isleBonus: 1,
+  isleBonusMax: 1,
+  rules: { seafarers: true },
+});
+
+export const MAPS = { [BASE4.id]: BASE4, [BASE6.id]: BASE6, [SEA1.id]: SEA1, [SEA2.id]: SEA2, [SEA3.id]: SEA3, [SEA9.id]: SEA9 };
 export const DEFAULT_MAP = BASE4.id;
 // the maps a game can be started on, in the order the menus list them
-export const MAP_LIST = [BASE4, BASE6, SEA1, SEA2, SEA3];
+export const MAP_LIST = [BASE4, BASE6, SEA1, SEA2, SEA3, SEA9];
 
 // a map by its id (or a definition passed through as it is); unknown ids fall back to the standard map
 export function mapDef(m) {

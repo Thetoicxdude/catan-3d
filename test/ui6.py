@@ -1,5 +1,6 @@
 # Seafarers on the page (scenario 1, Heading for New Shores; MAP=sea-2: The Four Islands; MAP=sea-3: The
-# Fog Islands, with the mist over the hidden hexes and the map rebuilt as they are discovered):
+# Fog Islands, with the mist over the hidden hexes and the map rebuilt as they are discovered; MAP=sea-9:
+# The New World, random islands with the robber and the pirate off the board at first):
 # the setup screen, the islands, the pirate and the gold fields on the 3D map, an opening ship placed
 # through the interface, building a ship and moving one with the action bar, the gold field's dialog,
 # carrying the campaign on after a reload, and a campaign the computer plays to its end.
@@ -11,7 +12,7 @@ from playwright.async_api import async_playwright
 SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
 os.makedirs(SP, exist_ok=True)
 MAP = os.environ.get('MAP', 'sea-1')
-VP, TOKENS = {'sea-1': (14, 26), 'sea-2': (13, 22), 'sea-3': (12, 16)}[MAP]
+VP, TOKENS = {'sea-1': (14, 26), 'sea-2': (13, 22), 'sea-3': (12, 16), 'sea-9': (12, 22)}[MAP]
 # (fog: the hidden hexes in the state, and the ones still under mist on the map, not counting mist that is clearing)
 FOG = """(() => { const g = __game, s = g.state; return { hidden: s.board.hexes.filter((h) => h.terrain === 'fog').length, mist: g.map.fog ? [...g.map.fog.hexes.values()].filter((r) => !r.fading).length : -1, numbered: s.board.hexes.filter((h) => h.number).length, rebuilds: g.map.rebuilds || 0, ms: g.map.rebuildMs || 0 }; })()"""
 PRE = 'ui6' if MAP == 'sea-1' else 'ui6-' + MAP
@@ -72,7 +73,7 @@ async def main():
         await page.click('text=開始戰役')
         await page.wait_for_function('window.__game && window.__game.state', timeout=120000)
         st = await page.evaluate(SEA)
-        check('a Seafarers campaign', st['map'] == MAP and st['ships'] == 0 and st['target'] == VP and st['pirate'] >= 0, json.dumps(st))
+        check('a Seafarers campaign', st['map'] == MAP and st['ships'] == 0 and st['target'] == VP and st['pirate'] >= (-1 if MAP == 'sea-9' else 0), json.dumps(st))
         await page.wait_for_timeout(3000)
         lab = await page.evaluate(CHECK)
         check('number tokens in place on the islands', not lab['bad'] and lab['tokens'] >= TOKENS, f"{lab['tokens']} tokens, bad {lab['bad'][:3]}")

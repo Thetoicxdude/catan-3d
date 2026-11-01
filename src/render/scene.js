@@ -761,8 +761,10 @@ export class MapView {
         }
       });
     }
+    // (the robber may still be off the board: the new world)
     const rob = GEO.hexes[state.board.robber];
-    this.terrain.uniforms.uRobber.value.set(rob.q, rob.r);
+    if (rob) this.terrain.uniforms.uRobber.value.set(rob.q, rob.r);
+    else this.terrain.uniforms.uRobber.value.set(99, 99);
     this.showRobber(state.board.robber, animate);
     if (changed) this.shadowDirty = 2;
   }
@@ -787,7 +789,7 @@ export class MapView {
         b.classList.add('drop');
       }
     }
-    const lone = !this.tokenLabels.some((t) => t.hex === hex);
+    const lone = hex >= 0 && !this.tokenLabels.some((t) => t.hex === hex);
     const it = this.robberLabel;
     if (it) {
       it.opts.hidden = !lone;

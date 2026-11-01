@@ -194,7 +194,11 @@ export function hexTooltip(view, hexId, players) {
     const isle = seaInfo(view.board).island[hexId];
     const home = view.phase === 'setup' && !(view.players[me].home || []).length && !(GEO.def.setup && GEO.def.setup.group) ? null : homeIslands(view, me);
     if (home && home.includes(isle)) lines.push('<p>你的本島</p>');
-    else if (home && !(view.players[me].isles || []).includes(isle)) lines.push(`<p>外島：你在這座島的第一座村莊 <b>+${GEO.def.isleBonus} 分</b></p>`);
+    else if (home) {
+      const got = view.players[me].isles || [];
+      const full = GEO.def.isleBonusMax && got.length >= GEO.def.isleBonusMax;
+      if (!got.includes(isle) && !full) lines.push(`<p>外島：你在這座島的第一座村莊 <b>+${GEO.def.isleBonus} 分</b>${GEO.def.isleBonusMax ? '（只算一次）' : ''}</p>`);
+    }
   }
   return `<h5>${esc(H.name)}</h5>${lines.join('')}`;
 }
@@ -268,6 +272,12 @@ export function rulesHtml() {
 <li><b>探索</b>：你的道路或船抵達霧旁邊的路口時，霧就散開，可能是陸地、金礦或海。陸地會放上新的數字牌，並給你 1 張那種資源；金礦讓你任選 1 張；海則什麼都沒有。</li>
 <li>霧裡是什麼，要到揭開的那一刻才抽出來，誰都無法事先知道。海盜不能開進還沒探索的霧裡。</li>
 <li>沒有外島加分；其他規則和前兩個劇本相同。</li>
+</ul>
+<h4>航海家：新世界</h4>
+<ul>
+<li>目標 <b>12 分</b>。每一局都是新的世界：23 塊陸地（沒有沙漠與金礦）隨機分成 3 到 5 座互不相連的島，其餘是海；數字與港口也每局不同。</li>
+<li>開局的兩個村莊可以放在任何島上，開局所在的島是你的本島；在外島蓋的第一座村莊 <b>+1 分</b>，每人只算一次。</li>
+<li>強盜和海盜一開始都在地圖外，第一次被移動時才進場。</li>
 </ul>
 <h4>操作</h4>
 <ul>

@@ -118,7 +118,17 @@ export function buildHarbors(board, terrain, models = null, timeU = { value: 0 }
   const fireMat = fireMaterial(timeU);
   board.harbors.forEach((hb, hi) => {
     const e = GEO.edges[hb.edge];
-    const n = e.outward;
+    // out to sea: the geometry knows it for the map's fixed coast; a coast the board drew from its
+    // pools (the new world) goes from the middle of the harbor's land hex through the path's middle
+    let n = e.outward;
+    if (!n) {
+      const land = e.hexes.find((id) => board.hexes[id].terrain !== 'sea' && board.hexes[id].terrain !== 'fog');
+      const h = GEO.hexes[land];
+      const dx = e.x - h.x;
+      const dz = e.z - h.z;
+      const len = Math.hypot(dx, dz) || 1;
+      n = { x: dx / len, z: dz / len };
+    }
     // find the shoreline along the outward normal
     let s0 = 0;
     for (let s = 0; s < 12; s += 0.1) {

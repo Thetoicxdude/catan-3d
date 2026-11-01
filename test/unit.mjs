@@ -855,6 +855,60 @@ test('Seafarers scenario 3: gold found in the opening is picked before the next 
   applyAction(st, { type: 'settlement', p: next, vertex: legalSettlementSpots(st, next, true)[0] });
 });
 
+// ── Seafarers (scenario 9: the new world) ──
+test('Seafarers scenario 9: a new world every game, the same on every page', () => {
+  const layouts = new Set();
+  for (let seed = 1; seed <= 30; seed++) {
+    const st = createGame({ seed, players: players(4), firstPlayer: 0, map: 'sea-9' });
+    const sea = seaInfo(st.board);
+    const sizes = new Array(sea.islands).fill(0);
+    sea.island.forEach((i) => i >= 0 && sizes[i]++);
+    assert.ok(sea.islands >= 3 && sea.islands <= 5, `${sea.islands} islands`);
+    assert.ok(sizes.every((n) => n >= 3 && n <= 9), `island sizes ${sizes}`);
+    assert.equal(sizes.reduce((a, b) => a + b, 0), 23);
+    assert.equal(st.board.hexes.filter((h) => h.number).length, 23);
+    assert.equal(st.board.robber, -1, 'the robber waits off the board');
+    assert.equal(st.board.pirate, -1, 'so does the pirate');
+    assert.equal(st.board.harbors.length, 9);
+    assert.equal(st.targetVP, 12);
+    layouts.add(st.board.hexes.map((h) => h.terrain[0]).join(''));
+    // the same seed lays out the same world
+    if (seed <= 3) assert.deepEqual(createGame({ seed, players: players(4), firstPlayer: 0, map: 'sea-9' }).board, st.board);
+  }
+  assert.ok(layouts.size >= 28, 'a different world nearly every game');
+});
+
+test('Seafarers scenario 9: the robber and the pirate come in when first moved; one island point', () => {
+  const st = createGame({ seed: 4, players: players(4), firstPlayer: 0, map: 'sea-9' });
+  st.phase = 'play';
+  st.turn = 5;
+  st.current = 0;
+  st.rolled = true;
+  const sea = seaInfo(st.board);
+  const landHex = st.board.hexes.findIndex((h) => h.number);
+  st.pending = { type: 'robber', reason: 'seven' };
+  const ev = applyAction(st, { type: 'robber', p: 0, hex: landHex });
+  assert.equal(st.board.robber, landHex);
+  assert.equal(ev.find((e) => e.type === 'robber').from, -1);
+  const seaHex = st.board.hexes.findIndex((h) => h.terrain === 'sea');
+  st.pending = { type: 'robber', reason: 'knight' };
+  applyAction(st, { type: 'robber', p: 0, hex: seaHex });
+  assert.equal(st.board.pirate, seaHex);
+  // a settlement on a foreign island earns 1 point, and only the first island counts
+  st.pending = null;
+  st.players[0].home = [0];
+  give(st, 0, { wood: 4, brick: 4, wool: 4, grain: 4 });
+  const reach = (isle) => {
+    const v = GEO.vertices.findIndex((x, i) => sea.vIsland[i] === isle && sea.coast[i] && distanceOK(st, i) && x.edges.some((e) => sea.eLand[e] === 0 && !pirateEdges(st).includes(e)));
+    st.ships[GEO.vertices[v].edges.find((e) => sea.eLand[e] === 0 && !pirateEdges(st).includes(e))] = 0;
+    return v;
+  };
+  applyAction(st, { type: 'settlement', p: 0, vertex: reach(1) });
+  assert.equal(st.players[0].chits, 1);
+  applyAction(st, { type: 'settlement', p: 0, vertex: reach(2) });
+  assert.equal(st.players[0].chits, 1, 'one island point at most');
+});
+
 test('Seafarers: the longest trade route joins roads and ships at a settlement only', () => {
   const st = freshSea(4);
   const sea = seaInfo(st.board);

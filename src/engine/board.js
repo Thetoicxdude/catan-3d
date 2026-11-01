@@ -181,7 +181,7 @@ export function generateBoard(holder, opts = {}) {
     }
     return t.t;
   });
-  for (const [g, ids] of Object.entries(freeBy)) if ((g ? expand(groups[g].pool) : pool).length < ids.length) throw new Error('地圖的地形不夠分配');
+  if (!def.islands) for (const [g, ids] of Object.entries(freeBy)) if ((g ? expand(groups[g].pool) : pool).length < ids.length) throw new Error('地圖的地形不夠分配');
 
   let terrains = null;
   if (def.legacy) {
@@ -197,6 +197,14 @@ export function generateBoard(holder, opts = {}) {
       }
       if (score <= 1) break;
     }
+  } else if (def.islands) {
+    // the new world: the pool's land laid out as islands, the rest of the drawn tiles sea
+    terrains = base.slice();
+    const land = islandLayout(holder, free, pool.length, def.islands);
+    for (const id of free) terrains[id] = 'sea';
+    const drawn = shuffle(holder, pool.slice());
+    land.forEach((id, i) => (terrains[id] = drawn[i]));
+    spreadTerrain(holder, terrains, land);
   } else {
     terrains = base.slice();
     for (const [g, ids] of Object.entries(freeBy)) {
@@ -275,10 +283,86 @@ export function generateBoard(holder, opts = {}) {
   // the robber starts in the desert; on a map without one, on the hex with the number the map names
   let robber = hexes.findIndex((h) => h.terrain === 'desert');
   if (robber < 0 && def.robber && def.robber.number) robber = hexes.findIndex((h) => h.number === def.robber.number);
+  // (or off the board, coming in the first time it is moved: -1)
+  if (def.robber && def.robber.off) robber = -1;
   const board = { hexes, harbors, vertexHarbor, robber, method };
-  // the pirate's sea hex (Seafarers)
+  // the pirate's sea hex (Seafarers; off the board when the map names none)
   if (def.pirate) board.pirate = GEO.hexAt(def.pirate[0], def.pirate[1]);
+  else if (def.rules && def.rules.seafarers) board.pirate = -1;
   return board;
+}
+
+// The new world's islands: `count` islands of `smallest`…`largest` hexes, `land` hexes in all, grown at
+// random from seeds apart from one another over the tiles `ids`, never touching (one sea hex at least
+// between them). Retried until the land falls that way; the board's dice decide everything, so every
+// page lays the same world out.
+function islandLayout(holder, ids, land, spec) {
+  const H = GEO.hexes;
+  const inMap = new Set(ids);
+  const dist = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
+  const [lo, hi] = spec.count;
+  let last = null;
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const k = rngInt(holder, lo, hi);
+    if (k * spec.smallest > land || k * spec.largest < land) continue;
+    // the islands' sizes: k parts of the land, each within the limits
+    const sizes = new Array(k).fill(spec.smallest);
+    let left = land - k * spec.smallest;
+    while (left > 0) {
+      const i = rngInt(holder, 0, k - 1);
+      if (sizes[i] < spec.largest) {
+        sizes[i]++;
+        left--;
+      }
+    }
+    // seeds two hexes apart at least
+    const seeds = [];
+    for (let t = 0; t < 200 && seeds.length < k; t++) {
+      const c = ids[rngInt(holder, 0, ids.length - 1)];
+      if (seeds.every((x) => dist(H[x], H[c]) >= 2)) seeds.push(c);
+    }
+    if (seeds.length < k) continue;
+    const owner = new Map(seeds.map((x, i) => [x, i]));
+    const count = seeds.map(() => 1);
+    let stuck = false;
+    for (let step = 0; step < land * 6 && count.some((c, i) => c < sizes[i]); step++) {
+      const i = rngInt(holder, 0, k - 1);
+      if (count[i] >= sizes[i]) continue;
+      const frontier = [];
+      for (const [id, o] of owner) {
+        if (o !== i) continue;
+        for (const nb of H[id].neighbors) {
+          if (!inMap.has(nb) || owner.has(nb) || frontier.includes(nb)) continue;
+          if (H[nb].neighbors.some((x) => owner.has(x) && owner.get(x) !== i)) continue;
+          frontier.push(nb);
+        }
+      }
+      if (!frontier.length) {
+        stuck = true;
+        break;
+      }
+      // compact islands: a tile touching more of the island is likelier
+      frontier.sort((a, b) => a - b);
+      const w = frontier.map((f) => 1 + 2 * H[f].neighbors.filter((x) => owner.get(x) === i).length);
+      let r = rngInt(holder, 0, w.reduce((a, b) => a + b, 0) - 1);
+      let pick = frontier[frontier.length - 1];
+      for (let j = 0; j < frontier.length; j++) {
+        r -= w[j];
+        if (r < 0) {
+          pick = frontier[j];
+          break;
+        }
+      }
+      owner.set(pick, i);
+      count[i]++;
+    }
+    last = [...owner.keys()];
+    if (!stuck && count.every((c, i) => c === sizes[i])) return last.sort((a, b) => a - b);
+  }
+  // (never seen: the land as it last fell, topped up from the remaining tiles)
+  const out = new Set(last || []);
+  for (const id of ids) if (out.size < land) out.add(id);
+  return [...out].sort((a, b) => a - b);
 }
 
 // Harbors on a map of several islands: each island gets a share of them by the length of its coast
