@@ -1,4 +1,5 @@
-# Seafarers on the page (scenario 1, Heading for New Shores; MAP=sea-2: scenario 2, The Four Islands):
+# Seafarers on the page (scenario 1, Heading for New Shores; MAP=sea-2: The Four Islands; MAP=sea-3: The
+# Fog Islands, with the mist over the hidden hexes and the map rebuilt as they are discovered):
 # the setup screen, the islands, the pirate and the gold fields on the 3D map, an opening ship placed
 # through the interface, building a ship and moving one with the action bar, the gold field's dialog,
 # carrying the campaign on after a reload, and a campaign the computer plays to its end.
@@ -10,7 +11,9 @@ from playwright.async_api import async_playwright
 SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
 os.makedirs(SP, exist_ok=True)
 MAP = os.environ.get('MAP', 'sea-1')
-VP, TOKENS = {'sea-1': (14, 26), 'sea-2': (13, 22)}[MAP]
+VP, TOKENS = {'sea-1': (14, 26), 'sea-2': (13, 22), 'sea-3': (12, 16)}[MAP]
+# (fog: the hidden hexes in the state, and the ones still under mist on the map, not counting mist that is clearing)
+FOG = """(() => { const g = __game, s = g.state; return { hidden: s.board.hexes.filter((h) => h.terrain === 'fog').length, mist: g.map.fog ? [...g.map.fog.hexes.values()].filter((r) => !r.fading).length : -1, numbered: s.board.hexes.filter((h) => h.number).length, rebuilds: g.map.rebuilds || 0, ms: g.map.rebuildMs || 0 }; })()"""
 PRE = 'ui6' if MAP == 'sea-1' else 'ui6-' + MAP
 results = {}
 def check(name, ok, info=''):
@@ -74,6 +77,9 @@ async def main():
         lab = await page.evaluate(CHECK)
         check('number tokens in place on the islands', not lab['bad'] and lab['tokens'] >= TOKENS, f"{lab['tokens']} tokens, bad {lab['bad'][:3]}")
         await page.screenshot(path=f'{SP}/{PRE}-start.png')
+        if MAP == 'sea-3':
+            fg = await page.evaluate(FOG)
+            check('mist over every hidden hex', fg['hidden'] == 12 and fg['mist'] == 12, json.dumps(fg))
         # the first opening placement is ours (first player 0?): put the settlement on the coast by hand
         await page.wait_for_function("__game.state.phase === 'setup' && __game.state.setup.order[__game.state.setup.i] === 0 && __game.state.setup.step === 'settlement'", timeout=300000, polling=300)
         # (geometry and the sea analysis from the source modules: the same map, built again)
@@ -183,6 +189,10 @@ async def main():
         await page.evaluate('(() => { const m = __game.map, c = m.camera; m.frameLand(__game.hud.freeRect(), c.fitIsland(1.12)); c.target.copy(c.goal); c.h = c.goalH; c.apply(); })()')
         await page.wait_for_timeout(4500)
         await page.screenshot(path=f'{SP}/{PRE}-final.png')
+        if MAP == 'sea-3':
+            fg = await page.evaluate(FOG)
+            lab = await page.evaluate(CHECK)
+            check('the map follows the discoveries', fg['mist'] == fg['hidden'] and lab['tokens'] == fg['numbered'] and not lab['bad'], f"{json.dumps(fg)}, {lab['tokens']} tokens shown")
         # zoomed out: the paper map
         await page.evaluate('__game.map.camera.goalH = __game.map.camera.zoomMax(); __game.map.camera.h = __game.map.camera.goalH')
         await page.wait_for_timeout(2500)

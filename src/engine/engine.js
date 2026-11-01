@@ -5,7 +5,7 @@
 // Illegal actions throw RuleError (with a Traditional Chinese message) and leave state untouched.
 
 import { GEO, useMap } from './geometry.js';
-import { generateBoard, RES, TERRAIN_RES, pips } from './board.js';
+import { generateBoard, RES, TERRAIN_RES, pips, provinceName } from './board.js';
 import { mapDef, DEFAULT_MAP } from './maps.js';
 import { rngInt, shuffle, seedState } from './rng.js';
 import { seaInfo, roadEdge, shipEdge, shipLegal, legalShipEdges, movableShips, shipTargets, pirateVictims, pirateEdges, tradeRouteFor, SHIP_COST, SHIPS } from './seafarers.js';
@@ -145,6 +145,8 @@ export function createGame(opts) {
       pl.isles = [];
       pl.home = [];
     }
+    // (the fog islands) what the fog hides: drawn one by one as hexes are discovered
+    if (def.fog) st.fog = { pool: Object.entries(def.fog.pool).flatMap(([t, c]) => new Array(c).fill(t)), numbers: def.fog.numbers.slice() };
   }
   return st;
 }
@@ -157,6 +159,47 @@ export function homeIslands(st, p) {
   const pl = st.players[p];
   if (pl.home && pl.home.length) return pl.home;
   return [...seaInfo(st.board).home];
+}
+
+// (Seafarers, the fog islands) p's road or ship has reached the intersections `vs`: every hidden hex
+// beside them is discovered. What it is comes from the fog's pile, drawn with the game's dice (so no
+// page can know it before), land takes a number from the fog's tokens, and p receives one resource
+// of that land; gold, any one (picked like a gold field's).
+function discover(st, p, vs, ev) {
+  if (!st.fog || !st.fog.pool) return;
+  const found = new Set();
+  for (const v of vs) for (const h of GEO.vertices[v].hexes) if (st.board.hexes[h].terrain === 'fog') found.add(h);
+  if (!found.size) return;
+  const hexes = st.board.hexes.slice();
+  let gold = 0;
+  for (const h of [...found].sort((a, b) => a - b)) {
+    const pool = st.fog.pool;
+    const terrain = pool.length ? pool.splice(rngInt(st, 0, pool.length - 1), 1)[0] : 'sea';
+    const nums = st.fog.numbers;
+    const number = terrain !== 'sea' && nums.length ? nums.splice(rngInt(st, 0, nums.length - 1), 1)[0] : 0;
+    hexes[h] = { terrain, number, name: provinceName(terrain, h) };
+    const e = { type: 'discover', p, hex: h, terrain, number };
+    const res = TERRAIN_RES[terrain];
+    if (res && st.bank[res] > 0) {
+      st.bank[res]--;
+      st.players[p].res[res]++;
+      e.res = res;
+    }
+    if (terrain === 'gold') gold++;
+    ev.push(e);
+  }
+  // a new board (pages and caches notice the change)
+  st.board = { ...st.board, hexes };
+  if (gold) owedGold(st, p, gold);
+}
+
+// resources of p's choice owed for gold found in the fog: picked straight away, or once the road
+// building card in play is done
+function owedGold(st, p, n) {
+  const pd = st.pending;
+  if (pd && pd.type === 'roadBuilding') pd.gold = (pd.gold || 0) + n;
+  else if (pd && pd.type === 'gold') pd.amounts[p] = (pd.amounts[p] || 0) + n;
+  else st.pending = { type: 'gold', amounts: { [p]: n } };
 }
 
 export function cloneState(st) {
@@ -326,8 +369,9 @@ export function longestRoadFor(st, p) {
 // Who must act now? (Several players may need to act at once: discards, trade responses.)
 export function actorsNow(st) {
   if (st.phase === 'over') return [];
-  if (st.phase === 'setup') return [st.setup.order[st.setup.i]];
+  // (a pick owed — even in the opening, for gold found in the fog — comes first)
   if (st.pending && (st.pending.type === 'discard' || st.pending.type === 'gold')) return Object.keys(st.pending.amounts).map(Number);
+  if (st.phase === 'setup') return [st.setup.order[st.setup.i]];
   if (st.trade) {
     const waiting = Object.keys(st.trade.resp)
       .map(Number)
@@ -533,6 +577,7 @@ H.settlement = (st, a, ev) => {
   if (st.phase === 'setup') {
     const su = st.setup;
     need(p === su.order[su.i], '還沒輪到你');
+    need(!st.pending, pendingMsg(st.pending));
     need(su.step === 'settlement', '請先放置道路');
     need(distanceOK(st, v), st.vertices[v] ? '這個路口已有建築' : '距離規則：相鄰的路口不能有建築');
     need(settlementLegal(st, p, v, true), GEO.def.setup && GEO.def.setup.group ? '開局的村莊要放在主島的陸地上' : '開局的村莊要放在陸地上');
@@ -544,6 +589,7 @@ H.settlement = (st, a, ev) => {
       const isle = seaInfo(st.board).vIsland[v];
       pl.home = pl.home || [];
       if (isle >= 0 && !pl.home.includes(isle)) pl.home.push(isle);
+      discover(st, p, [v], ev);
     }
     if (su.i >= st.players.length) {
       const gains = emptyRes();
@@ -593,6 +639,7 @@ H.road = (st, a, ev) => {
   if (st.phase === 'setup') {
     const su = st.setup;
     need(p === su.order[su.i], '還沒輪到你');
+    need(!st.pending, pendingMsg(st.pending));
     need(su.step === 'road', '請先放置村莊');
     need(st.edges[e] === -1 && (!seafarers(st) || st.ships[e] === -1), '這條路已有道路');
     need(GEO.edges[e].v.includes(su.last), '道路必須連接剛放置的村莊');
@@ -600,6 +647,7 @@ H.road = (st, a, ev) => {
     st.edges[e] = p;
     pl.pieces.roads--;
     ev.push({ type: 'build', what: 'road', p, edge: e, setup: true });
+    discover(st, p, GEO.edges[e].v, ev);
     updateLongestRoad(st, ev);
     nextSetupStep(st, ev);
     return;
@@ -618,6 +666,7 @@ H.road = (st, a, ev) => {
   st.edges[e] = p;
   pl.pieces.roads--;
   ev.push({ type: 'build', what: 'road', p, edge: e, free });
+  discover(st, p, GEO.edges[e].v, ev);
   updateLongestRoad(st, ev);
   if (free) freeBuilt(st, p, ev);
 };
@@ -625,10 +674,13 @@ H.road = (st, a, ev) => {
 // one of the road building card's free pieces is down: done when both are, or nothing more fits
 function freeBuilt(st, p, ev) {
   st.pending.left--;
-  if (st.pending.left <= 0 || !canBuildPaths(st, p)) {
-    st.pending = null;
-    ev.push({ type: 'roadBuildingDone', p });
-  }
+  if (st.pending.left <= 0 || !canBuildPaths(st, p)) endFree(st, p, ev);
+}
+// (gold found in the fog meanwhile is picked now)
+function endFree(st, p, ev) {
+  const gold = st.pending && st.pending.gold;
+  st.pending = gold ? { type: 'gold', amounts: { [p]: gold } } : null;
+  ev.push({ type: 'roadBuildingDone', p });
 }
 
 // ── Seafarers: ships ──
@@ -641,6 +693,7 @@ H.ship = (st, a, ev) => {
   if (st.phase === 'setup') {
     const su = st.setup;
     need(p === su.order[su.i], '還沒輪到你');
+    need(!st.pending, pendingMsg(st.pending));
     need(su.step === 'road', '請先放置村莊');
     need(st.edges[e] === -1 && st.ships[e] === -1, '這條航道已有道路或船');
     need(GEO.edges[e].v.includes(su.last), '船必須連接剛放置的村莊');
@@ -648,6 +701,7 @@ H.ship = (st, a, ev) => {
     st.ships[e] = p;
     pl.pieces.ships--;
     ev.push({ type: 'build', what: 'ship', p, edge: e, setup: true });
+    discover(st, p, GEO.edges[e].v, ev);
     updateLongestRoad(st, ev);
     nextSetupStep(st, ev);
     return;
@@ -666,6 +720,7 @@ H.ship = (st, a, ev) => {
   pl.pieces.ships--;
   st.newShips.push(e);
   ev.push({ type: 'build', what: 'ship', p, edge: e, free });
+  discover(st, p, GEO.edges[e].v, ev);
   updateLongestRoad(st, ev);
   if (free) freeBuilt(st, p, ev);
 };
@@ -683,6 +738,7 @@ H.moveShip = (st, a, ev) => {
   st.ships[a.to] = p;
   st.shipMoved = true;
   ev.push({ type: 'moveShip', p, from: a.from, to: a.to });
+  discover(st, p, GEO.edges[a.to].v, ev);
   updateLongestRoad(st, ev);
 };
 
@@ -710,8 +766,7 @@ H.gold = (st, a, ev) => {
 
 H.endRoadBuilding = (st, a, ev) => {
   need(st.pending && st.pending.type === 'roadBuilding' && a.p === st.current, '沒有進行中的道路建設');
-  st.pending = null;
-  ev.push({ type: 'roadBuildingDone', p: a.p });
+  endFree(st, a.p, ev);
 };
 
 H.city = (st, a, ev) => {
@@ -803,6 +858,7 @@ H.robber = (st, a, ev) => {
   if (seafarers(st) && !seaInfo(st.board).land[hex]) {
     // Seafarers: the pirate instead of the robber, onto another sea hex
     need(hex !== st.board.pirate, '海盜必須移動到另一片海域');
+    need(st.board.hexes[hex].terrain !== 'fog', '海盜不能開進還沒探索的霧裡');
     const from = st.board.pirate;
     st.board.pirate = hex;
     ev.push({ type: 'pirate', p, from, to: hex, reason: st.pending.reason });

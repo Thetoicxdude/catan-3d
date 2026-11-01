@@ -93,27 +93,6 @@ function btn(label, cls, fn) {
   return b;
 }
 
-function sanitizeAction(a, seat) {
-  if (!a || typeof a !== 'object' || !ACTION_TYPES.includes(a.type)) return null;
-  const out = { type: a.type, p: seat };
-  for (const k of ['vertex', 'edge', 'hex', 'target', 'with']) if (Number.isInteger(a[k])) out[k] = a[k];
-  if (typeof a.card === 'string') out.card = a.card;
-  if (typeof a.accept === 'boolean') out.accept = a.accept;
-  if (typeof a.res === 'string') out.res = a.res;
-  if (Array.isArray(a.res)) out.res = a.res.filter((x) => typeof x === 'string').slice(0, 2);
-  for (const k of ['give', 'get', 'cards']) {
-    if (a[k] && typeof a[k] === 'object') {
-      const m = {};
-      for (const r of ['wood', 'brick', 'wool', 'grain', 'ore']) if (Number.isInteger(a[k][r]) && a[k][r] > 0 && a[k][r] < 20) m[r] = a[k][r];
-      out[k] = m;
-    }
-  }
-  if (a.type === 'bankTrade') {
-    if (typeof a.give === 'string') out.give = a.give;
-    if (typeof a.get === 'string') out.get = a.get;
-  }
-  return out;
-}
 
 // the room's terms in one line: island, seats, turn rule, victory points
 function roomTerms(mp, ru, n, tv) {
@@ -438,7 +417,7 @@ export class HostSession {
       if (!Number.isInteger(n) || n <= (s.lastN || 0)) continue;
       s.lastN = n;
       acted = true;
-      const action = sanitizeAction(a, i);
+      const action = C.sanitizeAction(a, i, ACTION_TYPES);
       const msg = action ? this.game.dispatchFrom(action) : '無效的動作';
       if (msg) this.err = [p.peer, n, String(msg).slice(0, 120)];
     }

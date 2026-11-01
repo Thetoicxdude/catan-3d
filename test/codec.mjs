@@ -1,6 +1,6 @@
 // Round-trip test: encoded online snapshots decode into the same view the engine would give that seat.
 import assert from 'node:assert/strict';
-import { createGame, applyAction, makeView, actorsNow, redactEvent } from '../src/engine/engine.js';
+import { createGame, applyAction, makeView, actorsNow, redactEvent, ACTION_TYPES } from '../src/engine/engine.js';
 import { aiAct } from '../src/ai/ai.js';
 import { makeRng } from '../src/engine/rng.js';
 import * as C from '../src/net/codec.js';
@@ -14,12 +14,12 @@ let bigMax = 0;
 const NAMES = ['曙光王國', '蒼藍聯邦', '琥珀公國', '白楊共和國', '紫晶公國', '翡翠王朝'];
 let seaMax = 0;
 // 40 standard games, 5–6 player games on the large island (paired turns, then the special building
-// phase), then Seafarers games (scenario 1, then scenario 2)
-for (let g = 0; g < 72; g++) {
+// phase), then Seafarers games (scenario 1, 2 and 3)
+for (let g = 0; g < 80; g++) {
   const big = g >= 40 && g < 52;
   const sea = g >= 52;
   const players = Array.from({ length: big ? 5 + (g % 2) : g % 3 ? 4 : 3 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' } }));
-  const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4], map: big ? 'base-6' : sea ? (g >= 64 ? 'sea-2' : 'sea-1') : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
+  const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4], map: big ? 'base-6' : sea ? (g >= 72 ? 'sea-3' : g >= 64 ? 'sea-2' : 'sea-1') : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
   const rnd = makeRng(g);
   const mem = players.map(() => ({}));
   let guard = 0;
@@ -29,6 +29,9 @@ for (let g = 0; g < 72; g++) {
     for (const p of actors) {
       const a = aiAct(makeView(st, p), p, mem[p], rnd);
       if (!a) continue;
+      // the move as the host receives it from a player's page: nothing the rules read is lost
+      const sent = JSON.parse(JSON.stringify(a));
+      assert.deepEqual(C.sanitizeAction(sent, p, ACTION_TYPES), sent, `${a.type} loses something on the way to the host`);
       ev = applyAction(st, a);
       break;
     }
@@ -58,7 +61,10 @@ for (let g = 0; g < 72; g++) {
         assert.equal(got.board.pirate, want.board.pirate);
         assert.deepEqual(got.newShips, want.newShips);
         assert.equal(got.shipMoved, want.shipMoved);
-        got.players.forEach((pl, i) => assert.equal(pl.chits, want.players[i].chits));
+        got.players.forEach((pl, i) => {
+          assert.equal(pl.chits, want.players[i].chits);
+          assert.deepEqual(pl.home, want.players[i].home);
+        });
       }
       assert.deepEqual(got.rules, want.rules);
       assert.equal(got.map, want.map);

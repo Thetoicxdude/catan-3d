@@ -1,4 +1,5 @@
-# A Seafarers room online (scenario 1, Heading for New Shores; MAP=sea-2: The Four Islands): the host
+# A Seafarers room online (scenario 1, Heading for New Shores; MAP=sea-2: The Four Islands; MAP=sea-3: The
+# Fog Islands, where what is found in the fog must reach every page): the host
 # picks the scenario in the lobby,
 # two players join and see the room's terms (14 points), the computer takes the last seat, and the
 # campaign is played to its end. Checks that every page lays out the same board from the map and seed,
@@ -12,7 +13,7 @@ from playwright.async_api import async_playwright
 SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
 os.makedirs(SP, exist_ok=True)
 MAP = os.environ.get('MAP', 'sea-1')
-LABEL, HEXES, VP = {'sea-1': ('駛向新海岸', 42, 14), 'sea-2': ('四座島嶼', 35, 13)}[MAP]
+LABEL, HEXES, VP = {'sea-1': ('駛向新海岸', 42, 14), 'sea-2': ('四座島嶼', 35, 13), 'sea-3': ('霧島', 42, 12)}[MAP]
 PRE = 'o6' if MAP == 'sea-1' else 'o6-' + MAP
 INIT = """window.__mapFps = 0.12; window.__mockRoom = true; window.__perf = PERF; window.__keySlot = NAME; window.__noAssets = true;
 localStorage.setItem('catan3d-settings-v1', JSON.stringify({speed:'turbo', follow:false, quality:'low', qualityPicked:true, name: NAME, color: COLOR, opponents: 3}));"""
@@ -34,7 +35,7 @@ CLIENT_STEP = """(async () => {
 BOARD = """(async () => { const C = await import('/src/net/codec.js');
   const s = __game.state; return { map: s.map, hexes: s.board.hexes.length, hash: C.boardHash(s.board), rules: s.rules || null, target: s.targetVP }; })()"""
 # what the sea looks like on a page: ships (owner per path), the pirate, island chits, each player's ships in stock
-SEA = """(() => { const v = __game.view(); return { seq: v.seq, ships: v.ships, pirate: v.board.pirate, chits: v.players.map((p) => p.chits), stock: v.players.map((p) => p.pieces.ships), isles: v.players.map((p) => (p.isles || []).length), home: v.players.map((p) => (p.home || []).join('.')), longest: v.longestRoad || null }; })()"""
+SEA = """(() => { const v = __game.view(); return { seq: v.seq, ships: v.ships, pirate: v.board.pirate, chits: v.players.map((p) => p.chits), stock: v.players.map((p) => p.pieces.ships), isles: v.players.map((p) => (p.isles || []).length), home: v.players.map((p) => (p.home || []).join('.')), land: v.board.hexes.map((h) => h.terrain.slice(0, 2) + h.number).join(','), longest: v.longestRoad || null }; })()"""
 results = {}
 def check(name, ok, info=''):
     results[name] = bool(ok)
@@ -98,6 +99,17 @@ async def main():
         cbs = [await c.evaluate(BOARD) for c in clients]
         check('the host plays the scenario', hb['map'] == MAP and hb['hexes'] == HEXES and (hb['rules'] or {}).get('seafarers') and hb['target'] == VP, json.dumps(hb))
         check('every player lays out the same board', all(cb['map'] == MAP and cb['hash'] == hb['hash'] and (cb['rules'] or {}).get('seafarers') for cb in cbs), json.dumps(cbs))
+        # a gold pick sent from a player's page is taken by the host as it is (not left for the clock)
+        seat = await clients[0].evaluate('__game.viewer')
+        await host.evaluate('(s) => { const g = __game; g.state.pending = { type: "gold", amounts: { [s]: 1 } }; g.net.onChange(g.state, []); g.refresh(); }', seat)
+        took = False
+        for i in range(80):
+            await clients[0].evaluate(CLIENT_STEP)
+            if await host.evaluate('__game.state.pending === null'):
+                took = True
+                break
+            await clients[0].wait_for_timeout(250)
+        check('a gold pick from a player\'s page is taken', took, f'after {i + 1} tries')
         # a shorter campaign for the test (the clients learn the target from the host)
         await host.evaluate('__game.state.targetVP = 10; window.__autoHuman = true; __game.schedule()')
         t0 = time.time(); steps = {}; checks = 0; mism = 0; seas = 0; sea_bad = 0; most = 0
@@ -120,7 +132,7 @@ async def main():
                     if cs['seq'] == hs['seq']:
                         seas += 1
                         most = max(most, sum(1 for x in hs['ships'] if x >= 0))
-                        for k in ('ships', 'pirate', 'chits', 'stock', 'isles', 'home'):
+                        for k in ('ships', 'pirate', 'chits', 'stock', 'isles', 'home', 'land'):
                             if cs[k] != hs[k]: sea_bad += 1; print('SEA MISMATCH', k, cs[k], hs[k]); break
             if steps.get('wait', 0) % 400 == 1:
                 await clients[0].screenshot(path=f'{SP}/{PRE}-client-play.png', timeout=120000)
@@ -133,6 +145,9 @@ async def main():
         check('the sea reaches the players as the host has it', seas > 0 and sea_bad == 0 and most > 0, f'{seas} checks, up to {most} ships')
         check('ships at sea on every page at the end', hs['ships'] > 0 and all(c['ships'] == hs['ships'] for c in cs), f"{hs['ships']} ships")
         check('the host presence stays under 4 KiB', 0 < hs['pres'] <= 3900, f"{hs['pres']} bytes")
+        # every move a player's page sends is taken the first time (a gold pick or a ship's move the host
+        # could not read would be sent again and again until the turn clock ran out)
+        check('players\' moves are taken at once', steps.get('gold', 0) <= 12 and steps.get('moveShip', 0) <= 12, f"gold {steps.get('gold', 0)}, moveShip {steps.get('moveShip', 0)}")
         await clients[0].screenshot(path=f'{SP}/{PRE}-client-end.png', timeout=120000)
         errs = [l for l in logs if 'pageerror' in l or ' error]' in l]
         check('no page errors', not errs, '\n'.join(errs[:6]))

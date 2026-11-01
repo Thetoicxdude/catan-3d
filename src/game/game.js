@@ -161,9 +161,8 @@ export class Game {
   start({ switched = false, clockLeft = null } = {}) {
     this.map.sync(this.view(), [], false);
     if (!switched) {
-      this.map.camera.resetView();
-      // the whole land in view, clear of the panels (a player with buildings is then taken to the first
-      // of them: focusHome, below)
+      // the whole land in view, clear of the panels, north up (a wide map on an upright phone turned a
+      // quarter); a player with buildings is then taken to the first of them: focusHome, below
       this.map.frameLand(this.hud.freeRect(), this.map.camera.fitIsland(1.12));
       this.hud.log(`戰役開始：${this.players.map((p, i) => `<span class="who" style="color:${p.color}">${i === this.viewer ? '你' : esc(p.name)}</span>`).join('、')}`, { hl: true });
       if (this.state.phase === 'setup') this.hud.log('開局：依序放置村莊與道路（第二輪順序相反）。', {});
@@ -824,6 +823,14 @@ export class Game {
         );
       }
       banner = { html: `${P(v.winner)} 贏得了卡坦島！`, buttons: [{ label: '戰役結果', onClick: () => this.dialogs.gameOver(this.ctx(), () => this.onExit && this.onExit(true), () => this.dialogs.close()) }] };
+    } else if (v.pending && v.pending.type === 'gold') {
+      // (Seafarers) a gold field paid out, or gold was found in the fog (even in the opening): the
+      // owners pick their resources
+      if (v.pending.amounts[me] !== undefined) {
+        wantDialog.kind = 'gold';
+        banner = { html: `金礦：選擇 <b>${v.pending.amounts[me]}</b> 張任意資源`, urgent: true };
+        hint = { text: `選擇 ${v.pending.amounts[me]} 張資源` };
+      } else banner = { html: '等待其他國家選擇金礦資源…', wait: true };
     } else if (v.phase === 'setup') {
       const p = v.setup.order[v.setup.i];
       const round = v.setup.i < v.players.length ? 1 : 2;
@@ -831,7 +838,7 @@ export class Game {
         if (v.setup.step === 'settlement') {
           inter = { kind: 'vertex', ids: legalSettlementSpots(v, me, true), ghost: 'settlement', player: me, onPick: (id) => this.dispatch({ type: 'settlement', p: me, vertex: id }) };
           // (Seafarers without a fixed home island: any island; the islands chosen become the home islands)
-          const anyIsle = v.ships && !(GEO.def.setup && GEO.def.setup.group);
+          const anyIsle = v.ships && GEO.def.isleBonus && !(GEO.def.setup && GEO.def.setup.group);
           banner = { html: `開局第 ${round} 輪：選擇<b>村莊</b>的位置${round === 2 ? '（此村莊旁的地形會給你開局資源）' : anyIsle ? '（任何一座島都可以，開局所在的島就是你的本島）' : ''}` };
           hint = { text: '點選白色圓圈放置村莊' };
         } else if (v.ships) {
@@ -853,13 +860,6 @@ export class Game {
           hint = { text: '點選白色條紋放置道路' };
         }
       } else banner = { html: `${P(p)} 正在選擇開局位置…`, wait: true };
-    } else if (v.pending && v.pending.type === 'gold') {
-      // (Seafarers) a gold field paid out: its owners pick their resources
-      if (v.pending.amounts[me] !== undefined) {
-        wantDialog.kind = 'gold';
-        banner = { html: `金礦產出：選擇 <b>${v.pending.amounts[me]}</b> 張任意資源`, urgent: true };
-        hint = { text: `選擇 ${v.pending.amounts[me]} 張資源` };
-      } else banner = { html: '等待其他國家選擇金礦資源…', wait: true };
     } else if (v.pending && v.pending.type === 'discard') {
       if (v.pending.amounts[me] !== undefined) {
         wantDialog.kind = 'discard';
@@ -870,7 +870,7 @@ export class Game {
       if (v.current === me) {
         // (Seafarers: a sea hex moves the pirate instead)
         const land = v.ships ? seaInfo(v.board).land : null;
-        const ids = GEO.hexes.map((h) => h.id).filter((h) => (land && !land[h] ? h !== v.board.pirate : h !== v.board.robber));
+        const ids = GEO.hexes.map((h) => h.id).filter((h) => v.board.hexes[h].terrain !== 'fog' && (land && !land[h] ? h !== v.board.pirate : h !== v.board.robber));
         inter = { kind: 'hex', ids, player: me, onPick: (id) => this.dispatch({ type: 'robber', p: me, hex: id }) };
         const why = v.pending.reason === 'knight' ? '騎士出征' : '擲出 7，強盜出沒';
         banner = { html: land ? `${why}：點選<b>有白色圓圈的地形</b>安置強盜，或點選<b>海域</b>移動海盜（搶奪旁邊有船的國家）` : `${why}：點選一塊<b>有白色圓圈的地形</b>安置強盜，並搶奪旁邊國家的一張牌`, urgent: true };

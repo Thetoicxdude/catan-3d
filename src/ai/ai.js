@@ -257,6 +257,14 @@ function seaSpots(view, p, maxDepth = 6) {
   }
   const out = [];
   const home = homeIslands(view, p);
+  // (the fog islands) intersections beside hidden hexes, where a ship discovers them
+  out.fog = [];
+  const hidden = view.board.hexes.map((h) => h.terrain === 'fog');
+  for (const [v, d] of dist) {
+    if (d === 0) continue;
+    const n = GEO.vertices[v].hexes.filter((h) => hidden[h]).length;
+    if (n) out.fog.push({ v, d, edge: first.get(v), n });
+  }
   for (const [v, d] of dist) {
     if (d === 0 || !sea.vLand[v] || !distanceOK(view, v)) continue;
     const isle = sea.vIsland[v];
@@ -340,10 +348,17 @@ function buildPlans(view, p, lvl) {
     const legal = new Set(legalShips(view, p));
     const bonus = GEO.def.isleBonus || 0;
     const byEdge = new Map();
-    for (const s of seaSpots(view, p)) {
+    const spots = seaSpots(view, p);
+    for (const s of spots) {
       if (s.edge === undefined || !legal.has(s.edge)) continue;
       const val = (1.3 + vertexScore(view, s.v, p, weights) * 0.085 + (s.newIsle ? 0.45 * bonus : 0)) * Math.pow(0.62, s.d) * 1.15;
       if (!byEdge.has(s.edge) || byEdge.get(s.edge) < val) byEdge.set(s.edge, val);
+    }
+    // (the fog islands) sail into the fog: a resource now, and land to settle later
+    for (const f of spots.fog) {
+      if (f.edge === undefined || !legal.has(f.edge)) continue;
+      const val = (1.35 + 0.35 * f.n) * Math.pow(0.82, f.d - 1) * (stage === 'late' ? 0.85 : 1);
+      if (!byEdge.has(f.edge) || byEdge.get(f.edge) < val) byEdge.set(f.edge, val);
     }
     for (const [e, val] of byEdge) plans.push({ kind: 'ship', edge: e, cost: COSTS.ship, value: val + noise(6000 + e) * 0.5 });
   }
@@ -592,7 +607,7 @@ function chooseRobberHex(view, p, lvl, rnd) {
     const stuck = cur != null && cur >= 0 ? GEO.hexes[cur].edges.filter((e) => view.ships[e] === p).length : 0;
     const stay = robberStays(view, p, lvl) + stuck * 1.5;
     for (const h of GEO.hexes) {
-      if (sea.land[h.id]) continue;
+      if (sea.land[h.id] || view.board.hexes[h.id].terrain === 'fog') continue;
       const s = pirateScore(view, p, h.id, lvl);
       if (s > -Infinity) scored.push({ h: h.id, s: s + stay + (rnd() - 0.5) * lvl.noise * 3 });
     }
@@ -765,19 +780,20 @@ export function aiAct(view, p, mem = {}, rnd = Math.random) {
   const lvl = LEVELS[(view.players[p].ai && view.players[p].ai.level) || 'normal'] || LEVELS.normal;
   if (view.phase === 'over') return null;
 
-  if (view.phase === 'setup') {
-    if (view.setup.order[view.setup.i] !== p) return null;
-    return view.setup.step === 'settlement' ? setupSettlement(view, p, lvl, rnd) : setupRoad(view, p, lvl, rnd);
-  }
-
   const pd = view.pending;
-  if (pd && pd.type === 'discard') {
-    if (pd.amounts[p] === undefined) return null;
-    return { type: 'discard', p, cards: chooseDiscard(view, p, pd.amounts[p]) };
-  }
+  // (gold found in the fog may be owed even in the opening)
   if (pd && pd.type === 'gold') {
     if (pd.amounts[p] === undefined) return null;
     return { type: 'gold', p, res: chooseGold(view, p, pd.amounts[p], lvl) };
+  }
+  if (view.phase === 'setup') {
+    if (pd || view.setup.order[view.setup.i] !== p) return null;
+    return view.setup.step === 'settlement' ? setupSettlement(view, p, lvl, rnd) : setupRoad(view, p, lvl, rnd);
+  }
+
+  if (pd && pd.type === 'discard') {
+    if (pd.amounts[p] === undefined) return null;
+    return { type: 'discard', p, cards: chooseDiscard(view, p, pd.amounts[p]) };
   }
   if (view.trade && view.trade.from !== p) {
     if (view.trade.resp[p] === null) {

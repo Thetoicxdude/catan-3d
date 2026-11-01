@@ -673,6 +673,7 @@ export class MapView {
   // the labels and the pieces are built again on the board as it is now; the camera, the map mode and
   // the interaction stay
   rebuildBoard(state) {
+    const t0 = performance.now();
     const scene = this.scene;
     const seed = state.mapSeed != null ? state.mapSeed : state.seed;
     this.boardRef = state.board;
@@ -723,6 +724,8 @@ export class MapView {
     this.pieces.sync(state, false);
     this.setInteraction(this.interaction);
     this.shadowDirty = 3;
+    this.rebuilds = (this.rebuilds || 0) + 1;
+    this.rebuildMs = Math.round(performance.now() - t0);
   }
 
   // ── state sync ──
@@ -844,6 +847,13 @@ export class MapView {
   // the land would be under the panels (`free`: the part of the screen they leave open)
   frameLand(free, h) {
     const c = GEO.center;
+    // a map much wider than tall on an upright phone is turned a quarter, so it fills the screen (the
+    // view then starts close and draws back until the land fits)
+    const L = GEO.land;
+    const turn = (this.camera.cam.aspect || 1.6) < 0.85 && L.maxX - L.minX > 1.3 * (L.maxZ - L.minZ);
+    this.camera.homeYaw = turn ? Math.PI / 2 : 0;
+    this.camera.resetView();
+    if (turn && free) h = Math.min(h, 60);
     const f = free ? this.camera.frameBox(GEO.vertices.filter((v) => v.land > 0), free, c.x, c.z + 5, h) : null;
     if (f) this.focus(f.x, f.z, f.h);
     else this.focus(c.x, c.z + 5, h);

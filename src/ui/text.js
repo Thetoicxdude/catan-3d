@@ -97,6 +97,13 @@ export function describe(e, players, me, view) {
       return { log: `${W(e.p)} 移動了一艘船`, hl: e.p === me };
     case 'gold':
       return { log: `${W(e.p)} 從金礦選了 ${cardsHtml(e.res, 14)}`, hl: e.p === me };
+    case 'discover': {
+      // (Seafarers, the fog islands)
+      const what = e.terrain === 'sea' ? '一片海' : `${TERRAIN_NAMES[e.terrain] || e.terrain}${e.number ? `（數字 ${e.number}）` : ''}`;
+      const got = e.res ? `，獲得 ${cardsHtml({ [e.res]: 1 }, 14)}` : e.terrain === 'gold' ? '，可任選 1 張資源' : '';
+      const mine = e.terrain === 'sea' ? '霧裡是一片海，再往前探索看看' : `發現了${TERRAIN_NAMES[e.terrain] || ''}${e.res ? `，獲得 1 張${RES_NAMES[e.res]}` : e.terrain === 'gold' ? '，可以任選 1 張資源' : ''}`;
+      return { log: `${W(e.p)} 在霧中發現了${what}${got}`, hl: true, toast: e.p === me ? { title: '霧散了', text: mine, icon: 'isle' } : null };
+    }
     case 'isleBonus':
       return {
         log: `${W(e.p)} 首次登上新島嶼，獲得 ${e.vp} 分`,
@@ -254,6 +261,13 @@ export function rulesHtml() {
 <li>開局的兩個村莊可以放在<b>任何島上</b>（同一座或兩座）：開局所在的島是你的<b>本島</b>，其他的島對你來說是外島。</li>
 <li><b>外島加分</b>：你在每座外島上的第一個村莊額外 <b>+2 分</b>（別人先登島也照樣算）。只有一座本島的話，最多可以拿 6 分。</li>
 <li>船、移船、海盜與最長貿易路線的規則和「駛向新海岸」相同。</li>
+</ul>
+<h4>航海家：霧島</h4>
+<ul>
+<li>目標 <b>12 分</b>。西邊有上下兩座島，開局的村莊放在這兩座島上；東邊的 12 格籠罩在霧裡。強盜一開始在數字 12 的地形上。</li>
+<li><b>探索</b>：你的道路或船抵達霧旁邊的路口時，霧就散開，可能是陸地、金礦或海。陸地會放上新的數字牌，並給你 1 張那種資源；金礦讓你任選 1 張；海則什麼都沒有。</li>
+<li>霧裡是什麼，要到揭開的那一刻才抽出來，誰都無法事先知道。海盜不能開進還沒探索的霧裡。</li>
+<li>沒有外島加分；其他規則和前兩個劇本相同。</li>
 </ul>
 <h4>操作</h4>
 <ul>

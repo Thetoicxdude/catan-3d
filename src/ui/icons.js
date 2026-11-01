@@ -6,7 +6,7 @@ export const RES_NAMES = { wood: '木材', brick: '磚塊', wool: '羊毛', grai
 // the names printed on the cards themselves (the game's original English card names)
 export const RES_EN = { wood: 'Lumber', brick: 'Brick', wool: 'Wool', grain: 'Grain', ore: 'Ore' };
 export const DEV_EN = { knight: 'Knight', roadBuilding: 'Road Building', yearOfPlenty: 'Year of Plenty', monopoly: 'Monopoly', victoryPoint: 'Victory Point' };
-export const TERRAIN_NAMES = { forest: '森林', hills: '丘陵', pasture: '牧場', fields: '農田', mountains: '山脈', desert: '沙漠' };
+export const TERRAIN_NAMES = { forest: '森林', hills: '丘陵', pasture: '牧場', fields: '農田', mountains: '山脈', desert: '沙漠', gold: '金礦', sea: '海域', fog: '未探索' };
 
 // A miniature of the resource card (its art ringed in the card's frame colour), sized by height.
 export function resIcon(res, size = 20) {

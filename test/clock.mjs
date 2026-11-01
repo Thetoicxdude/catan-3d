@@ -12,12 +12,12 @@ let games = 0;
 const kinds = {};
 // 40 standard games, 5–6 player games on the large island (paired turns, then the special building
 // phase), then Seafarers games
-for (let g = 0; g < 66; g++) {
+for (let g = 0; g < 72; g++) {
   const big = g >= 40 && g < 52;
   const sea = g >= 52;
   const n = big ? 5 + (g % 2) : 4;
   const players = Array.from({ length: n }, (_, i) => ({ name: 'p' + i, color: '#000', kind: 'ai', ai: { level: 'normal' } }));
-  const st = createGame({ seed: 1000 + g, players, targetVP: 10, map: big ? 'base-6' : sea ? (g >= 60 ? 'sea-2' : 'sea-1') : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
+  const st = createGame({ seed: 1000 + g, players, targetVP: 10, map: big ? 'base-6' : sea ? (g >= 66 ? 'sea-3' : g >= 60 ? 'sea-2' : 'sea-1') : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
   const mem = players.map(() => ({}));
   const rnd = makeRng(77 + g);
   let steps = 0;

@@ -15,7 +15,7 @@ const cache = new WeakMap();
 
 // What the board says about land and sea (a tile drawn from a pool that holds sea can come out as
 // sea, so this follows the board, not just the map), worked out once per board:
-//   land[h]      1 for a land hex
+//   land[h]      1 for a land hex (not for fog)
 //   island[h]    the island (connected land) a land hex belongs to, -1 for sea
 //   vIsland[v]   the island an intersection is on (-1: open sea)
 //   vLand[v]     land hexes at an intersection; coast[v]: 1 or 2 of them (the shore)
@@ -25,7 +25,8 @@ export function seaInfo(board, geo = GEO) {
   let info = cache.get(board.hexes);
   if (info && info.geo === geo) return info;
   const tiles = geo.def.tiles;
-  const land = board.hexes.map((h) => (h.terrain === 'sea' ? 0 : 1));
+  // (an unexplored hex of the fog islands counts as neither land nor sea until it is discovered)
+  const land = board.hexes.map((h) => (h.terrain === 'sea' || h.terrain === 'fog' ? 0 : 1));
   const island = new Array(geo.hexes.length).fill(-1);
   let n = 0;
   for (const h of geo.hexes) {

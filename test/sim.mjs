@@ -127,6 +127,7 @@ for (let g = 0; g < GAMES; g++) {
           if (e.type === 'gold') stats.gold = (stats.gold || 0) + 1;
           if (e.type === 'isleBonus') stats.isles = (stats.isles || 0) + 1;
           if (e.type === 'pirate') stats.pirate = (stats.pirate || 0) + 1;
+          if (e.type === 'discover') stats.discover = (stats.discover || 0) + 1;
         }
       } catch (err) {
         if (!(err instanceof RuleError)) throw err;
@@ -177,6 +178,7 @@ console.log(
       goldChoices: stats.gold || 0,
       isleBonuses: stats.isles || 0,
       pirateMoves: stats.pirate || 0,
+      discoveries: stats.discover || 0,
       avgRounds: MAP === 'base-4' ? +(avg / 3.8).toFixed(1) : undefined,
       avgTurns: +avg.toFixed(1),
       medianTurns: stats.turns[Math.floor(stats.turns.length / 2)],

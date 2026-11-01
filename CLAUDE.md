@@ -5,9 +5,9 @@
 ## 指令
 - `npm run build`：打包。輸出 `site/`（部署用：頁面＋`assets/`）與 `dist/`（claude.ai artifact 版頁面與 `dist/index.test.html` 測試頁）。
 - `npm run dev`：打包後用 wrangler 在 http://127.0.0.1:8787 跑整個網站與房間伺服器。
-- `npm test`：規則單元測試、標準地圖回歸（`test/golden.mjs`）、網路序列化、時間限制、帳號、模擬（標準 300 局、大島嶼配對回合 120 局與特別建造 40 局、航海家劇本 1 與 2 各 60 局；`node test/sim.mjs N --map=base-6 --turns=sbp`、`--map=sea-1`、`--map=sea-2` 可單獨跑）。
+- `npm test`：規則單元測試、標準地圖回歸（`test/golden.mjs`）、網路序列化、時間限制、帳號、模擬（標準 300 局、大島嶼配對回合 120 局與特別建造 40 局、航海家劇本 1 與 2 各 60 局、劇本 3 共 40 局；`node test/sim.mjs N --map=base-6 --turns=sbp`、`--map=sea-1`…`--map=sea-3` 可單獨跑）。
 - `node test/rooms.mjs`：房間伺服器協定（需先 `npm run dev`）。
-- 瀏覽器測試（Playwright，SwiftShader 很慢）：`python3 test/ui1.py`…`ui4.py`、`ui5.py`（大島嶼 6 人單機，`TURNS=sbp` 測特別建造）、`online.py`、`online2.py`（斷線重連、主持人重新整理時交接）、`online3.py`（觀戰）、`online4.py`（主持人交接與接手、回合時間、聊天、退出由電腦代替）、`online5.py`（6 席大島嶼房間）、`ui6.py`（航海家單機：開局放船、造船、移船、金礦、重新整理後繼續；`MAP=sea-2` 跑四座島嶼）、`online6.py`（航海家線上房間）、`match.py`（快速配對）。加 `ROOMS=ws` 會改走真正的房間伺服器（需先 `npm run dev`）。截圖存到 `SHOTS` 指定的資料夾。
+- 瀏覽器測試（Playwright，SwiftShader 很慢）：`python3 test/ui1.py`…`ui4.py`、`ui5.py`（大島嶼 6 人單機，`TURNS=sbp` 測特別建造）、`online.py`、`online2.py`（斷線重連、主持人重新整理時交接）、`online3.py`（觀戰）、`online4.py`（主持人交接與接手、回合時間、聊天、退出由電腦代替）、`online5.py`（6 席大島嶼房間）、`ui6.py`（航海家單機：開局放船、造船、移船、金礦、重新整理後繼續；`MAP=sea-2` 跑四座島嶼、`MAP=sea-3` 跑霧島）、`online6.py`（航海家線上房間）、`match.py`（快速配對）。加 `ROOMS=ws` 會改走真正的房間伺服器（需先 `npm run dev`）。截圖存到 `SHOTS` 指定的資料夾。
 - 帳號：`node test/accounts.mjs`（token 驗證）；完整流程見 `docs/catan-3d-status.md` 的「帳號與戰績」。
 
 ## 部署
@@ -20,7 +20,7 @@
 - 地圖由地圖定義決定（`src/engine/maps.js`：格子、地形池、數字、港口、人數、銀行、發展卡、回合規則）。幾何從定義算出，`GEO` 是可切換的共用值（`useMap`；對局狀態的 `map` 欄位，`ensureMap(st)` 換回）。只能同時有一張地圖在用，畫別張地圖要用 `withMap`。
 - 標準地圖（`base-4`）用原本的產生器（`legacy`），不要改它的抽牌順序：`node test/golden.mjs` 會比對 24 局的盤面、幾何與對局過程。新地圖用另一個產生器（同地形不相鄰、修正數字）。
 - 5–6 人（`base-6`）：`st.rules.turns` 是 `paired`（配對回合，預設）或 `sbp`（特別建造階段）；回合後段在 `st.sub = { k, lead, rest }`，`st.current` 是正在行動的玩家。
-- 航海家（地圖定義 `rules.seafarers`，規則在 `src/engine/seafarers.js`）：船在 `st.ships`（每條路徑一格，`-1` 是空的），海盜在 `board.pirate`。地形池可以含 `sea`，所以哪裡是陸地要看盤面（`seaInfo(board)`，依盤面快取），不是只看地圖定義。格子的 `g` 是分組，各組有自己的地形池與數字（`groups`）。開局：有 `setup.group` 時只能在那組的島上，沒有時任何島都可以；玩家開局所在的島記在 `players[].home`（本島，`homeIslands(st, p)`），在其他島第一次蓋村莊得 `isleBonus` 分。
+- 航海家（地圖定義 `rules.seafarers`，規則在 `src/engine/seafarers.js`）：船在 `st.ships`（每條路徑一格，`-1` 是空的），海盜在 `board.pirate`。地形池可以含 `sea`，所以哪裡是陸地要看盤面（`seaInfo(board)`，依盤面快取），不是只看地圖定義。格子的 `g` 是分組，各組有自己的地形池與數字（`groups`）。開局：有 `setup.group` 時只能在那組的島上，沒有時任何島都可以；玩家開局所在的島記在 `players[].home`（本島，`homeIslands(st, p)`），在其他島第一次蓋村莊得 `isleBonus` 分。霧島（地圖定義 `fog`）：格子 `t: 'fog'` 在盤面上是 `fog`，`st.fog` 是霧裡剩下的地形與數字（只在主持人那裡）；道路、船抵達霧旁的路口時由引擎 `discover` 用遊戲亂數抽出並換一個新的 `st.board`，畫面偵測到後在原地重建（`MapView.rebuildBoard`），雲霧在 `src/render/fog.js`。
 - 線上對戰只用 presence：主持人的瀏覽器跑規則並把公開狀態放進自己的 presence，玩家把動作放進自己的 presence，手牌用 ECDH + AES-GCM 加密。每個 presence 上限 4 KiB（`codec.js` 負責壓縮）。標準地圖的盤面完整傳送；其他地圖只傳地圖代號、seed、數字排法與盤面雜湊，各頁面自己產生盤面（產生器必須是決定性的，改了它就是新版本，雜湊不同時會提示重新整理）。
 - 主持人會換人（`src/net/online.js`）：開戰後交給效能最好的玩家（`src/net/perf.js`）；主持人每次更新把整局狀態加密給接班人（`bk`），離開或失聯時由接班人接手（`ep` 代數高者為準，舊主持人自動改當玩家）。線上房間有回合時間限制（`src/game/clock.js`）；聊天在 `src/net/chat.js`。
 - 帳號（只在自架版）：`server/accounts.js`（Google ID token 驗證、SQLite Durable Object `Accounts`）、`src/net/account.js`、`src/ui/account-ui.js`；用戶端 ID 在 `server/config.js`。不保存 email。

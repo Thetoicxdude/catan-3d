@@ -93,8 +93,15 @@ function spiralNumbers(def, terrains, fixed, startCorner) {
   return numbers;
 }
 
-// terrains that take a number token
-const dealt = (terrain) => !!terrain && terrain !== 'desert' && terrain !== 'sea';
+// terrains that take a number token (fog: not yet, see the engine's discovery)
+const dealt = (terrain) => !!terrain && terrain !== 'desert' && terrain !== 'sea' && terrain !== 'fog';
+
+// the name of a province found later in the game (the fog islands): the same on every page
+export function provinceName(terrain, k) {
+  if (!NAMES[terrain]) return '';
+  const [pre, suf] = NAMES[terrain];
+  return pre[(k * 7 + 3) % pre.length] + suf[k % suf.length];
+}
 
 // ── generation for maps other than the standard island ──
 // (the standard island keeps its original generator — `legacy` — so every seed still lays out the
@@ -277,7 +284,7 @@ export function generateBoard(holder, opts = {}) {
 // Harbors on a map of several islands: each island gets a share of them by the length of its coast
 // (largest remainders first), spaced evenly round it from a random start.
 function islandHarbors(holder, types, terrains) {
-  const land = (id) => terrains[id] !== 'sea';
+  const land = (id) => terrains[id] !== 'sea' && terrains[id] !== 'fog';
   const island = new Array(GEO.hexes.length).fill(-1);
   let n = 0;
   for (const h of GEO.hexes) {
@@ -307,7 +314,8 @@ function islandHarbors(holder, types, terrains) {
       k++;
     }
     const c = axialToWorld(sq / k, sr / k);
-    const edges = GEO.edges.filter((e) => e.hexes.filter((id) => island[id] === i).length === 1 && e.hexes.every((id) => island[id] === i || !land(id)));
+    // (never facing fog: what is there may turn out to be land)
+    const edges = GEO.edges.filter((e) => e.hexes.filter((id) => island[id] === i).length === 1 && e.hexes.every((id) => island[id] === i || terrains[id] === 'sea'));
     edges.sort((a, b) => Math.atan2(a.z - c.z, a.x - c.x) - Math.atan2(b.z - c.z, b.x - c.x));
     coasts.push(edges.map((e) => e.id));
   }

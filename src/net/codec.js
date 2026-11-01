@@ -3,11 +3,11 @@
 // All keys are identifiers and every string stays well under 1 KiB (room presence limits).
 import { GEO, useMap } from '../engine/geometry.js';
 import { RES } from '../engine/engine.js';
-import { generateBoard } from '../engine/board.js';
+import { generateBoard, provinceName } from '../engine/board.js';
 import { seedState } from '../engine/rng.js';
 import { DEFAULT_MAP, mapDef } from '../engine/maps.js';
 
-const TER = { forest: 'f', hills: 'h', pasture: 'p', fields: 'g', mountains: 'm', desert: 'd', sea: 's', gold: 'o' };
+const TER = { forest: 'f', hills: 'h', pasture: 'p', fields: 'g', mountains: 'm', desert: 'd', sea: 's', gold: 'o', fog: 'x' };
 const TER_R = Object.fromEntries(Object.entries(TER).map(([k, v]) => [v, k]));
 const HB = { any: 'a', wood: 'w', brick: 'b', wool: 'l', grain: 'g', ore: 'o' };
 const HB_R = Object.fromEntries(Object.entries(HB).map(([k, v]) => [v, k]));
@@ -66,9 +66,11 @@ export function encodeBoard(st) {
   return b;
 }
 
-// a short checksum of a board's layout (FNV-1a over terrain, numbers, names and harbors)
+// a short checksum of a board's layout (FNV-1a over terrain, numbers, names and harbors); the fog
+// islands' hidden hexes count as unexplored whatever has been found there since
 export function boardHash(board) {
-  const text = board.hexes.map((h) => `${h.terrain}${h.number}${h.name}`).join('|') + '#' + board.harbors.map((h) => h.edge + h.type).join(',');
+  const tiles = GEO.def.tiles;
+  const text = board.hexes.map((h, i) => (tiles[i] && tiles[i].t === 'fog' ? 'fog0' : `${h.terrain}${h.number}${h.name}`)).join('|') + '#' + board.harbors.map((h) => h.edge + h.type).join(',');
   let x = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) {
     x ^= text.charCodeAt(i);
@@ -140,6 +142,8 @@ export function encodeEvent(e) {
       return ['U', e.p, resStr(e.res), e.count];
     case 'isleBonus':
       return ['I', e.p, e.vertex, e.vp];
+    case 'discover':
+      return ['f', e.p, e.hex, TER[e.terrain], e.number, e.res ? RES.indexOf(e.res) : -1];
     case 'startingResources':
       return ['S', e.p, e.vertex, resStr(e.gains)];
     case 'buyDev':
@@ -219,6 +223,8 @@ export function decodeEvent(a) {
       return { type: 'pirate', p: a[1], from: a[2], to: a[3], reason: a[4] === 'k' ? 'knight' : 'seven' };
     case 'U':
       return { type: 'gold', p: a[1], res: resObj(a[2]), count: a[3] };
+    case 'f':
+      return { type: 'discover', p: a[1], hex: a[2], terrain: TER_R[a[3]], number: a[4], ...(a[5] >= 0 ? { res: RES[a[5]] } : {}) };
     case 'I':
       return { type: 'isleBonus', p: a[1], vertex: a[2], vp: a[3] };
     case 'S':
@@ -299,7 +305,7 @@ export function encodePublic(st) {
     if (pd.type === 'discard') pend = ['d', Object.entries(pd.amounts).map(([q, n]) => `${q}.${n}`).join(',')];
     else if (pd.type === 'robber') pend = ['r', pd.reason === 'knight' ? 'k' : 's'];
     else if (pd.type === 'steal') pend = ['s', pd.hex, pd.victims.join('.')];
-    else if (pd.type === 'roadBuilding') pend = ['b', pd.left];
+    else if (pd.type === 'roadBuilding') pend = pd.gold ? ['b', pd.left, pd.gold] : ['b', pd.left];
     else if (pd.type === 'gold') pend = ['g', amountsStr(pd.amounts)];
   }
   const t = st.trade;
@@ -333,6 +339,8 @@ export function encodePublic(st) {
       return row;
     }),
   };
+  // (the fog islands) the hexes found so far: hex, terrain, number
+  if (st.fog) pub.fg = GEO.def.tiles.map((t, i) => (t.t === 'fog' && st.board.hexes[i].terrain !== 'fog' ? `${i}${TER[st.board.hexes[i].terrain]}${st.board.hexes[i].number}` : '')).filter(Boolean).join(',');
   // Seafarers: the ships ('.' none, else the owner), the pirate, the ships built this turn, a ship moved
   if (st.ships) {
     pub.sh = st.ships.map((p) => (p < 0 ? '.' : String(p))).join('');
@@ -371,7 +379,7 @@ export function decodeView(board, seats, pub, priv, seat) {
       pending = { type: 'discard', amounts };
     } else if (k === 'r') pending = { type: 'robber', reason: a === 'k' ? 'knight' : 'seven' };
     else if (k === 's') pending = { type: 'steal', hex: a, victims: String(b).split('.').map(Number) };
-    else if (k === 'b') pending = { type: 'roadBuilding', left: a };
+    else if (k === 'b') pending = b ? { type: 'roadBuilding', left: a, gold: b } : { type: 'roadBuilding', left: a };
     else if (k === 'g') pending = { type: 'gold', amounts: amountsObj(a) };
   }
   let trade = null;
@@ -456,7 +464,37 @@ export function decodeView(board, seats, pub, priv, seat) {
     view.shipMoved = !!pub.sm;
     view.board = { ...view.board, pirate: pub.pi };
   }
+  // (the fog islands) the hexes found so far, on this page's own copy of the board
+  if (pub.fg != null) {
+    view.board = { ...view.board, hexes: discovered(view.board.hexes, String(pub.fg)) };
+  }
   return view;
+}
+
+// the board's hexes with the fog's finds laid on them (the same array for the same finds, so the map
+// and the sea analysis are not rebuilt on every update)
+const found = new Map();
+function discovered(hexes, fg) {
+  if (!fg) return hexes;
+  let byBoard = found.get(hexes);
+  if (!byBoard) {
+    if (found.size > 4) found.clear();
+    byBoard = new Map();
+    found.set(hexes, byBoard);
+  }
+  let out = byBoard.get(fg);
+  if (!out) {
+    out = hexes.slice();
+    for (const x of fg.split(',')) {
+      const m = /^(\d+)([a-z])(\d+)$/.exec(x);
+      if (!m) continue;
+      const i = Number(m[1]);
+      const terrain = TER_R[m[2]];
+      out[i] = { terrain, number: Number(m[3]), name: provinceName(terrain, i) };
+    }
+    byBoard.set(fg, out);
+  }
+  return out;
 }
 
 // ── the whole game, for the player who takes over as host ──
@@ -468,6 +506,8 @@ export function encodeFull(st) {
     d: st.devDeck.map((t) => DEV[t]).join(''),
     g: Array.isArray(st.rng) ? st.rng.slice() : null,
     sd: st.seed >>> 0,
+    // (the fog islands) what the fog still hides, and its numbers
+    ...(st.fog ? { fo: [st.fog.pool.map((t) => TER[t]).join(''), st.fog.numbers.join('.')] } : {}),
   };
 }
 
@@ -490,6 +530,7 @@ export function decodeFull(board, seats, pub, full) {
     };
   });
   const st = { ...v, players, devDeck: [...String(full.d || '')].map((c) => DEV_R[c]), rng: Array.isArray(full.g) ? full.g.slice() : null, seed: full.sd >>> 0 };
+  if (full.fo) st.fog = { pool: [...String(full.fo[0])].map((c) => TER_R[c]), numbers: full.fo[1] ? String(full.fo[1]).split('.').map(Number) : [] };
   delete st.viewer;
   delete st.devDeckCount;
   return st;
@@ -504,6 +545,36 @@ export function applyPrivateDetails(events, details) {
     if (k === 'd' && e.type === 'discard') e.cards = resObj(v);
   }
   return events;
+}
+
+// A player's move as it arrives at the host, kept to the fields the rules read and to well-formed
+// values (seat: the sender's seat, whatever the move claims; types: the moves there are).
+const RES_SET = ['wood', 'brick', 'wool', 'grain', 'ore'];
+function resMap(x) {
+  const m = {};
+  for (const r of RES_SET) if (Number.isInteger(x[r]) && x[r] > 0 && x[r] < 20) m[r] = x[r];
+  return m;
+}
+export function sanitizeAction(a, seat, types) {
+  if (!a || typeof a !== 'object' || !types.includes(a.type)) return null;
+  const out = { type: a.type, p: seat };
+  for (const k of ['vertex', 'edge', 'hex', 'target', 'with', 'from']) if (Number.isInteger(a[k])) out[k] = a[k];
+  // to: where a ship sails (a path), or whom an offer goes to (seats)
+  if (Number.isInteger(a.to)) out.to = a.to;
+  else if (Array.isArray(a.to)) out.to = a.to.filter((q) => Number.isInteger(q) && q >= 0 && q < 8).slice(0, 8);
+  if (typeof a.card === 'string') out.card = a.card;
+  if (typeof a.accept === 'boolean') out.accept = a.accept;
+  if (a.reason === 'lack') out.reason = 'lack';
+  // res: a resource (monopoly), two (year of plenty), or counts (a gold field's pick)
+  if (typeof a.res === 'string') out.res = a.res;
+  else if (Array.isArray(a.res)) out.res = a.res.filter((x) => typeof x === 'string').slice(0, 2);
+  else if (a.res && typeof a.res === 'object') out.res = resMap(a.res);
+  for (const k of ['give', 'get', 'cards']) if (a[k] && typeof a[k] === 'object') out[k] = resMap(a[k]);
+  if (a.type === 'bankTrade') {
+    if (typeof a.give === 'string') out.give = a.give;
+    if (typeof a.get === 'string') out.get = a.get;
+  }
+  return out;
 }
 
 export function utf8Size(obj) {

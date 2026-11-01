@@ -138,7 +138,7 @@ export class Dialogs {
     const want = Math.min(amount, bankLeft);
     const sel = emptyRes();
     const body = el('div');
-    body.innerHTML = `<p class="lead">你的村莊或城市旁的金礦產出了！選擇 <b>${want}</b> 張任意資源（從銀行拿取）。</p><div class="res-grid"></div>`;
+    body.innerHTML = `<p class="lead">金礦帶來 <b>${want}</b> 張資源：任選你要的種類（從銀行拿取）。</p><div class="res-grid"></div>`;
     const grid = body.querySelector('.res-grid');
     const confirm = button('確認', 'primary', () => onConfirm({ ...sel }));
     const draw = () => {
@@ -167,7 +167,7 @@ export class Dialogs {
       confirm.textContent = `確認（${total(sel)}/${want}）`;
     };
     draw();
-    return this.open({ kind: 'gold', title: '金礦產出', body, foot: [confirm], dismissable: false, cls: 'narrow' });
+    return this.open({ kind: 'gold', title: '金礦', body, foot: [confirm], dismissable: false, cls: 'narrow' });
   }
 
   // ── steal ──

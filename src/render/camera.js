@@ -182,9 +182,11 @@ export class StrategyCamera {
     this.goalPitch = clamp(deg, PITCH_MIN, PITCH_MAX);
   }
   resetView() {
-    // turn back to north the short way round and restore the default tilt
-    const turns = Math.round(this.goalYaw / (Math.PI * 2));
-    this.goalYaw = turns * Math.PI * 2;
+    // turn back to the map's own heading (north, or a quarter turn for a wide map on an upright
+    // phone: homeYaw) the short way round and restore the default tilt
+    const base = this.homeYaw || 0;
+    const turns = Math.round((this.goalYaw - base) / (Math.PI * 2));
+    this.goalYaw = base + turns * Math.PI * 2;
     this.goalPitch = PITCH_DEFAULT;
   }
 

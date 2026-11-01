@@ -30,9 +30,10 @@ export function turnLimit(st) {
 export function timeoutAction(st, p, mem, rnd) {
   if (st.phase === 'over') return null;
   const ai = () => aiAct(makeView(st, p), p, mem || {}, rnd);
-  if (st.phase === 'setup') return st.setup.order[st.setup.i] === p ? ai() : null;
   const pd = st.pending;
+  // (a pick owed comes first, even in the opening: gold found in the fog)
   if (pd && (pd.type === 'discard' || pd.type === 'gold')) return pd.amounts[p] ? ai() : null;
+  if (st.phase === 'setup') return st.setup.order[st.setup.i] === p ? ai() : null;
   if (st.trade) {
     if (st.trade.from === p) return { type: 'cancelOffer', p };
     if (st.trade.resp[p] === null) return { type: 'respond', p, accept: false };

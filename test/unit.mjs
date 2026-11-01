@@ -17,6 +17,7 @@ import {
   shipTargets,
   legalShips,
   legalRoadEdges,
+  actorsNow,
 } from '../src/engine/engine.js';
 import { tradeRouteFor } from '../src/engine/seafarers.js';
 
@@ -727,6 +728,131 @@ test('Seafarers scenario 2: the islands a player starts on are home; the others 
   // the home islands travel to the other pages
   const view = makeView(st, 1);
   assert.deepEqual([...view.players[0].home].sort(), [0, 1]);
+});
+
+// ── Seafarers (scenario 3: the fog islands) ──
+function freshFog(seed = 31) {
+  const st = createGame({ seed, players: players(4), firstPlayer: 0, map: 'sea-3' });
+  st.phase = 'play';
+  st.turn = 5;
+  st.current = 0;
+  st.rolled = true;
+  return st;
+}
+// a path a ship can take to an intersection beside a hidden hex, and the ship that leads to it
+function toTheFog(st) {
+  const sea = seaInfo(st.board);
+  const fogAt = (v) => GEO.vertices[v].hexes.some((h) => st.board.hexes[h].terrain === 'fog');
+  for (let e = 0; e < GEO.edges.length; e++) {
+    const E = GEO.edges[e];
+    if (!sea.eSea[e] || E.hexes.some((h) => st.board.hexes[h].terrain === 'fog') || pirateEdges(st).includes(e)) continue;
+    const [a, b] = E.v;
+    const [from, to] = fogAt(a) ? [b, a] : fogAt(b) ? [a, b] : [-1, -1];
+    if (from < 0 || fogAt(from)) continue;
+    const lead = GEO.vertices[from].edges.find((x) => x !== e && sea.eSea[x] && !GEO.edges[x].v.some(fogAt) && !pirateEdges(st).includes(x));
+    if (lead === undefined) continue;
+    return { e, lead, to, hidden: GEO.vertices[to].hexes.filter((h) => st.board.hexes[h].terrain === 'fog') };
+  }
+  throw new Error('no way into the fog');
+}
+
+test('Seafarers scenario 3: the fog islands', () => {
+  const st = createGame({ seed: 31, players: players(4), firstPlayer: 0, map: 'sea-3' });
+  assert.equal(GEO.id, 'sea-3');
+  assert.equal(st.targetVP, 12);
+  const fog = st.board.hexes.filter((h) => h.terrain === 'fog');
+  assert.equal(fog.length, 12);
+  assert.ok(fog.every((h) => !h.number && !h.name), 'the fog shows nothing');
+  assert.equal(st.board.hexes[st.board.robber].number, 12, 'the robber starts on the 12');
+  assert.equal(st.board.hexes.filter((h) => h.number).length, 17);
+  assert.equal(st.fog.pool.length, 12);
+  assert.deepEqual([...st.fog.numbers].sort((a, b) => a - b), [3, 4, 5, 6, 8, 9, 10, 11, 11, 12]);
+  const sea = seaInfo(st.board);
+  assert.equal(sea.islands, 2, 'the upper and the lower island');
+  assert.equal(st.board.harbors.length, 9);
+  for (const hb of st.board.harbors) assert.ok(GEO.edges[hb.edge].hexes.every((h) => st.board.hexes[h].terrain !== 'fog'), 'no harbor faces the fog');
+  for (const v of legalSettlementSpots(st, 0, true)) assert.ok(sea.vLand[v], 'the opening goes on land');
+  // the fog's pile stays on the host: another player's view has no dice to draw it with
+  assert.equal(makeView(st, 1).rng, null);
+});
+
+test('Seafarers scenario 3: a ship reaching the fog discovers what it hides', () => {
+  const st = freshFog();
+  const { e, lead, hidden } = toTheFog(st);
+  st.ships[lead] = 0;
+  give(st, 0, { wood: 1, wool: 1 });
+  const bank = { ...st.bank };
+  const res = { ...st.players[0].res };
+  const ev = applyAction(st, { type: 'ship', p: 0, edge: e });
+  const found = ev.filter((x) => x.type === 'discover');
+  assert.equal(found.length, hidden.length);
+  assert.equal(st.fog.pool.length, 12 - hidden.length);
+  for (const f of found) {
+    const H = st.board.hexes[f.hex];
+    assert.equal(H.terrain, f.terrain);
+    assert.notEqual(H.terrain, 'fog');
+    if (f.terrain === 'sea') assert.equal(H.number, 0);
+    else assert.ok(H.number >= 3 && H.number <= 12 && H.name, 'land takes a number and a name');
+  }
+  // one resource of each land found (gold: picked next)
+  const paid = found.filter((f) => f.res).map((f) => f.res);
+  for (const r of paid) {
+    assert.equal(st.players[0].res[r], res[r] + paid.filter((x) => x === r).length - (r === 'wood' || r === 'wool' ? 1 : 0));
+    assert.equal(st.bank[r], bank[r] - paid.filter((x) => x === r).length + (r === 'wood' || r === 'wool' ? 1 : 0));
+  }
+  const gold = found.filter((f) => f.terrain === 'gold').length;
+  if (gold) assert.deepEqual(st.pending, { type: 'gold', amounts: { 0: gold } });
+  else assert.equal(st.pending, null);
+  // the pages that lay the board out themselves see the same thing
+  assert.deepEqual(seaInfo(st.board).land.length, GEO.hexes.length);
+});
+
+test('Seafarers scenario 3: gold in the fog, the road building card, and the pirate', () => {
+  const st = freshFog();
+  const { e, lead, hidden } = toTheFog(st);
+  st.ships[lead] = 0;
+  st.fog.pool = st.fog.pool.map(() => 'gold');
+  // found while the road building card is in play: picked once its pieces are down
+  st.pending = { type: 'roadBuilding', left: 2 };
+  applyAction(st, { type: 'ship', p: 0, edge: e });
+  assert.equal(st.pending.type, 'roadBuilding');
+  assert.equal(st.pending.gold, hidden.length);
+  applyAction(st, { type: 'endRoadBuilding', p: 0 });
+  assert.deepEqual(st.pending, { type: 'gold', amounts: { 0: hidden.length } });
+  const before = st.players[0].res.ore;
+  applyAction(st, { type: 'gold', p: 0, res: { ore: hidden.length } });
+  assert.equal(st.players[0].res.ore, before + hidden.length);
+  assert.equal(st.pending, null);
+  // the pirate stays out of the fog
+  const still = st.board.hexes.findIndex((h) => h.terrain === 'fog');
+  st.pending = { type: 'robber', reason: 'seven' };
+  throwsRule(() => applyAction(st, { type: 'robber', p: 0, hex: still }), /霧/);
+});
+
+test('Seafarers scenario 3: gold found in the opening is picked before the next placement', () => {
+  const st = createGame({ seed: 31, players: players(4), firstPlayer: 0, map: 'sea-3' });
+  st.fog.pool = st.fog.pool.map(() => 'gold');
+  const sea = seaInfo(st.board);
+  const fogAt = (v) => GEO.vertices[v].hexes.some((h) => st.board.hexes[h].terrain === 'fog');
+  // an opening settlement whose ship reaches an intersection beside the fog
+  let spot = null;
+  for (const v of legalSettlementSpots(st, 0, true)) {
+    const e = GEO.vertices[v].edges.find((x) => sea.eSea[x] && fogAt(GEO.edges[x].v.find((u) => u !== v)));
+    if (e !== undefined) {
+      spot = { v, e };
+      break;
+    }
+  }
+  if (!spot) return; // (this map keeps the fog out of an opening ship's reach)
+  applyAction(st, { type: 'settlement', p: 0, vertex: spot.v });
+  applyAction(st, { type: 'ship', p: 0, edge: spot.e });
+  assert.equal(st.pending.type, 'gold');
+  assert.deepEqual(actorsNow(st), [0], 'the pick comes before the next player places');
+  const next = st.setup.order[st.setup.i];
+  throwsRule(() => applyAction(st, { type: 'settlement', p: next, vertex: legalSettlementSpots(st, next, true)[0] }));
+  applyAction(st, { type: 'gold', p: 0, res: { grain: st.pending.amounts[0] } });
+  assert.equal(st.pending, null);
+  applyAction(st, { type: 'settlement', p: next, vertex: legalSettlementSpots(st, next, true)[0] });
 });
 
 test('Seafarers: the longest trade route joins roads and ships at a settlement only', () => {
