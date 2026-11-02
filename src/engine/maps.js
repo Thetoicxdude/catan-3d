@@ -29,6 +29,8 @@
 //            isleBonusMax: how many such islands count (once per player on the new world)
 //   harbors.perIsland  the harbors are shared among the islands by the length of their coasts
 //   fog      { pool, numbers }: what the 'fog' tiles hide (drawn when they are discovered)
+//
+// name is the map's full name; short, its name in the menus' table of maps (MAP_TABLE)
 
 // a hexagonal island, in the order the original board listed its hexes (row by row, north to south)
 function hexagon(radius) {
@@ -40,6 +42,7 @@ function hexagon(radius) {
 export const BASE4 = Object.freeze({
   id: 'base-4',
   name: '標準島嶼',
+  short: '標準島嶼',
   players: [2, 4],
   // laid out by the original generator, so a seed gives the same island it always did
   legacy: true,
@@ -62,6 +65,7 @@ function rows(spec) {
 export const BASE6 = Object.freeze({
   id: 'base-6',
   name: '大島嶼',
+  short: '大島嶼',
   players: [5, 6],
   tiles: rows([
     [-3, 0, 2],
@@ -105,6 +109,7 @@ function offsetRows(rows, shiftQ = 0, shiftR = 0, groups = { S: 'main', M: 'main
 export const SEA1 = Object.freeze({
   id: 'sea-1',
   name: '航海家：駛向新海岸',
+  short: '駛向新海岸',
   players: [3, 4],
   vp: 14,
   tiles: offsetRows(
@@ -147,6 +152,7 @@ const L = 'L';
 export const SEA2 = Object.freeze({
   id: 'sea-2',
   name: '航海家：四座島嶼',
+  short: '四座島嶼',
   players: [3, 4],
   vp: 13,
   tiles: offsetRows(
@@ -180,6 +186,7 @@ const F = 'F';
 export const SEA3 = Object.freeze({
   id: 'sea-3',
   name: '航海家：霧島',
+  short: '霧島',
   players: [3, 4],
   vp: 12,
   tiles: offsetRows(
@@ -214,6 +221,7 @@ const R = 'R';
 export const SEA9 = Object.freeze({
   id: 'sea-9',
   name: '航海家：新世界',
+  short: '新世界',
   players: [3, 4],
   vp: 12,
   tiles: offsetRows(
@@ -233,10 +241,173 @@ export const SEA9 = Object.freeze({
   rules: { seafarers: true },
 });
 
-export const MAPS = { [BASE4.id]: BASE4, [BASE6.id]: BASE6, [SEA1.id]: SEA1, [SEA2.id]: SEA2, [SEA3.id]: SEA3, [SEA9.id]: SEA9 };
+// ── Seafarers for 5–6 players ──
+// The extension's maps: the frame is 8 or 9 hexes wide and 7 rows high, with the pieces of the
+// 5–6 player box (a larger bank and development deck, more harbors) and its turn rules (paired turns
+// by default: the second player of a turn may also move a ship; or the special building phase, in
+// which no ship moves).
+//
+// picture(lines, groups): a map drawn as text, one line per row and a tile every other character
+// (a line that starts one character later sits half a hex further east). 'S' is sea, 'P' the sea hex
+// the pirate starts on, 'F' fog, any other letter a tile drawn from a pool (`groups` names the group
+// of a letter). Centred on the origin; returns the tiles and the pirate's [q, r].
+function picture(lines, groups = {}) {
+  const tiles = [];
+  let c0 = null;
+  let pirate = null;
+  lines.forEach((line, r) => {
+    for (let p = 0; p < line.length; p++) {
+      const ch = line[p];
+      if (ch === ' ') continue;
+      if (c0 === null) c0 = (((p - r) % 2) + 2) % 2;
+      if ((((p - r - c0) % 2) + 2) % 2) throw new Error(`地圖第 ${r + 1} 列第 ${p + 1} 字不在格線上`);
+      const t = { q: (p - r - c0) / 2, r, t: ch === 'S' || ch === 'P' ? 'sea' : ch === 'F' ? 'fog' : '?' };
+      if (groups[ch]) t.g = groups[ch];
+      if (ch === 'P') pirate = t;
+      tiles.push(t);
+    }
+  });
+  const dr = Math.floor(lines.length / 2);
+  for (const t of tiles) t.r -= dr;
+  const xs = tiles.map((t) => t.q + t.r / 2);
+  const mx = Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
+  for (const t of tiles) t.q -= mx;
+  return { tiles, pirate: pirate && [pirate.q, pirate.r] };
+}
+
+const BIG = {
+  players: [5, 6],
+  bank: 24,
+  dev: { knight: 20, victoryPoint: 5, roadBuilding: 3, yearOfPlenty: 3, monopoly: 3 },
+};
+const HARBORS_11 = ['any', 'any', 'any', 'any', 'any', 'wool', 'wool', 'wood', 'brick', 'grain', 'ore'];
+
+// Heading for New Shores, 5–6 players (14 points): the large island (laid out like the 5–6 player
+// island) on the west, a channel, and to the east 14 positions where ten small-island hexes, three
+// gold fields among them, come out differently every game; a strait splits them north and south.
+const NEW_SHORES_6 = picture(
+  [
+    ' S M M M S I I I',
+    'S M M M M S I I',
+    ' M M M M M S I I',
+    'M M M M M M P S',
+    ' M M M M M S I I',
+    'S M M M M S I I',
+    ' S M M M S I I I',
+  ],
+  { M: 'main', I: 'isles' },
+);
+export const SEA1_6 = Object.freeze({
+  ...BIG,
+  id: 'sea-1-6',
+  name: '航海家：駛向新海岸（5–6 人）',
+  short: '駛向新海岸',
+  vp: 14,
+  tiles: NEW_SHORES_6.tiles,
+  groups: {
+    main: { pool: BASE6.pool, numbers: BASE6.numbers },
+    isles: {
+      pool: { sea: 4, gold: 3, fields: 1, hills: 2, mountains: 2, pasture: 1, forest: 1 },
+      numbers: [2, 3, 4, 5, 6, 8, 9, 10, 11, 12],
+    },
+  },
+  // the large island's coast, with the 5–6 player island's spacing
+  harbors: { types: HARBORS_11, gaps: BASE6.harbors.gaps, group: 'main' },
+  pirate: NEW_SHORES_6.pirate,
+  setup: { group: 'main' },
+  isleBonus: 2,
+  rules: { seafarers: true, turns: 'paired' },
+});
+
+// The Six Islands (5–6 players, 13 points): the four islands' rules on six islands of five or six
+// provinces, three north and three south of an open sea.
+const SIX_ISLANDS = picture([
+  ' L L S L L S L L',
+  'L L S S L S L L',
+  ' L L S L L S L S',
+  'S S S P S S S S',
+  ' L L S L L S L S',
+  'L L S S L S L L',
+  ' L L S L L S L L',
+]);
+export const SEA2_6 = Object.freeze({
+  ...BIG,
+  id: 'sea-2-6',
+  name: '航海家：六座島嶼',
+  short: '六座島嶼',
+  vp: 13,
+  tiles: SIX_ISLANDS.tiles,
+  pool: { forest: 7, pasture: 7, fields: 6, hills: 6, mountains: 6 },
+  numbers: [2, 2, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 12, 12],
+  harbors: { types: HARBORS_11, perIsland: true },
+  robber: { number: 12 },
+  pirate: SIX_ISLANDS.pirate,
+  isleBonus: 2,
+  rules: { seafarers: true, turns: 'paired' },
+});
+
+// The Fog Islands, 5–6 players (12 points): an upper and a lower island on the west (a desert and two
+// gold fields among their provinces; the robber starts in the desert), and 25 hexes of fog to the east.
+const FOG_6 = picture([
+  ' L L L L S F F F F',
+  'L L L L L S F F F',
+  ' L L L L S F F F F',
+  'S S P S S S F F F',
+  ' L L L L S F F F F',
+  'L L L L L S F F F',
+  ' L L L L S F F F F',
+]);
+export const SEA3_6 = Object.freeze({
+  ...BIG,
+  id: 'sea-3-6',
+  name: '航海家：霧島（5–6 人）',
+  short: '霧島',
+  vp: 12,
+  tiles: FOG_6.tiles,
+  pool: { forest: 4, pasture: 4, fields: 5, hills: 5, mountains: 5, gold: 2, desert: 1 },
+  numbers: [2, 3, 3, 3, 4, 4, 4, 5, 5, 6, 6, 6, 8, 8, 8, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12],
+  fog: { pool: { sea: 12, gold: 1, fields: 2, hills: 2, mountains: 2, pasture: 3, forest: 3 }, numbers: [2, 2, 3, 4, 5, 5, 6, 8, 9, 9, 10, 11, 12] },
+  harbors: { types: SEA3.harbors.types, perIsland: true },
+  pirate: FOG_6.pirate,
+  rules: { seafarers: true, turns: 'paired' },
+});
+
+// The New World, 5–6 players (12 points): 63 hexes laid out at random as three to five islands of 42
+// land (three deserts and four gold fields among it) in 21 hexes of sea.
+export const SEA9_6 = Object.freeze({
+  ...BIG,
+  id: 'sea-9-6',
+  name: '航海家：新世界（5–6 人）',
+  short: '新世界',
+  vp: 12,
+  tiles: picture(Array.from({ length: 7 }, (_, r) => (r % 2 ? '' : ' ') + 'R R R R R R R R R')).tiles,
+  pool: { forest: 7, pasture: 7, fields: 7, hills: 7, mountains: 7, gold: 4, desert: 3 },
+  numbers: [2, 2, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12],
+  islands: { count: [3, 5], smallest: 4, largest: 16 },
+  harbors: { types: HARBORS_11, perIsland: true },
+  robber: { off: true },
+  isleBonus: 1,
+  isleBonusMax: 1,
+  rules: { seafarers: true, turns: 'paired' },
+});
+
+export const MAPS = Object.fromEntries([BASE4, BASE6, SEA1, SEA2, SEA3, SEA9, SEA1_6, SEA2_6, SEA3_6, SEA9_6].map((d) => [d.id, d]));
 export const DEFAULT_MAP = BASE4.id;
-// the maps a game can be started on, in the order the menus list them
-export const MAP_LIST = [BASE4, BASE6, SEA1, SEA2, SEA3, SEA9];
+// The maps a game can be started on, as the menus show them: by kind, the 3–4 player map beside the
+// 5–6 player one.
+export const MAP_TABLE = [
+  { kind: '基本', rows: [[BASE4, BASE6]] },
+  {
+    kind: '航海家',
+    rows: [
+      [SEA1, SEA1_6],
+      [SEA2, SEA2_6],
+      [SEA3, SEA3_6],
+      [SEA9, SEA9_6],
+    ],
+  },
+];
+export const MAP_LIST = MAP_TABLE.flatMap((k) => k.rows.flat());
 
 // a map by its id (or a definition passed through as it is); unknown ids fall back to the standard map
 export function mapDef(m) {

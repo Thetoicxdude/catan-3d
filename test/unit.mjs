@@ -909,6 +909,103 @@ test('Seafarers scenario 9: the robber and the pirate come in when first moved; 
   assert.equal(st.players[0].chits, 1, 'one island point at most');
 });
 
+// ── Seafarers for 5–6 players ──
+test('Seafarers for 5–6 players: the four maps, their pieces and players', () => {
+  const want = {
+    'sea-1-6': { tiles: 56, vp: 14, harbors: 11, sea: 16, gold: 3, desert: 2, numbers: 38, robber: 'desert' },
+    'sea-2-6': { tiles: 56, vp: 13, harbors: 11, sea: 24, gold: 0, desert: 0, numbers: 32, robber: 12 },
+    'sea-3-6': { tiles: 63, vp: 12, harbors: 9, sea: 12, gold: 2, desert: 1, numbers: 25, robber: 'desert', fog: 25 },
+    'sea-9-6': { tiles: 63, vp: 12, harbors: 11, sea: 21, gold: 4, desert: 3, numbers: 39, robber: -1 },
+  };
+  for (const [map, w] of Object.entries(want)) {
+    for (const n of [5, 6]) {
+      const st = createGame({ seed: 7 + n, players: players(n), firstPlayer: 0, map });
+      assert.equal(GEO.id, map);
+      assert.equal(GEO.hexes.length, w.tiles, map);
+      assert.equal(st.targetVP, w.vp);
+      const count = {};
+      for (const h of st.board.hexes) count[h.terrain] = (count[h.terrain] || 0) + 1;
+      assert.equal(count.sea || 0, w.sea, `${map} sea`);
+      assert.equal(count.gold || 0, w.gold, `${map} gold`);
+      assert.equal(count.desert || 0, w.desert, `${map} desert`);
+      assert.equal(count.fog || 0, w.fog || 0, `${map} fog`);
+      assert.equal(st.board.hexes.filter((h) => h.number).length, w.numbers, `${map} numbers`);
+      assert.equal(st.board.harbors.length, w.harbors);
+      assert.equal(new Set(st.board.harbors.map((h) => h.edge)).size, w.harbors);
+      if (w.robber === 'desert') assert.equal(st.board.hexes[st.board.robber].terrain, 'desert');
+      else if (w.robber === -1) assert.equal(st.board.robber, -1);
+      else assert.equal(st.board.hexes[st.board.robber].number, w.robber);
+      if (map === 'sea-9-6') assert.equal(st.board.pirate, -1);
+      else assert.equal(st.board.hexes[st.board.pirate].terrain, 'sea');
+      if (w.fog) {
+        assert.equal(st.fog.pool.length, 25);
+        assert.equal(st.fog.numbers.length, 13);
+      }
+      assert.deepEqual(st.bank, { wood: 24, brick: 24, wool: 24, grain: 24, ore: 24 });
+      assert.equal(st.devDeck.length, 34);
+      assert.equal(st.rules.turns, 'paired');
+      assert.ok(st.rules.seafarers);
+      assert.ok(st.players.every((pl) => pl.pieces.ships === 15));
+    }
+    throwsRule(() => createGame({ seed: 1, players: players(4), map }), /5–6/);
+  }
+  // heading for new shores: the opening on the large island, harbors round it, small islands besides
+  const st = createGame({ seed: 3, players: players(6), firstPlayer: 0, map: 'sea-1-6' });
+  const sea = seaInfo(st.board);
+  const spots = legalSettlementSpots(st, 0, true);
+  assert.ok(spots.length > 30 && spots.every((v) => sea.home.has(sea.vIsland[v])), 'opening spots on the large island only');
+  for (const hb of st.board.harbors) assert.ok(GEO.edges[hb.edge].hexes.some((h) => sea.home.has(sea.island[h])));
+  assert.ok(sea.islands >= 3, 'small islands north and south of the strait');
+  // the six islands: six of them, five or six provinces each
+  const six = createGame({ seed: 3, players: players(5), firstPlayer: 0, map: 'sea-2-6' });
+  const s6 = seaInfo(six.board);
+  const sizes = new Array(s6.islands).fill(0);
+  s6.island.forEach((i) => i >= 0 && sizes[i]++);
+  assert.deepEqual(sizes.sort(), [5, 5, 5, 5, 6, 6]);
+  // the new world: three to five islands of 4–16 hexes, 42 in all, the same for the same seed
+  for (let seed = 1; seed <= 12; seed++) {
+    const nw = createGame({ seed, players: players(6), firstPlayer: 0, map: 'sea-9-6' });
+    const info = seaInfo(nw.board);
+    const sz = new Array(info.islands).fill(0);
+    info.island.forEach((i) => i >= 0 && sz[i]++);
+    assert.ok(info.islands >= 3 && info.islands <= 5, `${info.islands} islands`);
+    assert.ok(sz.every((k) => k >= 4 && k <= 16), `island sizes ${sz}`);
+    assert.equal(sz.reduce((a, b) => a + b, 0), 42);
+    if (seed <= 2) assert.deepEqual(createGame({ seed, players: players(6), firstPlayer: 0, map: 'sea-9-6' }).board, nw.board);
+  }
+});
+
+test('Seafarers for 5–6 players: the second player of a paired turn moves a ship too; nobody in the special building phase', () => {
+  for (const turns of ['paired', 'sbp']) {
+    const st = createGame({ seed: 21, players: players(6), firstPlayer: 0, map: 'sea-1-6', rules: { turns } });
+    st.phase = 'play';
+    st.turn = 5;
+    st.current = 0;
+    st.rolled = true;
+    const sea = seaInfo(st.board);
+    const second = turns === 'paired' ? 3 : 1;
+    // a route of two ships from a settlement of the second player's
+    const { v, e } = harborSpot(st);
+    st.vertices[v] = { p: second, t: 's' };
+    const far = GEO.edges[e].v.find((x) => x !== v);
+    const next = GEO.vertices[far].edges.find((x) => x !== e && sea.eSea[x] > 0 && !pirateEdges(st).includes(x));
+    st.ships[e] = second;
+    st.ships[next] = second;
+    // the main player has moved a ship of theirs this turn
+    st.shipMoved = true;
+    applyAction(st, { type: 'endTurn', p: 0 });
+    assert.equal(st.current, second);
+    const to = shipTargets(st, second, next)[0];
+    assert.ok(to !== undefined);
+    if (turns === 'paired') {
+      applyAction(st, { type: 'moveShip', p: second, from: next, to });
+      assert.equal(st.ships[to], second);
+      assert.equal(st.ships[next], -1);
+      throwsRule(() => applyAction(st, { type: 'moveShip', p: second, from: to, to: next }), /每回合/);
+    } else throwsRule(() => applyAction(st, { type: 'moveShip', p: second, from: next, to }), /特別建造/);
+  }
+});
+
 test('Seafarers: the longest trade route joins roads and ships at a settlement only', () => {
   const st = freshSea(4);
   const sea = seaInfo(st.board);

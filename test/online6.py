@@ -13,7 +13,10 @@ from playwright.async_api import async_playwright
 SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
 os.makedirs(SP, exist_ok=True)
 MAP = os.environ.get('MAP', 'sea-1')
-LABEL, HEXES, VP = {'sea-1': ('駛向新海岸', 42, 14), 'sea-2': ('四座島嶼', 35, 13), 'sea-3': ('霧島', 42, 12)}[MAP]
+LABEL, HEXES, VP = {'sea-1': ('駛向新海岸', 42, 14), 'sea-2': ('四座島嶼', 35, 13), 'sea-3': ('霧島', 42, 12),
+                     'sea-1-6': ('駛向新海岸', 56, 14), 'sea-2-6': ('六座島嶼', 56, 13), 'sea-3-6': ('霧島', 63, 12), 'sea-9-6': ('新世界', 63, 12)}[MAP]
+# the 5–6 player maps: six seats, and the turn rule to pick
+SEATS = 6 if MAP.endswith('-6') else 4
 PRE = 'o6' if MAP == 'sea-1' else 'o6-' + MAP
 INIT = """window.__mapFps = 0.12; window.__mockRoom = true; window.__perf = PERF; window.__keySlot = NAME; window.__noAssets = true;
 localStorage.setItem('catan3d-settings-v1', JSON.stringify({speed:'turbo', follow:false, quality:'low', qualityPicked:true, name: NAME, color: COLOR, opponents: 3}));"""
@@ -68,11 +71,11 @@ async def main():
         await host.click('[data-k="create"]')
         await host.wait_for_selector('.code-box b', timeout=30000)
         code = (await host.inner_text('.code-box b')).strip()
-        await host.click(f'.room-layout .seg button:has-text("{LABEL}")')
-        await host.wait_for_function("document.querySelector('.room-layout .seg button.on') && document.querySelector('.room-layout .seg button.on').textContent.includes(LABEL)".replace('LABEL', json.dumps(LABEL)), timeout=20000)
-        await host.wait_for_function("document.querySelectorAll('.online-screen .seat-list .seat').length === 4", timeout=20000)
+        await host.click(f'.room-layout [data-map="{MAP}"]')
+        await host.wait_for_function("document.querySelector('.room-layout button.on[data-map=MAP]')".replace('MAP', json.dumps(MAP)), timeout=20000)
+        await host.wait_for_function(f"document.querySelectorAll('.online-screen .seat-list .seat').length === {SEATS}", timeout=20000)
         lay = await host.inner_text('.room-layout')
-        check('the host picks the scenario: four seats, no turn rule to pick', '航海家' in lay and '4 席' in lay and '配對回合' not in lay, lay.replace('\n', ' '))
+        check('the host picks the scenario: its seats, a turn rule to pick on the 5–6 player maps', '航海家' in lay and f'{SEATS} 席' in lay and ('配對回合' in lay) == (SEATS == 6), lay.replace('\n', ' '))
         await host.screenshot(path=f'{SP}/{PRE}-host-lobby.png', timeout=120000)
         clients = []
         for name, color in [('小明聯邦', '#2f6fd0'), ('阿華公國', '#3f9a4a')]:
@@ -86,7 +89,7 @@ async def main():
         for c in clients:
             await c.wait_for_function("document.querySelector('.room-terms') && document.querySelector('.room-terms').textContent.includes('航海家')", timeout=60000)
         terms = await clients[0].inner_text('.room-terms')
-        check('players see the room\'s terms', LABEL in terms and '4 席' in terms and f'{VP} 分' in terms, terms)
+        check('players see the room\'s terms', LABEL in terms and f'{SEATS} 席' in terms and f'{VP} 分' in terms, terms)
         await clients[0].screenshot(path=f'{SP}/{PRE}-client-lobby.png', timeout=120000)
         for i in range(60):
             names = await host.inner_text('.online-screen .seat-list')

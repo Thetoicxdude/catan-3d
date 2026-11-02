@@ -20,6 +20,9 @@ import { resCard, icon, RES_NAMES } from '../ui/icons.js';
 // provinces themselves get small on screen (a large map on a phone), so that tokens do not overlap
 let tokenFloor = 0.8;
 const TOKEN_SCALE = (zh) => Math.min(1.15, Math.max(tokenFloor, 92 / zh));
+// and each token no wider than about 0.62 of its own province on screen (58 px at scale 1): on a big map
+// seen at a slant the far provinces are narrower than the ones the floor above is measured on
+const TOKEN_FIT = { fit: HEX_SIZE * 1.732 * 0.62, size: 58, fitMin: 0.3 };
 
 // (Seafarers, the fog islands) the hexes nobody has explored yet, and a key that changes with every
 // discovery
@@ -454,6 +457,7 @@ export class MapView {
         el.innerHTML = `<b>${H.number}</b><i>${'<u></u>'.repeat(pips(H.number))}</i>`;
         const it = this.labels.add(el, new THREE.Vector3(h.x, Math.max(y, 0.5) + 1.2, h.z), {
           scale: (zh) => TOKEN_SCALE(zh),
+          ...TOKEN_FIT,
         });
         this.tokenLabels.push({ hex: h.id, it });
       }
@@ -467,6 +471,7 @@ export class MapView {
     rb.title = '強盜佔領中：這裡不會產出資源';
     this.robberLabel = this.labels.add(rb, new THREE.Vector3(0, 1.7, 0), {
       scale: (zh) => TOKEN_SCALE(zh),
+      ...TOKEN_FIT,
       hidden: true,
     });
     this.robberShown = -1;
@@ -961,7 +966,7 @@ export class MapView {
     // at most about 0.62 of it, so that the tokens of neighbouring provinces keep apart
     tokenFloor = Math.min(0.8, Math.max(0.45, ((this.size.h / (0.65 * H)) * HEX_SIZE * 1.732) / 93));
     const tokenScale = TOKEN_SCALE(H);
-    this.markers.update(dt, H, this.size.h, this.coarse, tokenScale);
+    this.markers.update(dt, H, this.size.h, this.coarse, tokenScale, this.camera.cam, this.size.w);
     this.alignNationLabels();
     const sk = this.sky.material.uniforms;
     sk.uInvProj.value.copy(this.camera.cam.projectionMatrixInverse);

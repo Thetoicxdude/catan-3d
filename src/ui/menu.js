@@ -1,7 +1,7 @@
 // Title & campaign setup screen (sits over a live preview of the island you will play on).
 import { flagURL } from './flags.js';
 import { esc } from './text.js';
-import { mapDef, MAP_LIST } from '../engine/maps.js';
+import { mapDef, MAP_TABLE } from '../engine/maps.js';
 
 export const PALETTE = [
   { hex: '#c8372d', name: '赤' },
@@ -116,6 +116,36 @@ function el(tag, cls, html) {
   return e;
 }
 
+// how the turn is shared among 5–6 players, in a sentence (with ships, what the rule says of them)
+export function turnsNote(turns, def) {
+  const sea = !!(def && def.rules && def.rules.seafarers);
+  return turns === 'sbp'
+    ? `每位玩家回合結束後，其他人依序可以建造或購買發展卡（不能交易、不能使用發展卡${sea ? '、不能移船' : ''}）。`
+    : `官方現行規則：每回合由兩位玩家行動。主要玩家照常擲骰、交易、建造；結束後由對面（左手邊第三位）的玩家接著建造、和銀行交易、使用一張發展卡${sea ? '、移動一艘船' : ''}，但不能擲骰或和其他國家交易。`;
+}
+
+// The maps to choose from (the campaign menu and a custom room): by kind, the 3–4 player map in the
+// left column and its 5–6 player counterpart in the right.
+export function mapTable(current, pick) {
+  const box = el('div', 'seg maps');
+  box.appendChild(el('span', 'mt-col', '3–4 人'));
+  box.appendChild(el('span', 'mt-col', '5–6 人'));
+  for (const kind of MAP_TABLE) {
+    box.appendChild(el('span', 'mt-kind', esc(kind.kind)));
+    for (const row of kind.rows) {
+      row.forEach((def, i) => {
+        const b = el('button', (i ? 'r' : '') + (def.id === current ? ' on' : ''), esc(def.short || def.name));
+        b.type = 'button';
+        b.dataset.map = def.id;
+        b.title = `${def.name}（${Math.max(3, def.players[0])}–${def.players[1]} 人）`;
+        b.addEventListener('click', () => def.id !== current && pick(def.id));
+        box.appendChild(b);
+      });
+    }
+  }
+  return box;
+}
+
 // which version of the site is running (written by the build; helps when reporting a problem)
 // the deployed version (self-hosted site), as plain text
 export function buildInfo() {
@@ -203,23 +233,16 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
     };
     // the island first: it decides how many nations can play
     g.appendChild(el('label', '', '地圖'));
-    const ms = el('div', 'seg maps');
-    for (const def of MAP_LIST) {
-      const b = el('button', settings.map === def.id ? 'on' : '', `${def.name}（${def.players[0] === 2 ? 3 : def.players[0]}–${def.players[1]} 人）`);
-      b.type = 'button';
-      b.dataset.map = def.id;
-      b.addEventListener('click', () => {
-        if (settings.map === def.id) return;
-        settings.map = def.id;
-        settings.opponents = def.players[1] - 1;
+    g.appendChild(
+      mapTable(settings.map, (id) => {
+        settings.map = id;
+        settings.opponents = mapDef(id).players[1] - 1;
         fitSettings(settings);
         onChange(settings, 'map');
         onReroll(false);
         render();
-      });
-      ms.appendChild(b);
-    }
-    g.appendChild(ms);
+      }),
+    );
     const big = mapDef(settings.map).players[0] >= 5;
     seg(
       '對手數量',
@@ -240,15 +263,7 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
         ['sbp', '特別建造階段'],
       ]);
       g.appendChild(el('span', ''));
-      g.appendChild(
-        el(
-          'p',
-          'form-note',
-          settings.turns === 'sbp'
-            ? '每位玩家回合結束後，其他人依序可以建造或購買發展卡（不能交易、不能使用發展卡）。'
-            : '官方現行規則：每回合由兩位玩家行動。主要玩家照常擲骰、交易、建造；結束後由對面（左手邊第三位）的玩家接著建造、和銀行交易、使用一張發展卡，但不能擲骰或和其他國家交易。',
-        ),
-      );
+      g.appendChild(el('p', 'form-note', turnsNote(settings.turns, mapDef(settings.map))));
     }
     body.appendChild(g);
 

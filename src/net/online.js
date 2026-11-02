@@ -12,7 +12,7 @@ import { randomState } from '../engine/rng.js';
 import { flagURL } from '../ui/flags.js';
 import { esc } from '../ui/text.js';
 import { icon } from '../ui/icons.js';
-import { PALETTE, AI_NAMES, fitSettings, gameSetup } from '../ui/menu.js';
+import { PALETTE, AI_NAMES, fitSettings, gameSetup, mapTable } from '../ui/menu.js';
 import { mapDef, MAP_LIST, DEFAULT_MAP } from '../engine/maps.js';
 
 const APP = 'catan3d';
@@ -794,7 +794,10 @@ export class HostSession {
         row.appendChild(seg);
         lay.appendChild(row);
       };
-      segRow('地圖', MAP_LIST.map((d) => [d.id, d.name]), cur.id, (id) => this.setLayout(id, mapDef(id).players[1], this.settings.turns), 'maps');
+      const mapRow = el('div', 'layout-row');
+      mapRow.appendChild(el('span', 'row-label', '地圖'));
+      mapRow.appendChild(mapTable(cur.id, (id) => this.setLayout(id, mapDef(id).players[1], this.settings.turns)));
+      lay.appendChild(mapRow);
       const lo = Math.max(3, cur.players[0]);
       const counts = [];
       for (let n = lo; n <= cur.players[1]; n++) counts.push([n, `${n} 席`]);

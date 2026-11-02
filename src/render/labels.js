@@ -3,6 +3,18 @@
 import * as THREE from 'three';
 
 const _v = new THREE.Vector3();
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+const _right = new THREE.Vector3();
+
+// The width on screen, in pixels, of `len` world units lying across the view at `pos` (on a big map
+// seen at a slant, the far provinces are much narrower on screen than the near ones).
+export function screenWidth(camera, pos, len, w, h) {
+  _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+  _a.copy(pos).addScaledVector(_right, -len / 2).project(camera);
+  _b.copy(pos).addScaledVector(_right, len / 2).project(camera);
+  return Math.hypot((_b.x - _a.x) * 0.5 * w, (_b.y - _a.y) * 0.5 * h);
+}
 
 export class Labels {
   constructor(container) {
@@ -77,7 +89,10 @@ export class Labels {
       }
       const x = (_v.x * 0.5 + 0.5) * w;
       const y = (-_v.y * 0.5 + 0.5) * h;
-      const s = o.scale ? o.scale(zoomH) : 1;
+      let s = o.scale ? o.scale(zoomH) : 1;
+      // a label that must fit the ground under it (a number token on its province): no bigger than
+      // `fit` world units there, `size` being its width in pixels at scale 1
+      if (o.fit) s = Math.min(s, Math.max(o.fitMin || 0.3, screenWidth(camera, it.pos, o.fit, w, h) / o.size));
       const rot = o.angle ? ` rotate(${o.angle}rad)` : '';
       box.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${s.toFixed(3)})${rot}`;
       box.style.opacity = alpha.toFixed(3);

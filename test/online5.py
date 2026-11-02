@@ -61,7 +61,7 @@ async def main():
         await host.click('[data-k="create"]')
         await host.wait_for_selector('.code-box b', timeout=30000)
         code = (await host.inner_text('.code-box b')).strip()
-        await host.click('.room-layout .seg button:has-text("大島嶼")')
+        await host.click('.room-layout [data-map="base-6"]')
         await host.wait_for_function("document.querySelectorAll('.online-screen .seat-list .seat').length === 6", timeout=20000)
         lay = await host.inner_text('.room-layout')
         check('the host picks the large island: six seats, paired turns', '配對回合' in lay and '6 席' in lay, lay.replace('\n', ' '))

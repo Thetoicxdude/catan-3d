@@ -12,7 +12,11 @@ from playwright.async_api import async_playwright
 SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
 os.makedirs(SP, exist_ok=True)
 MAP = os.environ.get('MAP', 'sea-1')
-VP, TOKENS = {'sea-1': (14, 26), 'sea-2': (13, 22), 'sea-3': (12, 16), 'sea-9': (12, 22)}[MAP]
+VP, TOKENS = {'sea-1': (14, 26), 'sea-2': (13, 22), 'sea-3': (12, 16), 'sea-9': (12, 22),
+              'sea-1-6': (14, 36), 'sea-2-6': (13, 30), 'sea-3-6': (12, 23), 'sea-9-6': (12, 36)}[MAP]
+# the 5–6 player maps: five opponents; the fog: how many hexes it hides
+BIG = MAP.endswith('-6')
+FOGN = {'sea-3': 12, 'sea-3-6': 25}.get(MAP, 0)
 # (fog: the hidden hexes in the state, and the ones still under mist on the map, not counting mist that is clearing)
 FOG = """(() => { const g = __game, s = g.state; return { hidden: s.board.hexes.filter((h) => h.terrain === 'fog').length, mist: g.map.fog ? [...g.map.fog.hexes.values()].filter((r) => !r.fading).length : -1, numbered: s.board.hexes.filter((h) => h.number).length, rebuilds: g.map.rebuilds || 0, ms: g.map.rebuildMs || 0 }; })()"""
 PRE = 'ui6' if MAP == 'sea-1' else 'ui6-' + MAP
@@ -67,20 +71,20 @@ async def main():
         await page.click(f'[data-map="{MAP}"]')
         await page.wait_for_timeout(800)
         card = await page.inner_text('.setup-card')
-        check('the scenario on the setup screen', '航海家' in card and f'{VP} 分（劇本規定）' in card and '3 國（4 人局）' in card, card.replace('\n', ' ')[:160])
+        check('the scenario on the setup screen', '航海家' in card and f'{VP} 分（劇本規定）' in card and ('5 國（6 人局）' if BIG else '3 國（4 人局）') in card and ('移動一艘船' in card) == BIG, card.replace('\n', ' ')[:160])
         await page.wait_for_timeout(2500)
         await page.screenshot(path=f'{SP}/{PRE}-setup.png')
         await page.click('text=開始戰役')
         await page.wait_for_function('window.__game && window.__game.state', timeout=120000)
         st = await page.evaluate(SEA)
-        check('a Seafarers campaign', st['map'] == MAP and st['ships'] == 0 and st['target'] == VP and st['pirate'] >= (-1 if MAP == 'sea-9' else 0), json.dumps(st))
+        check('a Seafarers campaign', st['map'] == MAP and st['ships'] == 0 and st['target'] == VP and st['pirate'] >= (-1 if MAP.startswith('sea-9') else 0), json.dumps(st))
         await page.wait_for_timeout(3000)
         lab = await page.evaluate(CHECK)
         check('number tokens in place on the islands', not lab['bad'] and lab['tokens'] >= TOKENS, f"{lab['tokens']} tokens, bad {lab['bad'][:3]}")
         await page.screenshot(path=f'{SP}/{PRE}-start.png')
-        if MAP == 'sea-3':
+        if FOGN:
             fg = await page.evaluate(FOG)
-            check('mist over every hidden hex', fg['hidden'] == 12 and fg['mist'] == 12, json.dumps(fg))
+            check('mist over every hidden hex', fg['hidden'] == FOGN and fg['mist'] == FOGN, json.dumps(fg))
         # the first opening placement is ours (first player 0?): put the settlement on the coast by hand
         await page.wait_for_function("__game.state.phase === 'setup' && __game.state.setup.order[__game.state.setup.i] === 0 && __game.state.setup.step === 'settlement'", timeout=300000, polling=300)
         # (geometry and the sea analysis from the source modules: the same map, built again)
@@ -111,7 +115,7 @@ async def main():
         await page.evaluate('window.__autoHuman = true; __game.state.targetVP = 10; __game.schedule()')
         await page.evaluate("""(() => { const g = __game; const orig = g.dispatch.bind(g);
           g.dispatch = (a, o) => { const r = orig(a, o); const s = g.state;
-            if (!window.__held && s.phase === 'play' && s.turn >= 12 && s.current === 0 && s.rolled && !s.pending && !s.trade) { window.__held = true; g.frozen = true; clearTimeout(g.timer); g.timer = null; }
+            if (!window.__held && s.phase === 'play' && s.turn >= 12 && s.current === 0 && !s.sub && s.rolled && !s.pending && !s.trade) { window.__held = true; g.frozen = true; clearTimeout(g.timer); g.timer = null; }
             return r; }; })()""")
         await page.wait_for_function('window.__held === true', timeout=900000, polling=500)
         # our seat waits for us again (no computer plays it); the game is ours to drive
@@ -190,7 +194,7 @@ async def main():
         await page.evaluate('(() => { const m = __game.map, c = m.camera; m.frameLand(__game.hud.freeRect(), c.fitIsland(1.12)); c.target.copy(c.goal); c.h = c.goalH; c.apply(); })()')
         await page.wait_for_timeout(4500)
         await page.screenshot(path=f'{SP}/{PRE}-final.png')
-        if MAP == 'sea-3':
+        if FOGN:
             fg = await page.evaluate(FOG)
             lab = await page.evaluate(CHECK)
             check('the map follows the discoveries', fg['mist'] == fg['hidden'] and lab['tokens'] == fg['numbered'] and not lab['bad'], f"{json.dumps(fg)}, {lab['tokens']} tokens shown")

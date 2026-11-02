@@ -11,13 +11,17 @@ let checked = 0;
 let games = 0;
 const kinds = {};
 // 40 standard games, 5–6 player games on the large island (paired turns, then the special building
-// phase), then Seafarers games
-for (let g = 0; g < 78; g++) {
+// phase), then Seafarers games, then Seafarers for 5–6 players (each map twice, once with the special
+// building phase)
+const SEA6 = ['sea-1-6', 'sea-2-6', 'sea-3-6', 'sea-9-6'];
+for (let g = 0; g < 86; g++) {
   const big = g >= 40 && g < 52;
-  const sea = g >= 52;
-  const n = big ? 5 + (g % 2) : 4;
+  const sea6 = g >= 78;
+  const sea = g >= 52 && !sea6;
+  const n = big || sea6 ? 5 + (g % 2) : 4;
   const players = Array.from({ length: n }, (_, i) => ({ name: 'p' + i, color: '#000', kind: 'ai', ai: { level: 'normal' } }));
-  const st = createGame({ seed: 1000 + g, players, targetVP: 10, map: big ? 'base-6' : sea ? (g >= 72 ? 'sea-9' : g >= 66 ? 'sea-3' : g >= 60 ? 'sea-2' : 'sea-1') : undefined, rules: big && g >= 46 ? { turns: 'sbp' } : undefined });
+  const map = sea6 ? SEA6[(g - 78) >> 1] : big ? 'base-6' : sea ? (g >= 72 ? 'sea-9' : g >= 66 ? 'sea-3' : g >= 60 ? 'sea-2' : 'sea-1') : undefined;
+  const st = createGame({ seed: 1000 + g, players, targetVP: 10, map, rules: (big && g >= 46) || (sea6 && g % 2) ? { turns: 'sbp' } : undefined });
   const mem = players.map(() => ({}));
   const rnd = makeRng(77 + g);
   let steps = 0;

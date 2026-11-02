@@ -904,11 +904,13 @@ export class Game {
       }
       else banner = { html: `${P(t.from)} 正在考慮交易對象…`, wait: true };
     } else if (v.current === me && v.sub && !this.mode) {
-      // 5–6 players: the part of the turn after the main player's
+      // 5–6 players: the part of the turn after the main player's (with ships: the second player may
+      // move one, nobody may in the special building phase)
+      const ships = !!v.ships;
       banner =
         v.sub.k === 'pair'
-          ? { html: `${P(v.sub.lead)} 的回合由你接著行動（<b>第二位</b>）：可以建造、和銀行交易、使用一張發展卡；不能擲骰或和其他國家交易` }
-          : { html: `<b>特別建造</b>（${P(v.sub.lead)} 的回合之後）：可以建造或購買發展卡；不能交易或使用發展卡` };
+          ? { html: `${P(v.sub.lead)} 的回合由你接著行動（<b>第二位</b>）：可以建造、和銀行交易、使用一張發展卡${ships ? '、移動一艘船' : ''}；不能擲骰或和其他國家交易` }
+          : { html: `<b>特別建造</b>（${P(v.sub.lead)} 的回合之後）：可以建造或購買發展卡；不能交易${ships ? '、移船' : ''}或使用發展卡` };
       hint = { text: '完成後按「結束」' };
     } else if (v.current === me) {
       if (!v.rolled) {

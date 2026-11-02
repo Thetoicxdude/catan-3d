@@ -2,7 +2,8 @@
 // outline (settlement/city spots), outlined stripes with a centre dot (road spots) and target rings
 // around number tokens (robber). Drawn on top of everything at a constant on-screen size.
 import * as THREE from 'three';
-import { GEO } from '../engine/geometry.js';
+import { GEO, HEX_SIZE } from '../engine/geometry.js';
+import { screenWidth } from './labels.js';
 
 const INK = 'rgba(12,10,8,0.92)';
 
@@ -246,17 +247,21 @@ export class Markers {
   }
 
   // camDist: camera distance; vh: viewport height in CSS px; touch: coarse pointer
-  update(dt, camDist, vh, touch, tokenScale) {
+  update(dt, camDist, vh, touch, tokenScale, camera, vw) {
     if (!this.items.size) return;
     this.time += dt;
     const t = this.time;
     const pulse = 1 + Math.sin(t * 4.2) * 0.07;
     const k = 0.65 / Math.max(1, vh); // sprite scale per screen pixel (fov 36°)
+    // no marker wider than the room it has there on screen (where the map is small or far away, the
+    // markers of neighbouring intersections, paths or provinces would run together)
+    const room = this.kind === 'vertex' ? HEX_SIZE * 0.9 : this.kind === 'edge' ? HEX_SIZE * 0.6 : HEX_SIZE * 1.6;
     for (const [id, it] of this.items) {
       const hot = id === this.hover;
       let px;
       if (it.hex) px = 44 * tokenScale * 1.95 + 6;
       else px = it.base * (touch ? 1.3 : 1);
+      if (camera) px = Math.min(px, Math.max(it.hex ? 24 : 12, screenWidth(camera, it.spot.position, room, vw, vh)));
       px *= hot ? 1.3 : pulse;
       it.spot.scale.setScalar(px * k);
       it.spot.material.opacity = hot ? 1 : 0.88 + 0.12 * Math.sin(t * 4.2);

@@ -397,7 +397,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 /* the map picker: two maps a row, the same width each, however many maps there are */
 .seg.maps { display: grid; grid-template-columns: 1fr 1fr; }
 .seg.maps button { border-bottom: 1px solid rgba(199, 166, 96, 0.2); text-align: left; }
-.seg.maps button:nth-child(2n) { border-right: 0; }
+.seg.maps button.r { border-right: 0; }
+/* the table of maps: columns by number of players, rows by kind */
+.seg.maps .mt-col, .seg.maps .mt-kind { padding: 4px 12px; font-size: 11px; letter-spacing: 0.12em; color: var(--ink-dim); background: rgba(0, 0, 0, 0.5); border-bottom: 1px solid rgba(199, 166, 96, 0.2); }
+.seg.maps .mt-col { text-align: left; }
+.seg.maps .mt-kind { grid-column: 1 / -1; padding: 3px 12px; font-size: 10.5px; color: var(--brass); background: rgba(0, 0, 0, 0.22); }
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
 .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.6); cursor: pointer; box-shadow: 0 0 0 1px rgba(199, 166, 96, 0.3); padding: 0; }
 .swatch.on { box-shadow: 0 0 0 2px var(--brass-hi), 0 0 12px rgba(234, 208, 142, 0.5); }

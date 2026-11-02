@@ -1057,6 +1057,8 @@ H.endTurn = (st, a, ev) => {
     st.sub = { k: mode === 'paired' ? 'pair' : 'sbp', lead, rest: queue.slice(1) };
     st.current = queue[0];
     st.devPlayed = false;
+    // (Seafarers) the second player may move a ship of their own too
+    if (seafarers(st)) st.shipMoved = false;
     ev.push({ type: 'turnStart', p: st.current, turn: st.turn, sub: st.sub.k, lead });
     return;
   }
