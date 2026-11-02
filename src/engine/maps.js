@@ -409,13 +409,20 @@ export const MAP_TABLE = [
 ];
 export const MAP_LIST = MAP_TABLE.flatMap((k) => k.rows.flat());
 
+// Maps players made (custom.js): known to this page once registered. A game on one keeps the whole
+// definition in its state (`mapDef`), so a saved game never depends on the registry.
+const CUSTOM = {};
+
 // a map by its id (or a definition passed through as it is); unknown ids fall back to the standard map
 export function mapDef(m) {
   if (m && typeof m === 'object' && Array.isArray(m.tiles)) return m;
-  return MAPS[m] || BASE4;
+  return MAPS[m] || CUSTOM[m] || BASE4;
 }
 
+export const isBuiltIn = (id) => !!MAPS[id];
+export const knownMap = (id) => !!(MAPS[id] || CUSTOM[id]);
+
 export function registerMap(def) {
-  MAPS[def.id] = def;
+  if (!MAPS[def.id]) CUSTOM[def.id] = def;
   return def;
 }

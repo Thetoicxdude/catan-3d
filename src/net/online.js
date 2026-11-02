@@ -13,7 +13,7 @@ import { flagURL } from '../ui/flags.js';
 import { esc } from '../ui/text.js';
 import { icon } from '../ui/icons.js';
 import { PALETTE, AI_NAMES, fitSettings, gameSetup, mapTable } from '../ui/menu.js';
-import { mapDef, MAP_LIST, DEFAULT_MAP } from '../engine/maps.js';
+import { mapDef, MAP_LIST, DEFAULT_MAP, isBuiltIn } from '../engine/maps.js';
 
 const APP = 'catan3d';
 const V = 1;
@@ -201,6 +201,11 @@ export class HostSession {
       this.hostSeat = Math.max(0, this.seats.findIndex((s) => s.kind === 'host'));
     } else {
       const s = this.settings;
+      // (a map drawn on this device stays in single player: the other pages could not lay it out)
+      if (!isBuiltIn(s.map)) {
+        s.map = DEFAULT_MAP;
+        fitSettings(s);
+      }
       this.seats = [{ kind: 'host', name: cleanName(s.name, '曙光王國'), color: s.color }];
       const n = this.official ? 3 : s.opponents;
       for (let i = 0; i < n; i++) this.seats.push({ kind: 'open', level: 'normal' });

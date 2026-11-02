@@ -228,6 +228,8 @@
 
 @media (max-width: 760px) {
   .menu-screen.home { --cw: calc((100vw - 32px - 3 * 8px) / 4); padding: calc(10px + var(--safe-t)) max(14px, var(--safe-r)) calc(10px + var(--safe-b)) max(14px, var(--safe-l)); }
+  .menu-screen.home.cards-5 { --cw: calc((100vw - 32px - 4 * 8px) / 5); }
+  .menu-screen.home.cards-5 .hm-lbl { font-size: max(10px, calc(var(--cw) * 0.15)); letter-spacing: 0; }
   .hm-top { flex-direction: column; gap: 8px; }
   .hm-brand { width: 100%; }
   .hm-crest { width: 42px; height: 42px; }

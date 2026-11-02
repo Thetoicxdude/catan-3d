@@ -1,7 +1,7 @@
 // Runs many all-AI games and checks rule invariants after every single action.
-//   node test/sim.mjs [games] [--map=base-6] [--turns=paired|sbp]
+//   node test/sim.mjs [games] [--map=base-6 | --map=draft:twin] [--turns=paired|sbp]
 import { GEO } from '../src/engine/geometry.js';
-import { mapDef } from '../src/engine/maps.js';
+import { mapDef, registerMap } from '../src/engine/maps.js';
 import {
   createGame,
   applyAction,
@@ -18,7 +18,14 @@ import { makeRng } from '../src/engine/rng.js';
 const args = process.argv.slice(2);
 const flag = (k) => (args.find((a) => a.startsWith(`--${k}=`)) || '').split('=')[1];
 const GAMES = Number(args.find((a) => /^\d+$/.test(a)) || 300);
-const MAP = flag('map') || 'base-4';
+// a map drawn in the editor: --map=draft:<name> (test/drafts.mjs)
+let MAP = flag('map') || 'base-4';
+if (MAP.startsWith('draft:')) {
+  const { DRAFTS } = await import('./drafts.mjs');
+  const { draftToDef } = await import('../src/engine/custom.js');
+  const def = registerMap(draftToDef(DRAFTS[MAP.slice(6)]));
+  MAP = def.id;
+}
 const TURNS = flag('turns');
 const DEF = mapDef(MAP);
 const BANK = DEF.bank || 19;

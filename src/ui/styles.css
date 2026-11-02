@@ -718,3 +718,63 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .ac-recent li { grid-template-columns: 3em minmax(0, 1fr) auto; }
   .ac-recent .v { grid-column: 1 / -1; text-align: left; }
 }
+
+/* ───────── the map workshop ───────── */
+.menu-screen.editor, .menu-screen.editor:not(.home) { grid-template-columns: minmax(0, 1fr) minmax(0, 400px); }
+.ed-board { display: flex; flex-direction: column; min-height: 0; align-self: stretch; }
+.ed-board .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ed-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px 4px; }
+.ed-tool { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(199, 166, 96, 0.25); color: var(--ink-dim); font: inherit; font-size: 13px; cursor: pointer; border-radius: 4px; }
+.ed-tool i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.6); background: repeating-linear-gradient(45deg, transparent 0 3px, rgba(255, 255, 255, 0.25) 3px 4px); }
+.ed-tool.on { border-color: var(--brass-hi); color: var(--ink); background: rgba(199, 166, 96, 0.18); box-shadow: 0 0 0 1px var(--brass-hi) inset; }
+.ed-grid { flex: 1; min-height: 240px; padding: 6px 12px; display: flex; }
+.ed-grid svg { width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
+.ed-cell { stroke: rgba(10, 8, 4, 0.75); stroke-width: 0.7; }
+.ed-cell.off { fill: rgba(255, 255, 255, 0.03); stroke: rgba(199, 166, 96, 0.25); stroke-dasharray: 1.6 1.4; }
+.ed-cell.off:hover { fill: rgba(255, 255, 255, 0.1); }
+.ed-cell.sea { stroke: rgba(150, 200, 230, 0.35); }
+.ed-mark { font: 700 8px var(--font-display); fill: rgba(20, 14, 6, 0.82); text-anchor: middle; pointer-events: none; }
+.ed-mark.q { fill: rgba(60, 45, 25, 0.75); }
+.ed-hint { margin: 0; padding: 4px 16px 12px; color: var(--ink-faint); font-size: 12px; }
+.ed-side .modal-body { gap: 12px; }
+.ed-check { display: flex; align-items: center; gap: 6px; color: var(--ink); font-size: 13px; }
+.ed-facts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.ed-facts div { display: flex; flex-direction: column; align-items: center; padding: 6px 2px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(199, 166, 96, 0.15); }
+.ed-facts b { font-family: var(--font-num); font-size: 20px; color: var(--brass-hi); line-height: 1; }
+.ed-facts span { font-size: 11px; color: var(--ink-dim); margin-top: 3px; white-space: nowrap; }
+.ed-facts p { grid-column: 1 / -1; margin: 2px 0 0; font-size: 12px; color: var(--ink-dim); }
+.ed-msgs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.ed-msgs li { padding: 5px 8px 5px 10px; border-left: 3px solid; background: rgba(0, 0, 0, 0.22); }
+.ed-msgs .err { border-color: #c0392b; color: #f1b9b0; }
+.ed-msgs .warn { border-color: #d39b2a; color: #f0d7a3; }
+.ed-msgs .note { border-color: rgba(199, 166, 96, 0.4); color: var(--ink-dim); }
+.ed-msgs .ok { border-color: #5aa154; color: #c8e6c0; }
+.ed-mine { display: flex; flex-direction: column; gap: 6px; }
+.ed-mine-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 6px 8px; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(199, 166, 96, 0.14); }
+.ed-mine-row.on { border-color: var(--brass); }
+.ed-mine-row .nm { display: flex; flex-direction: column; min-width: 0; }
+.ed-mine-row .nm b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ed-mine-row .nm span { font-size: 12px; color: var(--ink-dim); }
+/* 3D preview: the board panel folds to its head and the island shows through */
+.menu-screen.editor.viewing { background: none; pointer-events: none; }
+.menu-screen.editor.viewing > * { pointer-events: auto; }
+.menu-screen.editor.viewing .ed-board { align-self: start; }
+.menu-screen.editor.viewing .ed-tools, .menu-screen.editor.viewing .ed-grid, .menu-screen.editor.viewing .ed-hint { display: none; }
+/* maps players made, in the campaign menu's table of maps */
+.seg.maps button.wide { grid-column: 1 / -1; border-right: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.seg.maps button.wide small { font-size: 11px; opacity: 0.75; font-weight: 500; }
+.btn.ed-open { justify-self: start; padding-left: 0; color: var(--brass-hi); }
+@media (max-width: 760px) {
+  /* a phone: the grid, then the settings, one after the other down the page */
+  .menu-screen.editor { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  .menu-screen.editor > .panel { flex: none; }
+  .ed-board { align-self: stretch; }
+  .ed-grid { flex: none; min-height: 0; padding: 4px; }
+  .ed-grid svg { height: auto; aspect-ratio: 242 / 178; }
+  .menu-screen.editor .ed-side { align-self: stretch; max-height: none; }
+  .ed-side .modal-body { overflow: visible; }
+  .ed-tools { padding: 8px 8px 2px; gap: 4px; }
+  .ed-tool { padding: 4px 7px; font-size: 12px; }
+  .ed-facts b { font-size: 17px; }
+  .menu-screen.editor.viewing .ed-side { display: none; }
+}

@@ -125,8 +125,9 @@ export function turnsNote(turns, def) {
 }
 
 // The maps to choose from (the campaign menu and a custom room): by kind, the 3–4 player map in the
-// left column and its 5–6 player counterpart in the right.
-export function mapTable(current, pick) {
+// left column and its 5–6 player counterpart in the right; then maps players made (`extra`), one to a
+// row.
+export function mapTable(current, pick, extra = []) {
   const box = el('div', 'seg maps');
   box.appendChild(el('span', 'mt-col', '3–4 人'));
   box.appendChild(el('span', 'mt-col', '5–6 人'));
@@ -141,6 +142,17 @@ export function mapTable(current, pick) {
         b.addEventListener('click', () => def.id !== current && pick(def.id));
         box.appendChild(b);
       });
+    }
+  }
+  if (extra.length) {
+    box.appendChild(el('span', 'mt-kind', '玩家地圖'));
+    for (const def of extra) {
+      const b = el('button', 'wide' + (def.id === current ? ' on' : ''), `${esc(def.name)}<small>${def.players[0]}–${def.players[1]} 人</small>`);
+      b.type = 'button';
+      b.dataset.map = def.id;
+      b.title = `${def.name}（${def.players[0]}–${def.players[1]} 人，${def.vp} 分勝利）`;
+      b.addEventListener('click', () => def.id !== current && pick(def.id));
+      box.appendChild(b);
     }
   }
   return box;
@@ -166,7 +178,7 @@ function buildLabel() {
 }
 
 // The single-player setup: nation, opponents, number layout, victory points and the island.
-export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules, onReroll, onChange, onOnline, onBack }) {
+export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules, onReroll, onChange, onOnline, onBack, onEditor, customMaps = [] }) {
   const scr = el('div', 'menu-screen');
   scr.innerHTML = `
     <div class="title-block">
@@ -234,15 +246,26 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
     // the island first: it decides how many nations can play
     g.appendChild(el('label', '', '地圖'));
     g.appendChild(
-      mapTable(settings.map, (id) => {
-        settings.map = id;
-        settings.opponents = mapDef(id).players[1] - 1;
-        fitSettings(settings);
-        onChange(settings, 'map');
-        onReroll(false);
-        render();
-      }),
+      mapTable(
+        settings.map,
+        (id) => {
+          settings.map = id;
+          settings.opponents = mapDef(id).players[1] - 1;
+          fitSettings(settings);
+          onChange(settings, 'map');
+          onReroll(false);
+          render();
+        },
+        customMaps,
+      ),
     );
+    if (onEditor) {
+      g.appendChild(el('span', ''));
+      const ed = el('button', 'btn ghost ed-open', '地圖工坊：畫一座自己的島 →');
+      ed.type = 'button';
+      ed.addEventListener('click', () => onEditor());
+      g.appendChild(ed);
+    }
     const big = mapDef(settings.map).players[0] >= 5;
     seg(
       '對手數量',
@@ -340,7 +363,7 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
     const fixedVP = mapDef(settings.map).vp;
     if (fixedVP) {
       g2.appendChild(el('label', '', '勝利分數'));
-      g2.appendChild(el('span', 'form-fixed', `${fixedVP} 分（劇本規定）`));
+      g2.appendChild(el('span', 'form-fixed', `${fixedVP} 分（${mapDef(settings.map).custom ? '地圖規定' : '劇本規定'}）`));
     } else
       seg2('勝利分數', 'target', [
         [8, '8 分'],

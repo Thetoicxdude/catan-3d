@@ -13,6 +13,9 @@ import { icon } from './ui/icons.js';
 import { esc } from './ui/text.js';
 import { reportResult } from './net/account.js';
 import { setSfx } from './ui/sfx.js';
+import { registerMap } from './engine/maps.js';
+import { checkDraft } from './engine/custom.js';
+import { showEditor, loadDrafts } from './ui/editor.js';
 
 const SETTINGS_KEY = 'catan3d-settings-v1';
 const app = document.getElementById('app');
@@ -47,6 +50,18 @@ function saveSettings(s) {
     /* storage unavailable */
   }
 }
+
+// the maps drawn in the workshop on this device (playable ones): known before the settings are read,
+// so a campaign set up on one of them keeps it
+function myMaps() {
+  const out = [];
+  for (const it of loadDrafts()) {
+    const c = checkDraft(it.draft);
+    if (c.def) out.push(registerMap(c.def));
+  }
+  return out;
+}
+myMaps();
 
 let settings = loadSettings();
 setSfx(settings.sound !== false);
@@ -207,6 +222,7 @@ function openMenu() {
     onChange: onSettingsChange,
     // any other way to play leaves the official matchmaking first
     onSingle: () => stopMatch().then(openSetup),
+    onEditor: () => stopMatch().then(openEditor),
     onCreate: () =>
       stopMatch().then(() => {
         closeMenus();
@@ -245,7 +261,55 @@ function openSetup() {
     onRules: () => menuDialogs().rules(),
     onStart: () => startGame(null),
     onBack: () => openMenu(),
+    onEditor: () => openEditor(),
+    customMaps: myMaps(),
   });
+}
+
+// the map workshop: drawing an island, seeing it on the 3D map, playing it
+function openEditor() {
+  closeMenus();
+  if (map) map.holdAssets(false);
+  menu = showEditor(app, {
+    dialogs: menuDialogs(),
+    toast,
+    onBack: () => {
+      menu = null;
+      openMenu();
+      showPreview(false);
+    },
+    onPlay: (def) => {
+      registerMap(def);
+      settings.map = def.id;
+      settings.opponents = def.players[1] - 1;
+      fitSettings(settings);
+      saveSettings(settings);
+      openSetup();
+      showPreview(true);
+    },
+    onPreview: (def, area) => editorPreview(def, area),
+  });
+}
+
+// the island being drawn, on the 3D map, framed in the part of the screen the workshop leaves free
+async function editorPreview(def, area) {
+  registerMap(def);
+  loading(true);
+  await nextFrame();
+  try {
+    const players = playersFromSettings({ ...settings, opponents: def.players[1] - 1 });
+    const st = createGame({ seed: randomSeed(), players, map: def.id });
+    buildMap(st, players, settings.quality);
+  } catch (e) {
+    loading(false);
+    toast('無法預覽', e.message || String(e), 'cross');
+    return;
+  }
+  loading(false);
+  drift = null;
+  map.onFrame = null;
+  map.setMapMode('terrain');
+  map.frameLand(area, map.camera.fitIsland(1.12));
 }
 
 // join a friend's room: a room code, or one of the open rooms
@@ -422,8 +486,12 @@ function becomeClient(d, from) {
   });
 }
 
-// test hook (mock rooms, or tests that switch hooks on)
-if (window.__mockRoom || window.__testHooks) window.__sess = () => session;
+// test hooks (mock rooms, or tests that switch hooks on): the room session, the 3D map, the screen open
+if (window.__mockRoom || window.__testHooks) {
+  window.__sess = () => session;
+  window.__mapView = () => map;
+  window.__screen = () => menu;
+}
 
 // official rooms: automatic matchmaking (full room or countdown starts the campaign)
 // The official room is joined from the home screen and the player stays there while it fills up:
@@ -551,6 +619,8 @@ async function startGame(saved) {
   let state;
   if (saved) {
     state = saved.state;
+    // (a campaign on a map drawn in the workshop carries the map: known again whatever became of the draft)
+    if (state.mapDef) registerMap(state.mapDef);
     players = state.players.map((p) => ({ name: p.name, color: p.color, kind: p.kind, ai: p.ai }));
     settings = { ...settings, ...(saved.settings || {}), quality: settings.quality };
   } else {

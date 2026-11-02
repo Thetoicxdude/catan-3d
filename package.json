@@ -6,7 +6,7 @@
     "build": "node build.mjs",
     "dev": "node build.mjs && wrangler dev",
     "deploy": "node build.mjs && wrangler deploy",
-    "test": "node test/unit.mjs && node test/golden.mjs && node test/codec.mjs && node test/clock.mjs && node test/accounts.mjs && node test/sim.mjs && node test/sim.mjs 120 --map=base-6 && node test/sim.mjs 40 --map=base-6 --turns=sbp && node test/sim.mjs 60 --map=sea-1 && node test/sim.mjs 60 --map=sea-2 && node test/sim.mjs 40 --map=sea-3 && node test/sim.mjs 40 --map=sea-9 && node test/sim.mjs 30 --map=sea-1-6 && node test/sim.mjs 30 --map=sea-2-6 && node test/sim.mjs 30 --map=sea-3-6 --turns=sbp && node test/sim.mjs 30 --map=sea-9-6"
+    "test": "node test/unit.mjs && node test/golden.mjs && node test/codec.mjs && node test/clock.mjs && node test/accounts.mjs && node test/custom.mjs && node test/sim.mjs && node test/sim.mjs 120 --map=base-6 && node test/sim.mjs 40 --map=base-6 --turns=sbp && node test/sim.mjs 60 --map=sea-1 && node test/sim.mjs 60 --map=sea-2 && node test/sim.mjs 40 --map=sea-3 && node test/sim.mjs 40 --map=sea-9 && node test/sim.mjs 30 --map=sea-1-6 && node test/sim.mjs 30 --map=sea-2-6 && node test/sim.mjs 30 --map=sea-3-6 --turns=sbp && node test/sim.mjs 30 --map=sea-9-6 && node test/sim.mjs 20 --map=draft:twin && node test/sim.mjs 20 --map=draft:archipelago"
   },
   "author": "",
   "license": "UNLICENSED",

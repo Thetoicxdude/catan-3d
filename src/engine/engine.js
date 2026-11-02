@@ -6,7 +6,7 @@
 
 import { GEO, useMap } from './geometry.js';
 import { generateBoard, RES, TERRAIN_RES, pips, provinceName } from './board.js';
-import { mapDef, DEFAULT_MAP } from './maps.js';
+import { mapDef, isBuiltIn, DEFAULT_MAP } from './maps.js';
 import { rngInt, shuffle, seedState } from './rng.js';
 import { seaInfo, roadEdge, shipEdge, shipLegal, legalShipEdges, movableShips, shipTargets, pirateVictims, pirateEdges, tradeRouteFor, SHIP_COST, SHIPS } from './seafarers.js';
 
@@ -127,7 +127,7 @@ export function createGame(opts) {
     map: def.id,
   };
   // a map that is not built in (one a player made) travels with the game
-  if (mapDef(def.id) !== def) st.mapDef = def;
+  if (!isBuiltIn(def.id) || mapDef(def.id) !== def) st.mapDef = def;
   // the map's rules (5–6 players: how the turn is shared), which a room may change
   const rules = { ...(def.rules || {}), ...(opts.rules || {}) };
   if (Object.keys(rules).length) {

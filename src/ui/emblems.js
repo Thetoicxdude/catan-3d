@@ -16,6 +16,7 @@ const FIGURES = {
   account: 'visored-helm',
   official: 'laurels-trophy',
   chat: 'talk',
+  workshop: 'treasure-map', // the map workshop: an island of your own drawing
 };
 
 export function emblemSvg(name, size = 64) {

@@ -12,6 +12,8 @@ const USED = [
   'mounted-knight', 'laurel-crown', 'card-random', 'exit-door', 'meeple-group', 'hooded-figure', 'anchor',
   // Seafarers: ships, moving a ship, the pirate, gold fields, new islands
   'sailboat', 'ship-wheel', 'pirate-flag', 'gold-nuggets', 'island',
+  // the map workshop
+  'treasure-map',
 ];
 
 const src = JSON.parse(readFileSync(process.argv[2], 'utf8'));

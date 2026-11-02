@@ -353,8 +353,8 @@ function crest() {
 
 // opts: settings, hasSave, seed (the island this player would open an official room on), seconds
 // (the official countdown), version, getLobby() → lobby wrapper | null (unreachable) | undefined
-// (no live lobby on this page), and the handlers onChange, onSingle, onCreate, onJoin, onMatch,
-// onContinue, onRules, onSettings. setMatch(state) shows this player's own matchmaking.
+// (no live lobby on this page), and the handlers onChange, onSingle, onCreate, onJoin, onEditor (the map
+// workshop), onMatch, onContinue, onRules, onSettings. setMatch(state) shows this player's own matchmaking.
 export function showHome(app, opts) {
   const { settings, hasSave, onChange, version } = opts;
   const total = Math.max(1, opts.seconds || 60) * 1000;
@@ -391,7 +391,7 @@ export function showHome(app, opts) {
         </div>
       </section>
       <nav class="hm-hand" aria-label="遊戲方式">
-        ${card('single', 'gold', '單人遊戲')}${card('create', 'bronze', '建立房間')}${card('join', 'verdigris', '加入房間')}${card('continue', 'silver', '繼續上一局', 'resume')}
+        ${card('single', 'gold', '單人遊戲')}${card('create', 'bronze', '建立房間')}${card('join', 'verdigris', '加入房間')}${card('workshop', 'bronze', '地圖工坊')}${card('continue', 'silver', '繼續上一局', 'resume')}
       </nav>
     </main>
     <div class="hm-medals">
@@ -407,6 +407,7 @@ export function showHome(app, opts) {
 
   // the hand of cards fans out around its middle
   const cards = [...scr.querySelectorAll('.hm-card:not([hidden])')];
+  scr.classList.add('cards-' + cards.length);
   cards.forEach((c, i) => {
     const off = i - (cards.length - 1) / 2;
     c.style.setProperty('--rot', `${(off * 4.5).toFixed(1)}deg`);
@@ -446,7 +447,7 @@ export function showHome(app, opts) {
   const account = opts.dialogs ? mountAccount(scr.querySelector('.hm-who'), opts.dialogs) : null;
 
   // ── actions ──
-  const handlers = { single: opts.onSingle, create: opts.onCreate, join: opts.onJoin, continue: opts.onContinue, rules: opts.onRules, settings: opts.onSettings, match: opts.onMatch };
+  const handlers = { single: opts.onSingle, create: opts.onCreate, join: opts.onJoin, workshop: opts.onEditor, continue: opts.onContinue, rules: opts.onRules, settings: opts.onSettings, match: opts.onMatch };
   const act = (k) => handlers[k] && handlers[k]();
   scr.querySelectorAll('button[data-k]').forEach((b) => b.addEventListener('click', () => act(b.dataset.k)));
   const boardEl = scr.querySelector('.ho-board');
