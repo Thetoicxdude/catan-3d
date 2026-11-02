@@ -497,6 +497,8 @@ export class Dialogs {
       hist.appendChild(d);
     }
     body.appendChild(hist);
+    // (a map players published: rating it)
+    if (ctx.overExtra) body.appendChild(ctx.overExtra);
     return this.open({ kind: 'over', title: v.winner === ctx.me ? '勝利' : '戰役結束', body, foot: [button('檢視地圖', '', onView), button('再來一局', 'primary', onNew)], dismissable: true, cls: '' });
   }
 

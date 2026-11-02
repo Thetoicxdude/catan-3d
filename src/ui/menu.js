@@ -147,7 +147,7 @@ export function mapTable(current, pick, extra = []) {
   if (extra.length) {
     box.appendChild(el('span', 'mt-kind', '玩家地圖'));
     for (const def of extra) {
-      const b = el('button', 'wide' + (def.id === current ? ' on' : ''), `${esc(def.name)}<small>${def.players[0]}–${def.players[1]} 人</small>`);
+      const b = el('button', 'wide' + (def.id === current ? ' on' : ''), `${esc(def.name)}<small>${def.author ? esc(def.author) + '・' : ''}${def.players[0]}–${def.players[1]} 人</small>`);
       b.type = 'button';
       b.dataset.map = def.id;
       b.title = `${def.name}（${def.players[0]}–${def.players[1]} 人，${def.vp} 分勝利）`;
@@ -178,7 +178,7 @@ function buildLabel() {
 }
 
 // The single-player setup: nation, opponents, number layout, victory points and the island.
-export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules, onReroll, onChange, onOnline, onBack, onEditor, customMaps = [] }) {
+export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules, onReroll, onChange, onOnline, onBack, onEditor, onBrowse, customMaps = [] }) {
   const scr = el('div', 'menu-screen');
   scr.innerHTML = `
     <div class="title-block">
@@ -259,12 +259,22 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
         customMaps,
       ),
     );
-    if (onEditor) {
+    if (onEditor || onBrowse) {
       g.appendChild(el('span', ''));
-      const ed = el('button', 'btn ghost ed-open', '地圖工坊：畫一座自己的島 →');
-      ed.type = 'button';
-      ed.addEventListener('click', () => onEditor());
-      g.appendChild(ed);
+      const links = el('div', 'map-links');
+      if (onBrowse) {
+        const br = el('button', 'btn ghost ed-open', '公開地圖…');
+        br.type = 'button';
+        br.addEventListener('click', () => onBrowse());
+        links.appendChild(br);
+      }
+      if (onEditor) {
+        const ed = el('button', 'btn ghost ed-open', '地圖工坊：畫一座自己的島 →');
+        ed.type = 'button';
+        ed.addEventListener('click', () => onEditor());
+        links.appendChild(ed);
+      }
+      g.appendChild(links);
     }
     const big = mapDef(settings.map).players[0] >= 5;
     seg(

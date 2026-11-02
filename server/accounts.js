@@ -5,6 +5,7 @@
 //   POST /api/result  {gid, mode, won, vp, place, n, turns}   a finished campaign (once per game)
 //   POST /api/logout                  ends the session
 //   POST /api/forget                  deletes the player's account and record
+//   /api/maps…                        maps players publish from the map workshop (maps.js)
 //
 // Only the Google account's id (`sub`), its display name and its picture are kept: no email address.
 // Results are reported by each player's own page, so the record is a personal one (nothing here is
@@ -15,6 +16,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { GOOGLE_CLIENT_ID } from './config.js';
 import { verifyIdToken, googleKeys, TokenError } from './google.js';
+import { handleMaps, MapRows } from './maps.js';
 
 const COOKIE = 'cs';
 const SESSION_DAYS = 30;
@@ -141,6 +143,7 @@ export async function handleApi(request, env, url) {
       if (hash) await store.logout(hash);
       return json({ ok: true }, 200, { 'set-cookie': sessionCookie('', secure, 0) });
     }
+    if (path === '/api/maps' || path.startsWith('/api/maps/')) return await handleMaps(request, url, store, hash);
     if (path === '/api/forget' && request.method === 'POST') {
       if (!hash) return json({ error: 'signed_out' }, 401);
       await store.forget(hash);
@@ -167,6 +170,7 @@ export class Accounts extends DurableObject {
       sub TEXT NOT NULL, gid TEXT NOT NULL, at INTEGER NOT NULL, mode TEXT NOT NULL, won INTEGER NOT NULL, vp INTEGER NOT NULL,
       place INTEGER NOT NULL, n INTEGER NOT NULL, turns INTEGER NOT NULL, PRIMARY KEY (sub, gid))`);
     this.sql.exec('CREATE INDEX IF NOT EXISTS results_recent ON results (sub, at)');
+    this.mapsInit();
   }
 
   one(query, ...args) {
@@ -266,6 +270,15 @@ export class Accounts extends DurableObject {
     this.run('DELETE FROM results WHERE sub = ?', s.sub);
     this.run('DELETE FROM sessions WHERE sub = ?', s.sub);
     this.run('DELETE FROM users WHERE sub = ?', s.sub);
+    // their maps leave the list (games and links already made on them go on, without their name)
+    this.run("UPDATE maps SET hidden = 1, sub = '', author = '已刪除的帳號' WHERE sub = ?", s.sub);
+    const rated = this.sql.exec('SELECT code FROM ratings WHERE sub = ?', s.sub).toArray();
+    this.run('DELETE FROM ratings WHERE sub = ?', s.sub);
+    for (const r of rated)
+      this.run('UPDATE maps SET rsum = (SELECT COALESCE(SUM(stars), 0) FROM ratings WHERE code = ?), rcount = (SELECT COUNT(*) FROM ratings WHERE code = ?) WHERE code = ?', r.code, r.code, r.code);
     return true;
   }
 }
+
+// (the maps' rows live here too: next to the sessions that publish and rate them)
+for (const [k, f] of Object.entries(MapRows)) Accounts.prototype[k] = f;

@@ -5,7 +5,7 @@ import { GEO, useMap } from '../engine/geometry.js';
 import { RES } from '../engine/engine.js';
 import { generateBoard, provinceName } from '../engine/board.js';
 import { seedState } from '../engine/rng.js';
-import { DEFAULT_MAP, mapDef } from '../engine/maps.js';
+import { DEFAULT_MAP, mapDef, isBuiltIn } from '../engine/maps.js';
 
 const TER = { forest: 'f', hills: 'h', pasture: 'p', fields: 'g', mountains: 'm', desert: 'd', sea: 's', gold: 'o', fog: 'x' };
 const TER_R = Object.fromEntries(Object.entries(TER).map(([k, v]) => [v, k]));
@@ -531,6 +531,8 @@ export function decodeFull(board, seats, pub, full) {
   });
   const st = { ...v, players, devDeck: [...String(full.d || '')].map((c) => DEV_R[c]), rng: Array.isArray(full.g) ? full.g.slice() : null, seed: full.sd >>> 0 };
   if (full.fo) st.fog = { pool: [...String(full.fo[0])].map((c) => TER_R[c]), numbers: full.fo[1] ? String(full.fo[1]).split('.').map(Number) : [] };
+  // (a map players made travels with the game, as createGame keeps it)
+  if (st.map && !isBuiltIn(st.map)) st.mapDef = mapDef(st.map);
   delete st.viewer;
   delete st.devDeckCount;
   return st;

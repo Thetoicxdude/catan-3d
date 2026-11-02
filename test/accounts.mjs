@@ -2,6 +2,7 @@
 //   node test/accounts.mjs              checks the Google ID token checks and the result validation
 //   node test/accounts.mjs --keys DIR   makes a test signing key in DIR (keys.json = private key,
 //                                       dev.vars = the line to put in .dev.vars for `wrangler dev`)
+//   node test/accounts.mjs --token DIR SUB [NAME]   a token signed with that key (browser tests)
 //   API=http://127.0.0.1:8787 KEYS=DIR node test/accounts.mjs
 //                                       also signs in against a local server started with that .dev.vars
 import assert from 'node:assert/strict';
@@ -31,6 +32,12 @@ const now = Math.floor(Date.now() / 1000);
 const good = (over = {}) => ({ iss: 'https://accounts.google.com', aud: GOOGLE_CLIENT_ID, sub: '109876543210987654321', name: '測試玩家', picture: 'https://lh3.googleusercontent.com/a/test', email: 'should-not-be-kept@example.com', iat: now - 10, exp: now + 3600, ...over });
 
 const args = process.argv.slice(2);
+// a signed test token for the browser tests: --token DIR SUB [NAME]
+if (args[0] === '--token') {
+  const key = JSON.parse(readFileSync(`${args[1]}/keys.json`, 'utf8'));
+  console.log(await sign(key, good({ sub: args[2], name: args[3] || '測試玩家' })));
+  process.exit(0);
+}
 if (args[0] === '--keys') {
   const dir = args[1];
   mkdirSync(dir, { recursive: true });
@@ -138,4 +145,63 @@ if (process.env.API && process.env.KEYS) {
   assert.equal((await call('/api/me')).body.user.games, 0, 'forgotten');
   await call('/api/forget', {});
   console.log('server sign-in flow ok');
+
+  // ── maps players publish ──
+  const { DRAFTS } = await import('./drafts.mjs');
+  const { draftToDef } = await import('../src/engine/custom.js');
+  const as = async (who) => {
+    let ck = '';
+    const c = async (path, body, method = body ? 'POST' : 'GET') => {
+      const res = await fetch(api + path, { method, headers: { origin: api, 'content-type': 'application/json', ...(ck ? { cookie: ck } : {}) }, body: body ? JSON.stringify(body) : undefined });
+      const set = res.headers.get('set-cookie');
+      if (set) ck = 'cs=' + /cs=([^;]*)/.exec(set)[1];
+      return { status: res.status, body: await res.json() };
+    };
+    const li = await c('/api/login', { credential: await sign(key, good({ sub: who, name: who.slice(0, 6) })) });
+    assert.equal(li.status, 200);
+    return c;
+  };
+  const author = await as('map-author-' + Date.now());
+  const fan = await as('map-fan-' + Date.now());
+  const pubd = await author('/api/maps', { draft: DRAFTS.twin });
+  assert.equal(pubd.status, 200, JSON.stringify(pubd.body));
+  const code = pubd.body.code;
+  assert.match(code, /^[A-HJ-NP-Z2-9]{6}$/);
+  assert.deepEqual((await author('/api/maps', { draft: JSON.parse(JSON.stringify(DRAFTS.twin)) })).body, { code, again: true }, 'the same draft keeps its code');
+  const bad = await author('/api/maps', { draft: { cells: [] } });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.message, '先在格子上畫出陸地');
+  assert.equal((await fan('/api/maps', { draft: { ...DRAFTS.ring, cells: new Array(5000).fill([0, 0, 'l']) } })).status, 400, 'too big to read');
+  const anon = await fetch(api + '/api/maps', { method: 'POST', headers: { origin: api, 'content-type': 'application/json' }, body: JSON.stringify({ draft: DRAFTS.ring }) });
+  assert.equal(anon.status, 401, 'publishing needs a player');
+  // anyone reads it, and makes the same map from it
+  const got = await (await fetch(api + '/api/maps/' + code)).json();
+  assert.equal(got.map.name, DRAFTS.twin.name);
+  assert.equal(got.map.kit, 6);
+  assert.deepEqual(draftToDef(got.map.draft, 'u-' + code), draftToDef(DRAFTS.twin, 'u-' + code));
+  assert.equal((await fetch(api + '/api/maps/ABCDEF')).status, 404);
+  assert.equal((await fetch(api + '/api/maps/abc')).status, 404);
+  const list = await (await fetch(api + '/api/maps?sort=new&t=' + Date.now())).json();
+  assert.ok(list.maps.some((m) => m.code === code && !m.draft), 'listed, without its draft');
+  // ratings: not your own; once each, and changeable
+  assert.equal((await author(`/api/maps/${code}/rate`, { stars: 5 })).status, 403);
+  assert.equal((await fan(`/api/maps/${code}/rate`, { stars: 9 })).status, 400);
+  assert.deepEqual((await fan(`/api/maps/${code}/rate`, { stars: 4 })).body, { ok: true, mine: 4, rating: 4, votes: 1 });
+  assert.deepEqual((await fan(`/api/maps/${code}/rate`, { stars: 2 })).body, { ok: true, mine: 2, rating: 2, votes: 1 });
+  await fan(`/api/maps/${code}/play`, {});
+  const mine = (await author('/api/maps?mine=1')).body.maps;
+  assert.deepEqual(mine.map((m) => [m.code, m.plays, m.rating, m.votes]), [[code, 1, 2, 1]]);
+  // only the author takes it off the list; the code still opens it
+  assert.equal((await fan(`/api/maps/${code}/hide`, {})).status, 403);
+  assert.equal((await author(`/api/maps/${code}/hide`, {})).status, 200);
+  const after = await (await fetch(api + '/api/maps?sort=new&t=' + Date.now() + 1)).json();
+  assert.ok(!after.maps.some((m) => m.code === code), 'off the list');
+  assert.equal((await author('/api/maps?mine=1')).body.maps.length, 0);
+  assert.equal((await fetch(api + '/api/maps/' + code + '?t=' + Date.now())).status, 200, 'the code keeps working');
+  // a player who leaves takes their name and ratings along
+  await fan('/api/forget', {});
+  await author('/api/forget', {});
+  const gone = await (await fetch(api + '/api/maps/' + code + '?t=' + Date.now() + 2)).json();
+  assert.deepEqual([gone.map.author, gone.map.votes], ['已刪除的帳號', 0]);
+  console.log('server map flow ok');
 }

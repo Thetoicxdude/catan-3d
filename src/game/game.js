@@ -815,14 +815,14 @@ export class Game {
         setTimeout(
           () =>
             this.dialogs.gameOver(
-              this.ctx(),
+              this.ctx({ overExtra: this.overExtra ? this.overExtra() : null }),
               () => this.onExit && this.onExit(true),
               () => this.dialogs.close(),
             ),
           900,
         );
       }
-      banner = { html: `${P(v.winner)} 贏得了卡坦島！`, buttons: [{ label: '戰役結果', onClick: () => this.dialogs.gameOver(this.ctx(), () => this.onExit && this.onExit(true), () => this.dialogs.close()) }] };
+      banner = { html: `${P(v.winner)} 贏得了卡坦島！`, buttons: [{ label: '戰役結果', onClick: () => this.dialogs.gameOver(this.ctx({ overExtra: this.overExtra ? this.overExtra() : null }), () => this.onExit && this.onExit(true), () => this.dialogs.close()) }] };
     } else if (v.pending && v.pending.type === 'gold') {
       // (Seafarers) a gold field paid out, or gold was found in the fog (even in the opening): the
       // owners pick their resources

@@ -13,7 +13,9 @@ import { flagURL } from '../ui/flags.js';
 import { esc } from '../ui/text.js';
 import { icon } from '../ui/icons.js';
 import { PALETTE, AI_NAMES, fitSettings, gameSetup, mapTable } from '../ui/menu.js';
-import { mapDef, MAP_LIST, DEFAULT_MAP, isBuiltIn } from '../engine/maps.js';
+import { mapDef, MAP_LIST, DEFAULT_MAP, isBuiltIn, knownMap } from '../engine/maps.js';
+import { mapsAvailable, publishedCode, loadPublished, cleanCode, CODE_RE } from './maps.js';
+import { openMapBrowser } from '../ui/maps-ui.js';
 
 const APP = 'catan3d';
 const V = 1;
@@ -94,10 +96,17 @@ function btn(label, cls, fn) {
 }
 
 
+// a map's name for the room's terms and the list of rooms (a published map not fetched yet: its code)
+function mapName(mp) {
+  const code = publishedCode(mp);
+  if (code && !knownMap(mp)) return `玩家地圖 ${code}`;
+  const def = mapDef(mp || DEFAULT_MAP);
+  return code ? `${def.name}（玩家地圖 ${code}）` : def.name;
+}
+
 // the room's terms in one line: island, seats, turn rule, victory points
 function roomTerms(mp, ru, n, tv) {
-  const def = mapDef(mp || DEFAULT_MAP);
-  const parts = [`${esc(def.name)}`, `${n} 席`];
+  const parts = [`${esc(mapName(mp))}`, `${n} 席`];
   if (ru) parts.push(ru === 's' ? '特別建造階段' : '配對回合');
   if (tv) parts.push(`${tv} 分勝利`);
   return parts.join('・');
@@ -156,9 +165,10 @@ function decodeLob(lob) {
 }
 
 export class HostSession {
-  constructor({ app, settings, onStart, onLeave, toast, official = false, quiet = false, onLobby = null, seconds = 60, mapSeed = null, onDemoted = null, chat = null }) {
+  constructor({ app, settings, onStart, onLeave, toast, official = false, quiet = false, onLobby = null, seconds = 60, mapSeed = null, onDemoted = null, chat = null, dialogs = null }) {
     this.app = app;
     this.settings = settings;
+    this.dialogs = dialogs; // () → the menus' dialogs (the list of published maps)
     this.mapSeed = mapSeed; // official rooms list their island, so the home screen can show it
     this.onStart = onStart;
     this.onLeave = onLeave;
@@ -201,8 +211,9 @@ export class HostSession {
       this.hostSeat = Math.max(0, this.seats.findIndex((s) => s.kind === 'host'));
     } else {
       const s = this.settings;
-      // (a map drawn on this device stays in single player: the other pages could not lay it out)
-      if (!isBuiltIn(s.map)) {
+      // (a map drawn on this device stays in single player: the other pages could not lay it out; a
+      // published one they fetch by its code)
+      if (!isBuiltIn(s.map) && !(publishedCode(s.map) && mapsAvailable())) {
         s.map = DEFAULT_MAP;
         fitSettings(s);
       }
@@ -801,8 +812,38 @@ export class HostSession {
       };
       const mapRow = el('div', 'layout-row');
       mapRow.appendChild(el('span', 'row-label', '地圖'));
-      mapRow.appendChild(mapTable(cur.id, (id) => this.setLayout(id, mapDef(id).players[1], this.settings.turns)));
+      const pickMap = (id) => this.setLayout(id, mapDef(id).players[1], this.settings.turns);
+      mapRow.appendChild(mapTable(cur.id, pickMap, publishedCode(cur.id) ? [cur] : []));
       lay.appendChild(mapRow);
+      // a map players published (the self-hosted site): by its code, or from the public list
+      if (mapsAvailable()) {
+        const row = el('div', 'layout-row');
+        row.appendChild(el('span', 'row-label', '玩家地圖'));
+        const box = el('div', 'mb-code');
+        const inp = el('input');
+        inp.type = 'text';
+        inp.placeholder = '地圖代號';
+        inp.maxLength = 8;
+        inp.setAttribute('aria-label', '玩家地圖代號');
+        const open = async (c) => {
+          try {
+            const def = await loadPublished(c);
+            pickMap(def.id);
+          } catch (e) {
+            this.toast('打不開這張地圖', e.message, 'cross');
+          }
+        };
+        const go = btn('使用', '', () => {
+          const c = cleanCode(inp.value);
+          if (CODE_RE.test(c)) open(c);
+          else this.toast('代號不對', '地圖代號是 6 個英文字母或數字', 'cross');
+        });
+        inp.addEventListener('keydown', (e) => e.key === 'Enter' && go.click());
+        box.append(inp, go);
+        if (this.dialogs) box.appendChild(btn('公開地圖…', 'ghost', () => openMapBrowser(this.dialogs(), { toast: this.toast, onPick: (def) => pickMap(def.id) })));
+        row.appendChild(box);
+        lay.appendChild(row);
+      }
       const lo = Math.max(3, cur.players[0]);
       const counts = [];
       for (let n = lo; n <= cur.players[1]; n++) counts.push([n, `${n} 席`]);
@@ -1008,6 +1049,19 @@ export class ClientSession {
     this.lob = seats;
     const seat = seats.findIndex((s) => s.peer === me);
     this.seat = seat;
+    // a map players published: fetched by its code before anything is drawn on it
+    const code = publishedCode(pr.mp || (pr.bd && pr.bd.mp));
+    if (code && !knownMap('u-' + code) && !this.mapErr) {
+      try {
+        await loadPublished(code);
+      } catch (e) {
+        if (!this.mapErr) {
+          this.mapErr = true;
+          this.toast('打不開這張地圖', e.message, 'cross');
+        }
+        if (pr.st === 'play') return;
+      }
+    }
     if (pr.st !== 'play' || !pr.pub) {
       if (this.ui) this.ui.render(seats, seat, { mp: pr.mp || null, ru: pr.ru || null, tv: pr.tv });
       if (this.onLobby) this.onLobby(seats, seat, typeof pr.rem === 'number' ? pr.rem : null, Date.now());
@@ -1699,7 +1753,7 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
         const h = r.presence.host;
         const row = el('div', 'resp');
         const playing = h.st === 'play';
-        const isle = h.mp && MAP_LIST.some((d) => d.id === h.mp) ? `・${mapDef(h.mp).name}` : '';
+        const isle = h.mp && (MAP_LIST.some((d) => d.id === h.mp) || publishedCode(h.mp)) ? `・${mapName(h.mp)}` : '';
         row.innerHTML = `<b class="num" style="letter-spacing:.12em">${esc(String(h.code).toUpperCase())}</b><span>${esc(cleanName(h.nm, '主持人'))} 的房間${esc(isle)}</span><span class="st">${playing ? '戰役進行中' : `空位 ${Number(h.f) || 0}/${Math.max(0, (Number(h.n) || 1) - 1)}`}</span>`;
         const b = btn(playing ? '重新加入／觀戰' : '加入', playing ? '' : 'primary', () => {
           cleanup();

@@ -16,6 +16,10 @@ import { setSfx } from './ui/sfx.js';
 import { registerMap } from './engine/maps.js';
 import { checkDraft } from './engine/custom.js';
 import { showEditor, loadDrafts } from './ui/editor.js';
+import { mapsAvailable, publishMap, myPublished, hideMap, loadPublished, publishedCode, publishedDef, countPlay, CODE_RE } from './net/maps.js';
+import { openMapBrowser, showPublished, ratingStars } from './ui/maps-ui.js';
+import { currentUser, loadUser } from './net/account.js';
+import { openSignIn } from './ui/account-ui.js';
 
 const SETTINGS_KEY = 'catan3d-settings-v1';
 const app = document.getElementById('app');
@@ -62,6 +66,34 @@ function myMaps() {
   return out;
 }
 myMaps();
+// published maps opened lately (kept on this device with their drafts, so the campaign menu lists
+// them and a campaign set up on one keeps it after a reload)
+const SEEN_KEY = 'catan3d-maps-seen-v1';
+const seenMaps = new Map();
+try {
+  const list = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]');
+  for (const m of Array.isArray(list) ? list : []) {
+    if (!m || typeof m.code !== 'string' || !CODE_RE.test(m.code) || !m.draft) continue;
+    const def = registerMap(publishedDef(m));
+    seenMaps.set(def.id, def);
+  }
+} catch {
+  /* storage unavailable */
+}
+function rememberMap(def) {
+  seenMaps.delete(def.id);
+  seenMaps.set(def.id, def);
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...seenMaps.values()].slice(-8).map((d) => ({ code: d.code, author: d.author, draft: d.draft }))));
+  } catch {
+    /* storage unavailable */
+  }
+}
+function menuMaps() {
+  const out = myMaps();
+  for (const d of [...seenMaps.values()].reverse()) if (!out.some((x) => x.id === d.id)) out.push(d);
+  return out;
+}
 
 let settings = loadSettings();
 setSfx(settings.sound !== false);
@@ -262,8 +294,40 @@ function openSetup() {
     onStart: () => startGame(null),
     onBack: () => openMenu(),
     onEditor: () => openEditor(),
-    customMaps: myMaps(),
+    onBrowse: mapsAvailable() ? () => browseMaps() : null,
+    customMaps: menuMaps(),
   });
+}
+
+// the maps players published: choosing one sets the campaign up on it
+function browseMaps() {
+  openMapBrowser(menuDialogs(), { toast, onPick: (def) => useMapForCampaign(def) });
+}
+function useMapForCampaign(def) {
+  rememberMap(def);
+  settings.map = def.id;
+  settings.opponents = def.players[1] - 1;
+  fitSettings(settings);
+  saveSettings(settings);
+  openSetup();
+  showPreview(true);
+}
+
+// publishing from the workshop: signed in first, then the map's code to share
+async function publishFlow(draft) {
+  await loadUser();
+  if (!currentUser()) {
+    openSignIn(menuDialogs(), () => publishFlow(draft));
+    return;
+  }
+  try {
+    const r = await publishMap(draft);
+    const def = await loadPublished(r.code);
+    rememberMap(def);
+    showPublished(menuDialogs(), r.code, r.again, toast);
+  } catch (e) {
+    toast('無法發布', e.message || String(e), 'cross');
+  }
 }
 
 // the map workshop: drawing an island, seeing it on the 3D map, playing it
@@ -288,6 +352,26 @@ function openEditor() {
       showPreview(true);
     },
     onPreview: (def, area) => editorPreview(def, area),
+    ...(mapsAvailable()
+      ? {
+          onPublish: (draft) => publishFlow(draft),
+          published: async () => {
+            await loadUser();
+            if (!currentUser()) return null;
+            return (await myPublished()).maps || [];
+          },
+          unpublish: async (code) => {
+            try {
+              await hideMap(code);
+              toast('已從列表移除', `地圖 ${code} 不再出現在公開列表（代號還能用）`, 'check');
+              return true;
+            } catch (e) {
+              toast('無法移除', e.message || String(e), 'cross');
+              return false;
+            }
+          },
+        }
+      : {}),
   });
 }
 
@@ -339,6 +423,7 @@ async function hostRoom(save) {
     app,
     settings,
     toast,
+    dialogs: menuDialogs,
     onStart: (players, net) => startOnlineHost(players, net),
     onLeave: () => {
       session = null;
@@ -379,6 +464,7 @@ async function startOnlineHost(players, net, official = false) {
   // official rooms play the standard game (10 points, balanced numbers) on the island they listed
   const gs = official ? { ...settings, target: 10, numbers: 'balanced', map: 'base-4' } : settings;
   const preview = createGame({ seed: previewSeed, players, targetVP: gs.target, board: { numbers: gs.numbers }, ...gameSetup(gs) });
+  if (!official) countPlay(preview.map);
   buildMap(preview, players, settings.quality);
   map.onFrame = null;
   map.holdAssets(false);
@@ -598,6 +684,11 @@ function hookGame() {
       if (d && d.recorded && d.user && !g.destroyed) g.hud.toast('已記入戰績', `${d.user.name}：${d.user.games} 場 · ${d.user.wins} 勝`, 'vp', 4200);
     });
   };
+  // (a map players published) rating it when the campaign is over
+  g.overExtra = () => {
+    const code = publishedCode(g.state && g.state.map);
+    return code && mapsAvailable() ? ratingStars(code, toast) : null;
+  };
   game.onSettings = (s) => {
     // in-game settings never carry a game's own rules back to the menus (an official game plays to 10)
     const { target, numbers, opponents, seats, ...rest } = s;
@@ -626,6 +717,7 @@ async function startGame(saved) {
   } else {
     players = playersFromSettings(settings);
     state = createGame({ seed: previewSeed, players, targetVP: settings.target, board: { numbers: settings.numbers }, ...gameSetup(settings) });
+    countPlay(state.map);
   }
   try {
     buildMap(state, players, settings.quality);
@@ -678,6 +770,18 @@ if (hot && hot.snapshot) {
   }
 }
 
+// a map link (#map=CODE) opens the campaign menu on that published map
+function mapLinkCode() {
+  const m = /(?:^#|[#&])map=([A-Za-z0-9]{6})\b/.exec(location.hash || '');
+  if (!m || !CODE_RE.test(m[1].toUpperCase())) return null;
+  try {
+    history.replaceState(null, '', location.pathname + location.search);
+  } catch {
+    /* sandboxed */
+  }
+  return m[1].toUpperCase();
+}
+
 // an invite link (#room=code) opens the site straight into that room
 function inviteCode() {
   const m = /(?:^#|[#&])room=([a-z0-9]{3,12})\b/i.exec(location.hash || '');
@@ -714,6 +818,18 @@ function boot(data) {
   }
   if (data && data.save && data.save.state && data.save.state.seed != null && data.save.state.phase !== 'over') {
     startGame(data.save);
+    return;
+  }
+  const linked = mapsAvailable() ? mapLinkCode() : null;
+  if (linked) {
+    loadPublished(linked).then(
+      (def) => useMapForCampaign(def),
+      (e) => {
+        toast('打不開這張地圖', e.message || String(e), 'cross');
+        openMenu();
+        showPreview(false);
+      },
+    );
     return;
   }
   openMenu();

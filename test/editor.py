@@ -112,8 +112,9 @@ async def main():
         check('a campaign on the drawn map', st['map'].startswith('my-') and st['def'] and st['hexes'] == 30 and st['sea'], json.dumps(st))
         await page.wait_for_timeout(3000)
         await page.screenshot(path=f'{SP}/editor-play.png')
-        # after a reload, with the draft gone, the campaign still carries its map
-        await page.evaluate("localStorage.removeItem('catan3d-drafts-v1')")
+        # after a reload, with the draft gone, the campaign still carries its map (saved now: when our
+        # nation opens, nothing has been played yet to save)
+        await page.evaluate("__game.save(); localStorage.removeItem('catan3d-drafts-v1')")
         await page.reload()
         await page.wait_for_selector('.menu-screen.home', timeout=90000)
         await page.click('text=繼續上一局')

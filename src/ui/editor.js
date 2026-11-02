@@ -96,7 +96,9 @@ function el(tag, cls, html) {
 }
 
 // opts: onBack(), onPlay(def), onPreview(def, area) → Promise (draws the island on the 3D map, framed
-// in `area`, the part of the screen left free), onPreviewEnd(), dialogs (confirmations), toast
+// in `area`, the part of the screen left free), onPreviewEnd(), dialogs (confirmations), toast; on the
+// self-hosted site also onPublish(draft), published() → Promise of the player's published maps (null:
+// signed out) and unpublish(code) → Promise<boolean>
 export function showEditor(app, opts) {
   const drafts = loadDrafts();
   let key = drafts[0] ? drafts[0].key : newKey();
@@ -397,7 +399,17 @@ export function showEditor(app, opts) {
       saveDraft(key, draft);
       opts.onPlay(check.def);
     });
-    foot.append(back, mine, play);
+    foot.append(back, mine);
+    // publishing (the self-hosted site): the map gets a code others can open it by
+    if (opts.onPublish) {
+      const pub = el('button', 'btn', '發布');
+      pub.type = 'button';
+      pub.disabled = !check.def;
+      pub.title = check.def ? '發布到公開地圖列表，拿到一個代號' : check.errors[0] || '';
+      pub.addEventListener('click', () => check.def && opts.onPublish(check.draft));
+      foot.appendChild(pub);
+    }
+    foot.appendChild(play);
   };
 
   // ── my maps: the drafts on this device ──
@@ -432,6 +444,36 @@ export function showEditor(app, opts) {
       });
       row.append(open, del);
       box.appendChild(row);
+    }
+    // the maps this player has published (on the site's server)
+    if (opts.published) {
+      const pubBox = el('div', 'ed-mine ed-pubs', '<div class="row-label">已發布</div><p class="lead">載入中…</p>');
+      box.appendChild(pubBox);
+      opts
+        .published()
+        .then((maps) => {
+          if (!box.isConnected) return;
+          pubBox.querySelector('p').remove();
+          if (!maps) pubBox.appendChild(el('p', 'lead', '登入後可以發布地圖，發布的地圖會列在這裡。'));
+          else if (!maps.length) pubBox.appendChild(el('p', 'lead', '還沒有發布過地圖。'));
+          for (const m of maps || []) {
+            const row = el('div', 'ed-mine-row');
+            row.innerHTML = `<div class="nm"><b>${esc(m.name)}</b><span>代號 ${esc(m.code)}・${m.plays} 局・${m.votes ? `★ ${m.rating.toFixed(1)}（${m.votes}）` : '還沒有評分'}</span></div>`;
+            const hide = el('button', 'btn ghost', '從列表移除');
+            hide.type = 'button';
+            hide.addEventListener('click', async () => {
+              hide.disabled = true;
+              if (await opts.unpublish(m.code)) row.remove();
+              else hide.disabled = false;
+            });
+            row.appendChild(hide);
+            pubBox.appendChild(row);
+          }
+        })
+        .catch(() => {
+          const p = pubBox.querySelector('p');
+          if (p) p.textContent = '無法載入已發布的地圖';
+        });
     }
     const fresh = el('button', 'btn', '新地圖');
     fresh.type = 'button';
