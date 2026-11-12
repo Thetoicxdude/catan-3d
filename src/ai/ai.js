@@ -11,6 +11,7 @@ import {
   canAfford,
   missingFor,
   handSize,
+  handLimit,
   legalSettlementSpots,
   legalRoadEdges,
   legalCitySpots,
@@ -454,7 +455,7 @@ export function evaluateOffer(view, p, t, lvl, rnd = Math.random) {
       margin += 0.05 * Math.min(1, prod[r] * 4) * gave; // it will soon get more
     }
   }
-  if (handSize(me.res) > 7 && giveN > getN) margin += 0.15; // fewer cards to lose to a 7
+  if (handSize(me.res) > handLimit(view) && giveN > getN) margin += 0.15; // fewer cards to lose to a 7
   if (offererVP >= view.targetVP - 3) margin -= 0.3;
   if (lvl.noise > 0.5) margin += (rnd() - 0.5) * 0.8;
   else if (lvl.noise > 0.1) margin += (rnd() - 0.5) * 0.12;
@@ -759,7 +760,7 @@ function mainMove(view, p, mem, lvl, rnd) {
 
   // Fall back to the best affordable plan that doesn't eat the top plan's resources,
   // or any affordable plan when holding too many cards (7 risk).
-  const big = handSize(me.res) > 7;
+  const big = handSize(me.res) > handLimit(view);
   for (const pl of plans.slice(1)) {
     if (!canAfford(me.res, pl.cost)) continue;
     if (pl.value < 0.3) continue;

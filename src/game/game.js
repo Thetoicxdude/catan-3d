@@ -98,7 +98,7 @@ export class Game {
         }
       }
     } else {
-      this.state = createGame({ seed, players, targetVP: settings.target || 10, board: { numbers: settings.numbers }, ...gameSetup(settings), entropy: net && net.entropy ? net.entropy : undefined });
+      this.state = createGame({ seed, players, ...gameSetup(settings), entropy: net && net.entropy ? net.entropy : undefined });
       this.mem = players.map(() => ({}));
     }
     ensureMap(this.state);
@@ -840,7 +840,7 @@ export class Game {
           // (Seafarers without a fixed home island: any island; the islands chosen become the home islands)
           const anyIsle = v.ships && GEO.def.isleBonus && !(GEO.def.setup && GEO.def.setup.group);
           banner = { html: `開局第 ${round} 輪：選擇<b>村莊</b>的位置${round === 2 ? '（此村莊旁的地形會給你開局資源）' : anyIsle ? '（任何一座島都可以，開局所在的島就是你的本島）' : ''}` };
-          hint = { text: '點選白色圓圈放置村莊' };
+          hint = { text: '點選白色圓點放置村莊' };
         } else if (v.ships) {
           // (Seafarers) a road, or a ship from a settlement on the coast
           const roads = legalRoadEdges(v, me);
@@ -965,7 +965,7 @@ export class Game {
           },
         };
         banner = { html: `選擇<b>${name}</b>的位置`, buttons: [{ label: '取消', onClick: () => inter.onCancel() }] };
-        hint = { text: this.mode === 'road' || this.mode === 'ship' ? `點選白色條紋建造${name}（右鍵或 Esc 取消）` : `點選白色圓圈建造${name}（右鍵或 Esc 取消）` };
+        hint = { text: this.mode === 'road' || this.mode === 'ship' ? `點選白色條紋建造${name}（右鍵或 Esc 取消）` : `點選白色圓點建造${name}（右鍵或 Esc 取消）` };
       } else banner = null;
     } else if (v.sub) {
       banner = { html: v.sub.k === 'pair' ? `${P(v.current)} 是第二位，接著 ${P(v.sub.lead)} 行動${me < 0 ? '（觀戰中）' : ''}` : `特別建造：${P(v.current)} 正在建造${me < 0 ? '（觀戰中）' : ''}`, wait: true };

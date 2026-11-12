@@ -20,6 +20,10 @@ import {
   actorsNow,
 } from '../src/engine/engine.js';
 import { tradeRouteFor } from '../src/engine/seafarers.js';
+import { richNumbers, generateBoard } from '../src/engine/board.js';
+import { mapDef, MAP_LIST } from '../src/engine/maps.js';
+import { seedState } from '../src/engine/rng.js';
+import { useMap } from '../src/engine/geometry.js';
 
 let passed = 0;
 function test(name, fn) {
@@ -1024,6 +1028,104 @@ test('Seafarers: the longest trade route joins roads and ships at a settlement o
   assert.equal(len(st), 2, 'without a settlement where they meet, the longer of the two');
   st.vertices[v] = { p: 0, t: 's' };
   assert.equal(len(st), 4, 'joined at the settlement');
+});
+
+// ───── house rules ─────
+const tally = (list) => list.reduce((m, n) => ((m[n] = (m[n] || 0) + 1), m), {});
+
+test('house rule: numbers dealt more like the dice fall', () => {
+  // the standard island: one 3 and one 11 fewer, one 5 and one 9 more, the red numbers as they were
+  assert.deepEqual(tally(richNumbers(mapDef('base-4').numbers)), { 2: 1, 3: 1, 4: 2, 5: 3, 6: 2, 8: 2, 9: 3, 10: 2, 11: 1, 12: 1 });
+  for (const def of MAP_LIST.map((m) => mapDef(m.id))) {
+    const lists = [def.numbers, ...Object.values(def.groups || {}).map((g) => g.numbers)].filter(Boolean);
+    for (const l of lists) {
+      const a = tally(l);
+      const b = tally(richNumbers(l));
+      assert.equal(richNumbers(l).length, l.length, def.id + ': as many tokens');
+      assert.equal(b[6] || 0, a[6] || 0, def.id + ': the 6s stay');
+      assert.equal(b[8] || 0, a[8] || 0, def.id + ': the 8s stay');
+      const pips = (t) => Object.entries(t).reduce((s, [n, c]) => s + c * (6 - Math.abs(7 - n)), 0);
+      assert.ok(pips(b) >= pips(a), def.id + ': at least as rich');
+    }
+  }
+  // a board dealt that way (never the official spiral) says so; the game's state carries it
+  useMap(mapDef('base-4'));
+  const b = generateBoard({ rng: seedState(7) }, { numbers: 'spiral', mix: 'rich' });
+  assert.equal(b.mix, 'rich');
+  assert.equal(b.method, 'balanced');
+  assert.deepEqual(tally(b.hexes.map((h) => h.number).filter(Boolean)), tally(richNumbers(mapDef('base-4').numbers)));
+  const st = createGame({ seed: 7, players: players(), board: { mix: 'rich' } });
+  assert.equal(st.board.mix, 'rich');
+  assert.equal(createGame({ seed: 7, players: players() }).board.mix, undefined, 'the standard deal is left as it was');
+});
+
+test('house rule: the dice deck', () => {
+  const st = createGame({ seed: 11, players: players(), rules: { dice: 'deck' } });
+  st.phase = 'play';
+  st.turn = 5;
+  st.current = 0;
+  const sums = [];
+  const decks = [];
+  let deck = [];
+  for (let i = 0; i < 1200; i++) {
+    st.rolled = false;
+    st.pending = null;
+    // (a new deck starts when the old one ran out)
+    if (!st.diceDeck || !st.diceDeck.length) {
+      if (deck.length) decks.push(deck);
+      deck = [];
+    }
+    const ev = applyAction(st, { type: 'roll', p: 0 });
+    const r = ev.find((e) => e.type === 'roll');
+    assert.ok(r.dice[0] >= 1 && r.dice[0] <= 6 && r.dice[1] >= 1 && r.dice[1] <= 6);
+    sums.push(r.sum);
+    deck.push(r.dice[0] * 10 + r.dice[1]);
+  }
+  // each deck: 31–34 different throws (never the same card twice), so never more than six 7s
+  for (const d of decks) {
+    assert.ok(d.length >= 31 && d.length <= 34, 'cards turned per deck: ' + d.length);
+    assert.equal(new Set(d).size, d.length, 'a card turned twice in one deck');
+    assert.ok(d.filter((x) => Math.floor(x / 10) + (x % 10) === 7).length <= 6);
+  }
+  // over many decks every sum comes up close to its odds (36 ways: 2 is 1/36, 7 is 6/36)
+  const t = tally(sums);
+  for (let n = 2; n <= 12; n++) {
+    const expect = (sums.length * (6 - Math.abs(7 - n))) / 36;
+    assert.ok(Math.abs((t[n] || 0) - expect) <= Math.max(6, expect * 0.12), `sum ${n}: ${t[n]} vs ${expect.toFixed(1)}`);
+  }
+  // the deck is the host's secret, and the same seed turns the same cards
+  assert.equal(makeView(st, 1).diceDeck, null);
+  const again = createGame({ seed: 11, players: players(), rules: { dice: 'deck' } });
+  Object.assign(again, { phase: 'play', turn: 5, current: 0 });
+  const first = [];
+  for (let i = 0; i < 40; i++) {
+    again.rolled = false;
+    again.pending = null;
+    first.push(applyAction(again, { type: 'roll', p: 0 }).find((e) => e.type === 'roll').sum);
+  }
+  assert.deepEqual(first, sums.slice(0, 40));
+});
+
+test('house rule: the hand limit for a 7, and the points to win', () => {
+  const st = fresh();
+  st.rules = { discard: 9 };
+  st.rolled = false;
+  st.players[1].res = { wood: 9, brick: 0, wool: 0, grain: 0, ore: 0 };
+  st.players[2].res = { wood: 0, brick: 10, wool: 0, grain: 0, ore: 0 };
+  for (let tries = 0; ; tries++) {
+    const c = JSON.parse(JSON.stringify(st));
+    const ev = applyAction(c, { type: 'roll', p: 0 });
+    if (ev[0].sum === 7) {
+      assert.deepEqual(c.pending, { type: 'discard', amounts: { 2: 5 } }, 'nine cards are kept, ten are halved');
+      break;
+    }
+    st.rng[0] = (st.rng[0] + 777) >>> 0;
+    if (tries > 1000) throw new Error('no seven');
+  }
+  assert.equal(createGame({ seed: 1, players: players(), vpAdj: 2 }).targetVP, 12);
+  assert.equal(createGame({ seed: 1, players: players(), targetVP: 10, vpAdj: -2 }).targetVP, 8);
+  assert.equal(createGame({ seed: 1, players: players(3), map: 'sea-1', vpAdj: 2 }).targetVP, mapDef('sea-1').vp + 2, "a scenario's own points, moved");
+  assert.equal(createGame({ seed: 1, players: players() }).rules, undefined, 'the standard game has no rules of its own');
 });
 
 console.log(`${passed} tests passed`);

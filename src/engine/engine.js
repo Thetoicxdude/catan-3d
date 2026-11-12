@@ -5,7 +5,7 @@
 // Illegal actions throw RuleError (with a Traditional Chinese message) and leave state untouched.
 
 import { GEO, useMap } from './geometry.js';
-import { generateBoard, RES, TERRAIN_RES, pips, provinceName } from './board.js';
+import { generateBoard, RES, TERRAIN_RES, pips, provinceName, richNumbers } from './board.js';
 import { mapDef, isBuiltIn, DEFAULT_MAP } from './maps.js';
 import { rngInt, shuffle, seedState } from './rng.js';
 import { seaInfo, roadEdge, shipEdge, shipLegal, legalShipEdges, movableShips, shipTargets, pirateVictims, pirateEdges, tradeRouteFor, SHIP_COST, SHIPS } from './seafarers.js';
@@ -44,6 +44,8 @@ function need(cond, msg) {
 
 const emptyRes = () => ({ wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 });
 export const handSize = (res) => res.wood + res.brick + res.wool + res.grain + res.ore;
+// a 7 takes half the hand of every player holding more cards than this (a room may raise it)
+export const handLimit = (st) => (st && st.rules && st.rules.discard) || 7;
 export function canAfford(res, cost) {
   for (const k in cost) if ((res[k] || 0) < cost[k]) return false;
   return true;
@@ -63,7 +65,10 @@ export function missingFor(res, cost) {
 
 // ───────────────────────── game creation ─────────────────────────
 
-// opts.map: the map's id (maps.js); the standard island when left out
+// opts.map: the map's id (maps.js); the standard island when left out. opts.targetVP: the points to
+// win on a map that sets none (a scenario sets its own), moved by opts.vpAdj (a room's choice).
+// opts.rules: the room's rules on top of the map's (turns, discard: the hand limit, dice: 'deck').
+// opts.board: numbers ('balanced' | 'spiral'), mix ('rich': numbers dealt more like the dice fall).
 export function createGame(opts) {
   const def = mapDef(opts.map);
   useMap(def);
@@ -91,7 +96,7 @@ export function createGame(opts) {
     seed,
     mapSeed: opts.mapSeed != null ? opts.mapSeed >>> 0 : seed,
     rng: holder.rng,
-    targetVP: def.vp || opts.targetVP || 10,
+    targetVP: Math.max(3, (def.vp || opts.targetVP || 10) + (Number(opts.vpAdj) || 0)),
     board,
     players: opts.players.map((p, i) => ({
       id: i,
@@ -146,7 +151,7 @@ export function createGame(opts) {
       pl.home = [];
     }
     // (the fog islands) what the fog hides: drawn one by one as hexes are discovered
-    if (def.fog) st.fog = { pool: Object.entries(def.fog.pool).flatMap(([t, c]) => new Array(c).fill(t)), numbers: def.fog.numbers.slice() };
+    if (def.fog) st.fog = { pool: Object.entries(def.fog.pool).flatMap(([t, c]) => new Array(c).fill(t)), numbers: board.mix === 'rich' ? richNumbers(def.fog.numbers) : def.fog.numbers.slice() };
   }
   return st;
 }
@@ -799,6 +804,22 @@ H.buyDev = (st, a, ev) => {
   ev.push({ type: 'buyDev', p, card, left: st.devDeck.length });
 };
 
+// The dice deck (a room's choice, like the event cards): the 36 ways two dice can fall, a card each,
+// shuffled with the game's dice. A few cards at the bottom are never turned, so the end of the deck
+// can't be counted out; when it runs out it is shuffled anew. Over each deck every number comes up
+// about as often as the dice say it should, instead of in streaks. (The order is the host's secret.)
+function drawDice(st) {
+  if (!st.diceDeck || !st.diceDeck.length) {
+    const deck = [];
+    for (let c = 0; c < 36; c++) deck.push(c);
+    shuffle(st, deck);
+    deck.splice(0, rngInt(st, 2, 5));
+    st.diceDeck = deck;
+  }
+  const c = st.diceDeck.pop();
+  return [Math.floor(c / 6) + 1, (c % 6) + 1];
+}
+
 H.roll = (st, a, ev) => {
   const p = a.p;
   need(st.phase === 'play', '現在不能擲骰');
@@ -806,8 +827,7 @@ H.roll = (st, a, ev) => {
   need(!st.rolled, '本回合已經擲過骰子');
   need(!st.pending, pendingMsg(st.pending));
   need(!st.trade, '請先處理目前的交易提議');
-  const d1 = rngInt(st, 1, 6);
-  const d2 = rngInt(st, 1, 6);
+  const [d1, d2] = st.rules && st.rules.dice === 'deck' ? drawDice(st) : [rngInt(st, 1, 6), rngInt(st, 1, 6)];
   const sum = d1 + d2;
   st.dice = [d1, d2];
   st.rolled = true;
@@ -815,9 +835,10 @@ H.roll = (st, a, ev) => {
   ev.push({ type: 'roll', p, dice: [d1, d2], sum });
   if (sum === 7) {
     const amounts = {};
+    const limit = handLimit(st);
     for (const pl of st.players) {
       const t = handSize(pl.res);
-      if (t > 7) amounts[pl.id] = Math.floor(t / 2);
+      if (t > limit) amounts[pl.id] = Math.floor(t / 2);
     }
     if (Object.keys(amounts).length) {
       st.pending = { type: 'discard', amounts };
@@ -1125,7 +1146,7 @@ export function isLegal(st, action) {
 export function makeView(st, viewer) {
   ensureMap(st);
   const over = st.phase === 'over';
-  const view = { ...st, viewer, rng: null, seed: over ? st.seed : null, devDeck: null, devDeckCount: st.devDeck.length };
+  const view = { ...st, viewer, rng: null, seed: over ? st.seed : null, devDeck: null, devDeckCount: st.devDeck.length, diceDeck: null };
   view.players = st.players.map((pl) => {
     const mine = pl.id === viewer || over;
     const base = {

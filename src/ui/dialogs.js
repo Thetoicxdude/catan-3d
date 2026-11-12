@@ -542,6 +542,10 @@ export class Dialogs {
         [true, '開'],
         [false, '關'],
       ]);
+      seg('介面風格', 'ui', [
+        ['classic', '經典'],
+        ['clean', '清爽（試用）'],
+      ]);
       body.appendChild(g);
       body.appendChild(el('p', 'lead', '畫面品質會在下一局或重新載入地圖時套用。'));
     };

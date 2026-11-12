@@ -1,5 +1,7 @@
 // Runs many all-AI games and checks rule invariants after every single action.
-//   node test/sim.mjs [games] [--map=base-6 | --map=draft:twin] [--turns=paired|sbp]
+//   node test/sim.mjs [games] [--map=base-6 | --map=draft:twin] [--turns=paired|sbp] [--house]
+// --house: a room's house rules (numbers dealt more like the dice fall, a hand limit of 8–10, the dice
+// deck), with a target 2 points higher every other game
 import { GEO } from '../src/engine/geometry.js';
 import { mapDef, registerMap } from '../src/engine/maps.js';
 import {
@@ -27,6 +29,7 @@ if (MAP.startsWith('draft:')) {
   MAP = def.id;
 }
 const TURNS = flag('turns');
+const HOUSE = args.includes('--house');
 const DEF = mapDef(MAP);
 const BANK = DEF.bank || 19;
 const DECK = Object.values(DEF.dev || { k: 25 }).reduce((s, x) => s + x, 0);
@@ -107,7 +110,16 @@ for (let g = 0; g < GAMES; g++) {
   const n = MAP === 'base-4' ? (g % 4 === 3 ? 3 : 4) : MIN_P + (g % (MAX_P - MIN_P + 1));
   const players = [];
   for (let i = 0; i < n; i++) players.push({ name: 'P' + i, color: '#fff', kind: 'ai', ai: { level: LEVELS[(g + i) % 3] } });
-  const st = createGame({ seed: 7777 + g * 13, players, map: MAP, rules: TURNS ? { turns: TURNS } : undefined, board: { numbers: g % 2 ? 'spiral' : 'balanced' } });
+  const rules = TURNS ? { turns: TURNS } : {};
+  if (HOUSE) Object.assign(rules, { discard: 8 + (g % 3), dice: 'deck' });
+  const st = createGame({
+    seed: 7777 + g * 13,
+    players,
+    map: MAP,
+    rules: Object.keys(rules).length ? rules : undefined,
+    board: HOUSE ? { mix: 'rich' } : { numbers: g % 2 ? 'spiral' : 'balanced' },
+    vpAdj: HOUSE && g % 2 ? 2 : 0,
+  });
   check(st, 'start');
   const mem = players.map(() => ({}));
   let steps = 0;
@@ -177,7 +189,7 @@ const avg = stats.turns.reduce((s, x) => s + x, 0) / stats.turns.length;
 console.log(
   JSON.stringify(
     {
-      map: MAP + (TURNS ? ' ' + TURNS : DEF.rules && DEF.rules.turns ? ' ' + DEF.rules.turns : ''),
+      map: MAP + (TURNS ? ' ' + TURNS : DEF.rules && DEF.rules.turns ? ' ' + DEF.rules.turns : '') + (HOUSE ? ' house rules' : ''),
       finished: `${stats.games}/${GAMES}`,
       subTurns: stats.subTurns || 0,
       subBuilds: stats.subBuilds || 0,

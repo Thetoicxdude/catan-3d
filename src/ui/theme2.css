@@ -1,0 +1,199 @@
+/* ───────── the clean interface (設定 → 介面風格 → 清爽) ─────────
+   Less in front of the map and no heavy frames: panels are dark glass with a thin gold line and small
+   meander corners (Kenney "Fantasy UI Borders", CC0, made into src/ui/kit.css by tools/ui-kit.py), the
+   hand sits inside a slim top bar instead of hanging over the map, the side panel, the log and the
+   map modes are smaller, and the orders float in a slim bar. Everything here is under html.ui2, so the
+   classic look (theme.css) stays as it was when this is off. */
+html.ui2 {
+  --glass: rgba(11, 17, 23, 0.72);
+  --glass-solid: rgba(12, 18, 24, 0.94);
+  --hair: rgba(226, 199, 135, 0.3);
+  --hair-hi: rgba(236, 210, 150, 0.75);
+  --gold: #e6c987;
+  --gold-soft: #cdb27a;
+  --tb-h: 54px;
+}
+
+/* ── panels: glass, a thin line with meander corners ── */
+html.ui2 .panel {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
+  backdrop-filter: blur(10px) saturate(1.15);
+  border: 12px solid transparent;
+  border-image: var(--k-panel) 24 / 12px round;
+  border-radius: 0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+}
+/* (the panels' content sits a little into the frame, so the corners don't push it about) */
+html.ui2 .outliner, html.ui2 .log, html.ui2 .minimap, html.ui2 .actionbar { margin: 0; }
+
+/* ── buttons: flat, a hairline, the main action solid gold ── */
+html.ui2 .btn {
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--hair); border-radius: 6px; color: #f0e4c6;
+  box-shadow: none; font-family: var(--font-body); font-weight: 500; letter-spacing: 0.06em;
+}
+html.ui2 .btn:hover:not(:disabled) { background: rgba(230, 201, 135, 0.12); border-color: var(--hair-hi); box-shadow: none; }
+html.ui2 .btn.primary { background: var(--gold); color: #24180a; border-color: #f3dca4; font-weight: 700; text-shadow: none; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+html.ui2 .btn.primary:hover:not(:disabled) { background: #f0d79a; box-shadow: 0 0 18px rgba(240, 215, 154, 0.35); }
+html.ui2 .btn.ghost { background: transparent; border-color: transparent; }
+html.ui2 .btn.ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); border-color: transparent; }
+html.ui2 .btn.danger { color: #f5a896; border-color: rgba(232, 120, 100, 0.5); }
+
+/* gold titles without the metal gradient */
+html.ui2 .modal-head h3, html.ui2 .ol-head > span, html.ui2 .row-label, html.ui2 .log-tabs button.on, html.ui2 .pass-screen h2 {
+  background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--gold); filter: none;
+}
+
+/* ── top bar: a shade across the top, the hand inside it ── */
+html.ui2 .topbar {
+  min-height: var(--tb-h); gap: 16px;
+  background: linear-gradient(180deg, rgba(7, 11, 15, 0.88) 0%, rgba(7, 11, 15, 0.7) 62%, rgba(7, 11, 15, 0) 100%);
+  border: 0; box-shadow: none; padding-bottom: 6px;
+}
+html.ui2 .topbar::after { display: none; }
+html.ui2 .tb-name { background: none; color: var(--gold); -webkit-background-clip: border-box; background-clip: border-box; filter: none; font-size: 17px; }
+html.ui2 .flag { width: 40px; height: 27px; }
+html.ui2 .tb-res { align-self: center; padding: 4px 0 0; gap: 9px; }
+html.ui2 .res-chip.rcard { --w: 35px; margin-bottom: 0; }
+html.ui2 .res-chip.rcard:hover { transform: translateY(2px) scale(1.5); }
+html.ui2 .res-chip.rcard .nm { display: none; }
+html.ui2 .res-chip.rcard .n { top: auto; bottom: -6px; right: -9px; min-width: 18px; height: 18px; font-size: 12px; border-width: 1px; }
+html.ui2 .stat { color: var(--gold-soft); }
+html.ui2 .stat .gi { color: var(--gold); }
+html.ui2 .turn-clock { border-radius: 999px; border-color: var(--hair); background: rgba(0, 0, 0, 0.35); }
+
+/* ── the current order: a slim pill under the bar ── */
+html.ui2 .banner {
+  top: calc(var(--tb-h) + var(--safe-t) + 8px);
+  border: 1px solid var(--hair); border-image: none; border-radius: 999px; padding: 5px 6px 5px 16px;
+  background: var(--glass-solid); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); font-size: 13.5px;
+}
+html.ui2 .banner .btn { min-height: 28px; border-radius: 999px; padding: 0 12px; }
+html.ui2 .banner.urgent { border-color: rgba(232, 120, 100, 0.85); background: rgba(52, 18, 14, 0.94); }
+html.ui2 .nexthint { border-radius: 999px; border-color: var(--hair); background: var(--glass-solid); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); bottom: calc(98px + var(--safe-b)); }
+
+/* ── nations (and the bank above them): narrower, quieter ── */
+html.ui2 .outliner { width: 236px; top: calc(var(--tb-h) + var(--safe-t) + 8px); }
+html.ui2 .ol-head {
+  justify-content: center; gap: 10px; padding: 3px 8px 5px; border: 0; background: none;
+  font-size: 12px; letter-spacing: 0.32em;
+}
+/* the section title between two dividers that fade out */
+html.ui2 .ol-head::before, html.ui2 .ol-head::after { content: ""; flex: 1; height: 14px; background: var(--k-div-l) right center / auto 14px no-repeat; }
+html.ui2 .ol-head::after { background-image: var(--k-div-r); background-position: left center; }
+html.ui2 .ol-head small { display: none; }
+html.ui2 .bank { border: 0; }
+html.ui2 .bank .bk-row { padding: 4px 8px 8px; gap: 2px; }
+html.ui2 .bank .bk-card { --w: 22px; }
+html.ui2 .bank .bk-card .cnt { top: auto; bottom: -7px; right: -8px; min-width: 17px; height: 17px; font-size: 11px; border-width: 1px; }
+html.ui2 .nation { padding: 5px 8px; gap: 1px 8px; grid-template-columns: 28px 1fr auto; border-bottom-color: rgba(226, 199, 135, 0.1); }
+html.ui2 .nation .flag { width: 28px; height: 19px; }
+html.ui2 .nation .nm { font-size: 13px; }
+html.ui2 .nation .vp { min-width: 32px; height: 32px; border: 0; border-radius: 6px; background: rgba(0, 0, 0, 0.32); }
+html.ui2 .nation .vp b { font-size: 19px; color: var(--gold); }
+html.ui2 .nation .vp span { display: none; }
+html.ui2 .nation .meta { gap: 7px; font-size: 11px; }
+html.ui2 .nation .meta b { font-size: 13px; }
+html.ui2 .nation.current { background: linear-gradient(90deg, rgba(230, 201, 135, 0.16), rgba(230, 201, 135, 0)); }
+html.ui2 .nation.current::before { background: var(--gold); width: 2px; }
+html.ui2 .outliner .ol-body { max-height: calc(100vh - var(--tb-h) - var(--safe-t) - 250px); min-height: 0; }
+
+/* ── the log: smaller, the last few lines ── */
+html.ui2 .log { width: 280px; max-height: 150px; }
+html.ui2 .log-head { background: none; border-bottom: 1px solid rgba(226, 199, 135, 0.14); padding: 0 2px 2px; }
+html.ui2 .log-body { font-size: 12px; padding: 4px 6px 2px; -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 14px); mask-image: linear-gradient(180deg, transparent 0, #000 14px); }
+html.ui2 .log.collapsed { width: auto; }
+
+/* ── orders: a slim floating bar, plain icons, the main order in gold ── */
+html.ui2 .actionbar { padding: 2px; bottom: calc(10px + var(--safe-b)); border-image-source: var(--k-panel); }
+html.ui2 .act {
+  width: 64px; min-height: 52px; padding: 5px 2px 4px; margin: 0 1px; gap: 2px;
+  background: transparent; border: 1px solid transparent; border-radius: 8px; box-shadow: none; color: #eadcb8;
+}
+html.ui2 .act svg { width: 24px; height: 24px; }
+html.ui2 .act .gi, html.ui2 .act .ico { color: var(--gold); filter: none; }
+html.ui2 .act .lbl { font-family: var(--font-body); font-weight: 500; font-size: 12px; letter-spacing: 0.04em; }
+html.ui2 .act .key { font-size: 9px; color: rgba(226, 199, 135, 0.45); }
+html.ui2 .act:hover:not(.off) { background: rgba(230, 201, 135, 0.1); border-color: var(--hair); box-shadow: none; }
+html.ui2 .act.on { background: rgba(230, 201, 135, 0.18); border-color: var(--hair-hi); box-shadow: none; }
+html.ui2 .act.primary { background: var(--gold); color: #24180a; border-color: #f3dca4; box-shadow: 0 0 16px rgba(240, 215, 154, 0.3); }
+html.ui2 .act.primary .gi, html.ui2 .act.primary .ico { color: #2c1c0b; }
+html.ui2 .act.primary:hover:not(:disabled) { background: #f0d79a; }
+html.ui2 .act.off { opacity: 0.32; }
+html.ui2 .act-sep { margin: 10px 3px; background: linear-gradient(180deg, transparent, rgba(226, 199, 135, 0.4), transparent); }
+
+/* ── map modes: a short column of round buttons, no box ── */
+html.ui2 .minimap { background: none; border: 0; border-image: none; box-shadow: none; padding: 0; width: auto; -webkit-backdrop-filter: none; backdrop-filter: none; bottom: calc(14px + var(--safe-b)); }
+html.ui2 .minimap canvas { display: none; }
+html.ui2 .mapmodes { flex-direction: column; gap: 6px; }
+html.ui2 .mapmodes button {
+  width: 36px; height: 36px; flex: none; border-radius: 50%; border: 1px solid var(--hair);
+  background: var(--glass-solid); color: var(--gold-soft); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+html.ui2 .mapmodes button:hover { border-color: var(--hair-hi); color: var(--gold); }
+html.ui2 .mapmodes button.on { background: var(--gold); color: #24180a; border-color: #f3dca4; }
+
+/* ── dispatches: glass notes with a coloured mark ── */
+html.ui2 .toast {
+  border: 1px solid var(--hair); border-image: none; border-radius: 10px; padding: 8px 12px;
+  background: var(--glass-solid); color: #f0e4c6; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+html.ui2 .toast h4 { color: var(--gold); }
+html.ui2 .toast p { color: #cdbf9e; }
+html.ui2 .toast .ti { background: rgba(230, 201, 135, 0.14); color: var(--gold); box-shadow: none; width: 30px; height: 30px; }
+html.ui2 .cost-pop { background: var(--glass-solid); border: 1px solid var(--hair); border-image: none; border-radius: 10px; }
+html.ui2 .tooltip { background: var(--glass-solid); border: 1px solid var(--hair); border-radius: 8px; }
+
+/* ── dialogs: darker glass, larger corners, a divider under the title ── */
+html.ui2 .modal.panel, html.ui2 .setup-card.panel {
+  background: rgba(10, 15, 20, 0.9); border-width: 16px; border-image: var(--k-modal) 32 / 16px round;
+}
+html.ui2 .modal-layer { background: rgba(5, 8, 11, 0.5); }
+html.ui2 .modal-head { background: none; border-bottom: 0; position: relative; padding: 8px 14px 12px; }
+html.ui2 .modal-head::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 0; height: 10px; background: var(--k-rule) center / 100% 10px no-repeat; opacity: 0.8; }
+html.ui2 .modal-head h3 { font-size: 18px; letter-spacing: 0.16em; }
+html.ui2 .modal-foot { background: none; border-top: 1px solid rgba(226, 199, 135, 0.16); }
+html.ui2 .tabs { border-bottom-color: rgba(226, 199, 135, 0.2); }
+html.ui2 .tabs button.on { color: var(--gold); border-bottom-color: var(--gold); }
+html.ui2 .seg { border-color: var(--hair); border-radius: 8px; }
+html.ui2 .seg button { background: rgba(0, 0, 0, 0.25); font-family: var(--font-body); font-weight: 500; }
+html.ui2 .seg button.on { background: var(--gold); color: #24180a; }
+html.ui2 .seat, html.ui2 .resp, html.ui2 .standing, html.ui2 .offer-line { background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(226, 199, 135, 0.14); border-radius: 8px; }
+html.ui2 .res-pick { border-radius: 8px; }
+html.ui2 .stepper button { background: rgba(255, 255, 255, 0.05); border-color: var(--hair); border-radius: 6px; color: #f0e4c6; }
+html.ui2 .seat select, html.ui2 .form-grid select, html.ui2 .form-grid input[type="text"], html.ui2 .form-grid input[type="number"] { background: rgba(0, 0, 0, 0.4); border-color: var(--hair); border-radius: 6px; }
+
+/* the hand-over screen (several players on one device) and the loading screen */
+html.ui2 .pass-screen .panel { border-image: var(--k-modal) 32 / 16px round; border-width: 16px; }
+html.ui2 .loading .bar { border-color: var(--hair); border-radius: 999px; }
+html.ui2 .loading .bar i { background: var(--gold); border-radius: 999px; }
+
+/* ── narrower screens ── */
+@media (max-width: 1499px) {
+  /* (the orders bar is as wide as the screen's middle: the log sits above it, the map modes beside it) */
+  html.ui2 .log { bottom: calc(98px + var(--safe-b)); }
+}
+@media (max-width: 900px) {
+  html.ui2 { --tb-h: 46px; }
+  html.ui2 .topbar { padding-bottom: 4px; row-gap: 2px; background: linear-gradient(180deg, rgba(7, 11, 15, 0.92) 0%, rgba(7, 11, 15, 0.8) 75%, rgba(7, 11, 15, 0) 100%); }
+  html.ui2 .flag, html.ui2 .tb-nation .flag { width: 30px; height: 20px; }
+  html.ui2 .tb-name { font-size: 14.5px; }
+  /* the hand: a row of small cards with their counts, under the nation */
+  html.ui2 .tb-res { padding: 2px 4px 8px; justify-content: space-around; }
+  html.ui2 .res-chip.rcard { --w: 27px; }
+  html.ui2 .banner { top: calc(var(--tb-real, 96px) + 4px); font-size: 12.5px; padding: 4px 6px 4px 12px; }
+  html.ui2 .toasts { top: calc(var(--tb-real, 96px) + 50px); }
+  html.ui2 .outliner, html.ui2 .fab-row { top: calc(var(--tb-real, 96px) + 4px); }
+  html.ui2 .actionbar {
+    border-width: 10px 0 0; border-image: var(--k-panel) 24 0 0 0 / 10px 0 0 0 round; padding: 0 max(2px, var(--safe-r)) calc(2px + var(--safe-b)) max(2px, var(--safe-l));
+    bottom: 0; background: var(--glass-solid);
+  }
+  html.ui2 .act { min-height: 50px; width: auto; padding: 4px 0 3px; }
+  html.ui2 .act svg { width: 22px; height: 22px; }
+  html.ui2 .act .lbl { font-size: 10.5px; letter-spacing: 0; }
+  html.ui2 .minimap { bottom: calc(76px + var(--safe-b)); right: max(8px, var(--safe-r)); }
+  html.ui2 .mapmodes button { width: 34px; height: 34px; }
+  html.ui2 .log { bottom: calc(70px + var(--safe-b)); }
+  html.ui2 .nexthint { bottom: calc(70px + var(--safe-b)); }
+  html.ui2 .modal.panel, html.ui2 .setup-card.panel { border-width: 12px; border-image: var(--k-modal) 32 / 12px round; }
+}

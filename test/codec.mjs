@@ -24,14 +24,20 @@ let drawnMax = 0;
 const SEA6 = ['sea-1-6', 'sea-2-6', 'sea-3-6', 'sea-9-6'];
 // and maps players made (published: every page makes the same map from the draft), two each
 const DRAWN = ['twin', 'archipelago'].map((k) => registerMap(draftToDef(DRAFTS[k], 'u-TEST' + (k === 'twin' ? '22' : '33'))));
-for (let g = 0; g < 108; g++) {
-  const big = g >= 40 && g < 52;
-  const drawn = g >= 104 ? DRAWN[(g - 104) >> 1] : null;
-  const sea = (g >= 52 && g < 104) || !!(drawn && drawn.rules && drawn.rules.seafarers);
+// and last, games with a room's house rules (numbers dealt more like the dice fall, a higher hand
+// limit, the dice deck) on the standard island, the large island, Seafarers 1 and the new world
+const HOUSE = [undefined, 'base-6', 'sea-1', 'sea-9'];
+for (let g = 0; g < 116; g++) {
+  const house = g >= 108;
+  const big = (g >= 40 && g < 52) || (house && g % 4 === 1);
+  const drawn = g >= 104 && g < 108 ? DRAWN[(g - 104) >> 1] : null;
+  const sea = (g >= 52 && g < 104) || !!(drawn && drawn.rules && drawn.rules.seafarers) || (house && g % 4 >= 2);
   const sea6 = g >= 88 && g < 104;
   const players = Array.from({ length: drawn ? drawn.players[1] : big || sea6 ? 5 + (g % 2) : g % 3 ? 4 : 3 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' } }));
-  const map = drawn ? drawn.id : sea6 ? SEA6[(g - 88) >> 2] : big ? 'base-6' : sea ? (g >= 80 ? 'sea-9' : g >= 72 ? 'sea-3' : g >= 64 ? 'sea-2' : 'sea-1') : undefined;
-  const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4], map, rules: (big && g >= 46) || (sea6 && g % 4 === 3) ? { turns: 'sbp' } : undefined });
+  const map = house ? HOUSE[g % 4] : drawn ? drawn.id : sea6 ? SEA6[(g - 88) >> 2] : big ? 'base-6' : sea ? (g >= 80 ? 'sea-9' : g >= 72 ? 'sea-3' : g >= 64 ? 'sea-2' : 'sea-1') : undefined;
+  const rules = house ? { discard: 8 + (g % 3), dice: 'deck' } : (big && g >= 46) || (sea6 && g % 4 === 3) ? { turns: 'sbp' } : undefined;
+  const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4], map, rules, board: house ? { mix: 'rich' } : undefined });
+  if (house) assert.equal(st.board.mix, 'rich');
   const rnd = makeRng(g);
   const mem = players.map(() => ({}));
   let guard = 0;

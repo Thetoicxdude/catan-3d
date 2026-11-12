@@ -90,9 +90,26 @@ export class Labels {
       const x = (_v.x * 0.5 + 0.5) * w;
       const y = (-_v.y * 0.5 + 0.5) * h;
       let s = o.scale ? o.scale(zoomH) : 1;
-      // a label that must fit the ground under it (a number token on its province): no bigger than
-      // `fit` world units there, `size` being its width in pixels at scale 1
-      if (o.fit) s = Math.min(s, Math.max(o.fitMin || 0.3, screenWidth(camera, it.pos, o.fit, w, h) / o.size));
+      // a label sized by the ground under it (a number token by its province): o.px gives its width in
+      // pixels from the width on screen of `ground` world units there, `size` being its width at
+      // scale 1; below fadePx it fades away
+      if (o.ground) {
+        const px = o.px(screenWidth(camera, it.pos, o.ground, w, h));
+        s = px / o.size;
+        if (o.fadePx) {
+          const [lo, hi] = o.fadePx;
+          const k = Math.min(1, Math.max(0, (px - lo) / (hi - lo)));
+          alpha *= k * k * (3 - 2 * k);
+          if (alpha <= 0.01) {
+            if (it.visible) {
+              box.style.display = 'none';
+              it.visible = false;
+            }
+            continue;
+          }
+        }
+      }
+      it.s = s;
       const rot = o.angle ? ` rotate(${o.angle}rad)` : '';
       box.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${s.toFixed(3)})${rot}`;
       box.style.opacity = alpha.toFixed(3);

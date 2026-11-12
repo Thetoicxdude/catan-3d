@@ -1,6 +1,8 @@
-// Placement markers that read on any terrain and from any camera angle: white rings with a dark
-// outline (settlement/city spots), outlined stripes with a centre dot (road spots) and target rings
-// around number tokens (robber). Drawn on top of everything at a constant on-screen size.
+// Placement markers that read on any terrain and from any camera angle: small white dots with a dark
+// outline on every intersection that can be built on (the one under the pointer becomes a ring),
+// outlined stripes with a centre dot (road spots) and target rings around number tokens (robber).
+// Drawn on top of everything, about the same size on screen at every zoom but never wider than the
+// room between neighbouring spots, so they never hide the map.
 import * as THREE from 'three';
 import { GEO, HEX_SIZE } from '../engine/geometry.js';
 import { screenWidth } from './labels.js';
@@ -215,14 +217,14 @@ export class Markers {
     const T = textures();
     for (const id of ids) {
       if (kind === 'vertex') {
-        const s = this.sprite(T.spot);
+        const s = this.sprite(T.dot);
         s.position.copy(this.pieces.vertexPos(id)).add(new THREE.Vector3(0, 0.6, 0));
-        this.items.set(id, { objs: [s], spot: s, base: 36 });
+        this.items.set(id, { objs: [s], spot: s, base: 12, ring: true });
       } else if (kind === 'edge') {
         const r = this.ribbon(id);
         const d = this.sprite(T.dot, 41);
         d.position.copy(this.pieces.edgeMid(id)).add(new THREE.Vector3(0, 0.7, 0));
-        this.items.set(id, { objs: [r, d], ribbon: r, spot: d, base: 18 });
+        this.items.set(id, { objs: [r, d], ribbon: r, spot: d, base: 12 });
       } else if (kind === 'hex') {
         const h = GEO.hexes[id];
         const y = this.terrain.heightAt(h.x, h.z);
@@ -235,9 +237,15 @@ export class Markers {
 
   setHover(id) {
     this.hover = id;
+    const T = textures();
     for (const [k, it] of this.items) {
       const hot = k === id;
       if (it.spot) it.spot.material.color.copy(hot ? this.hoverColor : new THREE.Color(1, 1, 1));
+      // (an intersection's dot opens into a ring under the pointer)
+      if (it.ring && it.spot.material.map !== (hot ? T.spot : T.dot)) {
+        it.spot.material.map = hot ? T.spot : T.dot;
+        it.spot.material.needsUpdate = true;
+      }
       if (it.ribbon) {
         const u = it.ribbon.material.uniforms.uColor.value;
         if (hot) u.copy(this.hoverColor).convertLinearToSRGB();
@@ -247,7 +255,8 @@ export class Markers {
   }
 
   // camDist: camera distance; vh: viewport height in CSS px; touch: coarse pointer
-  update(dt, camDist, vh, touch, tokenScale, camera, vw) {
+  // tokenPx: how wide a number token is in the middle of the screen
+  update(dt, camDist, vh, touch, tokenPx, camera, vw) {
     if (!this.items.size) return;
     this.time += dt;
     const t = this.time;
@@ -255,14 +264,17 @@ export class Markers {
     const k = 0.65 / Math.max(1, vh); // sprite scale per screen pixel (fov 36°)
     // no marker wider than the room it has there on screen (where the map is small or far away, the
     // markers of neighbouring intersections, paths or provinces would run together)
-    const room = this.kind === 'vertex' ? HEX_SIZE * 0.9 : this.kind === 'edge' ? HEX_SIZE * 0.6 : HEX_SIZE * 1.6;
+    const room = this.kind === 'vertex' ? HEX_SIZE * 0.55 : this.kind === 'edge' ? HEX_SIZE * 0.4 : HEX_SIZE * 1.6;
     for (const [id, it] of this.items) {
       const hot = id === this.hover;
       let px;
-      if (it.hex) px = 44 * tokenScale * 1.95 + 6;
-      else px = it.base * (touch ? 1.3 : 1);
-      if (camera) px = Math.min(px, Math.max(it.hex ? 24 : 12, screenWidth(camera, it.spot.position, room, vw, vh)));
-      px *= hot ? 1.3 : pulse;
+      if (it.hex) px = tokenPx * 1.48 + 6;
+      // (a touch picks within a wide radius anyway, so the dots stay small on phones too)
+      else px = it.base * (touch && !it.ring ? 1.25 : 1);
+      // the spot under the pointer: a ring, larger, still within the province
+      if (hot && it.ring) px = 34 * (touch ? 1.2 : 1);
+      if (camera) px = Math.min(px, Math.max(it.hex ? 20 : 6, screenWidth(camera, it.spot.position, hot ? room * 2.2 : room, vw, vh)));
+      px *= hot ? 1.12 : pulse;
       it.spot.scale.setScalar(px * k);
       it.spot.material.opacity = hot ? 1 : 0.88 + 0.12 * Math.sin(t * 4.2);
       if (it.ribbon) {

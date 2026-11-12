@@ -54,11 +54,54 @@ export function defaultSettings() {
     map: 'base-4',
     turns: 'paired',
     numbers: 'balanced',
-    target: 10,
+    // the house rules (houseRules below): standard unless changed
+    vpAdj: 0,
+    discard: 7,
+    dice: 'random',
+    mix: 'standard',
     speed: 'normal',
+    // the interface: 'classic' (bronze frames) or 'clean' (theme2.css)
+    ui: 'classic',
     sound: true,
     quality: mobile || tier === 'low' ? 'low' : weak || tier === 'medium' ? 'medium' : 'high',
   };
+}
+
+// The house rules a campaign or a room may change, standard first: the points to win (moved from the
+// map's own: 10 on the standard islands, a scenario's or a drawn map's own), the hand limit for a 7,
+// the dice (or the dice deck: engine.js drawDice), how the numbers are dealt (board.js richNumbers).
+export const VP_ADJ = [-2, 0, 2, 4];
+export const DISCARD = [7, 8, 9, 10];
+export const DICE = ['random', 'deck'];
+export const MIX = ['standard', 'rich'];
+
+// the points to win with these settings
+export function targetFor(s) {
+  return Math.max(3, (mapDef(s.map).vp || 10) + (VP_ADJ.includes(s.vpAdj) ? s.vpAdj : 0));
+}
+
+// what an official room plays: the standard game on the standard island
+export function officialSettings(s) {
+  return { ...s, map: 'base-4', turns: 'paired', numbers: 'balanced', vpAdj: 0, discard: 7, dice: 'random', mix: 'standard' };
+}
+
+// the house rules in words, those that differ from the standard game only (for a room's terms)
+export function houseRulesText(s, withTarget = false) {
+  const out = [];
+  if (withTarget) out.push(`${targetFor(s)} 分勝利`);
+  if (s.discard !== 7 && DISCARD.includes(s.discard)) out.push(`手牌超過 ${s.discard} 張才棄牌`);
+  if (s.dice === 'deck') out.push('平衡骰');
+  if (s.mix === 'rich') out.push('數字偏向高機率');
+  return out;
+}
+
+// what each house rule does, for the notes under the choices (only those not at their standard)
+export function houseRulesNotes(s) {
+  const out = [];
+  if (s.dice === 'deck') out.push('平衡骰：36 種骰子組合各一張牌，依序翻開，翻完（最後幾張不用）再重洗。每個點數出現的次數會貼近機率，不會前面一直出 6、後面一直出 8。');
+  if (s.mix === 'rich') out.push('數字偏向高機率：島上的 2、3、11、12 少一些，5、9（大地圖還有 4、10）多一些，6 和 8 數量不變；好位置比較多、比較好選。');
+  if (s.discard !== 7 && DISCARD.includes(s.discard)) out.push(`擲出 7 時，手牌超過 ${s.discard} 張的國家才要棄掉一半（標準是超過 7 張）。`);
+  return out;
 }
 
 // Settings saved by an older version: five opponent seats, a known map, an opponent count that fits it.
@@ -66,6 +109,13 @@ export function fitSettings(s) {
   const def = mapDef(s.map);
   s.map = def.id;
   if (s.turns !== 'sbp') s.turns = 'paired';
+  // (the points to win were a number for the standard islands only: 8, 10 or 12)
+  if (!VP_ADJ.includes(s.vpAdj)) s.vpAdj = s.target === 8 ? -2 : s.target === 12 ? 2 : 0;
+  delete s.target;
+  if (!DISCARD.includes(s.discard)) s.discard = 7;
+  if (!DICE.includes(s.dice)) s.dice = 'random';
+  if (!MIX.includes(s.mix)) s.mix = 'standard';
+  if (s.ui !== 'clean') s.ui = 'classic';
   if (!Array.isArray(s.seats)) s.seats = [];
   for (let i = s.seats.length; i < 5; i++) {
     const used = new Set([s.name, ...s.seats.map((x) => x.name)]);
@@ -76,11 +126,17 @@ export function fitSettings(s) {
   return s;
 }
 
-// what createGame needs from the settings: the map and its rules
+// what createGame needs from the settings: the map, how its numbers are dealt, the points to win and
+// the rules (the map's turn rule, the house rules that differ from the standard game)
 export function gameSetup(s) {
   const def = mapDef(s.map);
-  const out = { map: def.id };
-  if (def.rules && def.rules.turns) out.rules = { turns: s.turns === 'sbp' ? 'sbp' : 'paired' };
+  const out = { map: def.id, targetVP: 10, vpAdj: VP_ADJ.includes(s.vpAdj) ? s.vpAdj : 0, board: { numbers: s.numbers === 'spiral' ? 'spiral' : 'balanced' } };
+  if (s.mix === 'rich') out.board.mix = 'rich';
+  const rules = {};
+  if (def.rules && def.rules.turns) rules.turns = s.turns === 'sbp' ? 'sbp' : 'paired';
+  if (DISCARD.includes(s.discard) && s.discard !== 7) rules.discard = s.discard;
+  if (s.dice === 'deck') rules.dice = 'deck';
+  if (Object.keys(rules).length) out.rules = rules;
   return out;
 }
 
@@ -122,6 +178,32 @@ export function turnsNote(turns, def) {
   return turns === 'sbp'
     ? `每位玩家回合結束後，其他人依序可以建造或購買發展卡（不能交易、不能使用發展卡${sea ? '、不能移船' : ''}）。`
     : `官方現行規則：每回合由兩位玩家行動。主要玩家照常擲骰、交易、建造；結束後由對面（左手邊第三位）的玩家接著建造、和銀行交易、使用一張發展卡${sea ? '、移動一艘船' : ''}，但不能擲骰或和其他國家交易。`;
+}
+
+// The house rules as rows of choices (the campaign menu and a custom room): `row(label, key, options,
+// reroll)` adds one (reroll: the island changes with it), and `note(html)` says what the changed ones do.
+export function houseRuleRows(s, row, note) {
+  const def = mapDef(s.map);
+  const base = def.vp || 10;
+  const own = def.vp ? (def.custom ? '地圖' : '劇本') : '標準';
+  row('勝利分數', 'vpAdj', VP_ADJ.map((d) => [d, `${Math.max(3, base + d)} 分${d === 0 ? `（${own}）` : ''}`]));
+  row('棄牌門檻', 'discard', DISCARD.map((n) => [n, n === 7 ? '7 張（標準）' : `${n} 張`]));
+  row('骰子', 'dice', [
+    ['random', '隨機（標準）'],
+    ['deck', '平衡骰'],
+  ]);
+  row('數字分布', 'mix', [
+    ['standard', '標準'],
+    ['rich', '偏向高機率'],
+  ], true);
+  // (the official spiral exists for the standard island only, with its own tokens)
+  if (def.spiral && s.mix !== 'rich')
+    row('數字排列', 'numbers', [
+      ['balanced', '平衡隨機'],
+      ['spiral', '官方螺旋'],
+    ], true);
+  const notes = houseRulesNotes(s);
+  if (notes.length) note(notes.map(esc).join('<br>'));
 }
 
 // The maps to choose from (the campaign menu and a custom room): by kind, the 3–4 player map in the
@@ -363,23 +445,10 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
       }
       g2.appendChild(s);
     };
-    // (the official spiral exists for the standard island only)
-    if (mapDef(settings.map).spiral)
-      seg2('數字排列', 'numbers', [
-        ['balanced', '平衡隨機'],
-        ['spiral', '官方螺旋'],
-      ], true);
-    // (a scenario sets its own target)
-    const fixedVP = mapDef(settings.map).vp;
-    if (fixedVP) {
-      g2.appendChild(el('label', '', '勝利分數'));
-      g2.appendChild(el('span', 'form-fixed', `${fixedVP} 分（${mapDef(settings.map).custom ? '地圖規定' : '劇本規定'}）`));
-    } else
-      seg2('勝利分數', 'target', [
-        [8, '8 分'],
-        [10, '10 分'],
-        [12, '12 分'],
-      ]);
+    houseRuleRows(settings, seg2, (html) => {
+      g2.appendChild(el('span', ''));
+      g2.appendChild(el('p', 'form-note', html));
+    });
     g2.appendChild(el('label', '', '島嶼'));
     const rr = el('div', 'menu-actions');
     const reroll = el('button', 'btn', '換一座島嶼');

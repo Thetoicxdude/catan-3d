@@ -12,7 +12,7 @@ import { randomState } from '../engine/rng.js';
 import { flagURL } from '../ui/flags.js';
 import { esc } from '../ui/text.js';
 import { icon } from '../ui/icons.js';
-import { PALETTE, AI_NAMES, fitSettings, gameSetup, mapTable } from '../ui/menu.js';
+import { PALETTE, AI_NAMES, fitSettings, gameSetup, mapTable, targetFor, officialSettings, houseRuleRows, houseRulesText } from '../ui/menu.js';
 import { mapDef, MAP_LIST, DEFAULT_MAP, isBuiltIn, knownMap } from '../engine/maps.js';
 import { mapsAvailable, publishedCode, loadPublished, cleanCode, CODE_RE } from './maps.js';
 import { openMapBrowser } from '../ui/maps-ui.js';
@@ -105,11 +105,26 @@ function mapName(mp) {
 }
 
 // the room's terms in one line: island, seats, turn rule, victory points
-function roomTerms(mp, ru, n, tv) {
+function roomTerms(mp, ru, n, tv, hr) {
   const parts = [`${esc(mapName(mp))}`, `${n} 席`];
   if (ru) parts.push(ru === 's' ? '特別建造階段' : '配對回合');
   if (tv) parts.push(`${tv} 分勝利`);
+  parts.push(...houseRulesText(houseRules(hr)).map(esc));
   return parts.join('・');
+}
+
+// The house rules a custom room changed, as its lobby presence says them: 'd<n>' the hand limit for a
+// 7, 'k' the dice deck, 'x' numbers dealt more like the dice fall (null: the standard game).
+function houseCode(s) {
+  let c = '';
+  if (s.discard && s.discard !== 7) c += 'd' + s.discard;
+  if (s.dice === 'deck') c += 'k';
+  if (s.mix === 'rich') c += 'x';
+  return c || null;
+}
+function houseRules(c) {
+  const m = /d(\d+)/.exec(String(c || ''));
+  return { discard: m ? Number(m[1]) : 7, dice: /k/.test(c || '') ? 'deck' : 'random', mix: /x/.test(c || '') ? 'rich' : 'standard' };
 }
 
 function seatRows(seats, me, opts = {}) {
@@ -495,15 +510,26 @@ export class HostSession {
   }
 
   // the room's island and rules as the lobby shows them: mp (a map other than the standard island),
-  // ru (the turn rule) — null when not set, which clears them from the presence
+  // ru (the turn rule), hr (the house rules: houseCode) — null when not set, which clears them from the
+  // presence
   layout() {
-    const out = { mp: null, ru: null };
+    const out = { mp: null, ru: null, hr: null };
     if (this.official) return out;
     // a running campaign says it itself (this page may have taken it over from another)
     const g = this.state ? { map: this.state.map || DEFAULT_MAP, rules: this.state.rules } : gameSetup(this.settings);
     if (g.map !== DEFAULT_MAP) out.mp = g.map;
     if (g.rules && g.rules.turns) out.ru = g.rules.turns === 'sbp' ? 's' : 'p';
+    if (!this.state) out.hr = houseCode(this.settings);
     return out;
+  }
+
+  // one of the house rules (a custom room, before the campaign starts)
+  setRule(key, val) {
+    if (this.phase !== 'lobby' || this.official) return;
+    this.settings[key] = val;
+    fitSettings(this.settings);
+    this.ui && this.ui.render && this.ui.render();
+    this.publish();
   }
 
   lob() {
@@ -618,6 +644,7 @@ export class HostSession {
     const listing = { code: this.code, nm: hs.name, n: this.seats.length, f: open, st: this.phase, off: this.official ? 1 : 0, ts: this.createdAt };
     const lay = this.layout();
     if (lay.mp) listing.mp = lay.mp;
+    if (lay.hr) listing.hr = lay.hr;
     if (this.mapSeed != null) listing.ms = this.mapSeed >>> 0;
     const lk = JSON.stringify(listing);
     if (lk !== this.listingKey || (rem != null && Date.now() - (this.listingAt || 0) > 5000)) {
@@ -626,7 +653,7 @@ export class HostSession {
       this.lobby.presence({ app: APP, v: V, host: { ...listing, rem } }).catch(() => {});
     }
     if (this.phase === 'lobby' || !this.state) {
-      const tv = (!this.official && mapDef(this.settings.map).vp) || this.settings.target || 10;
+      const tv = targetFor(this.official ? officialSettings(this.settings) : this.settings);
       await this.ch.presence({ app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: this.phase, lob, tv, off: this.official ? 1 : 0, rem, ep: this.ep, ...lay });
       return;
     }
@@ -651,7 +678,7 @@ export class HostSession {
     const ho = this.handing ? { to: this.handing.to, at: this.handing.at, bye: this.handing.bye ? 1 : 0 } : null;
     const dl = this.game && this.game.clockLeft ? this.game.clockLeft() : null;
     const ack = this.seats.filter((s) => s.kind === 'remote' && s.peer).map((s) => [s.peer, s.lastN || 0]);
-    const base = { app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: 'play', lob, bd: C.encodeBoard(st), ps: C.encodeSeats(st), pub: C.encodePublic(st), px, ack, err: this.err, ep: this.ep, pn: ++this.pn, hn: hs.name, hc: hs.color, bk, ho, dl, tv: st.targetVP || this.settings.target || 10, off: this.official ? 1 : 0, mp: null, ru: null };
+    const base = { app: APP, v: V, role: 'host', code: this.code, k: this.keys.pubB64, st: 'play', lob, bd: C.encodeBoard(st), ps: C.encodeSeats(st), pub: C.encodePublic(st), px, ack, err: this.err, ep: this.ep, pn: ++this.pn, hn: hs.name, hc: hs.color, bk, ho, dl, tv: st.targetVP, off: this.official ? 1 : 0, mp: null, ru: null, hr: null };
     if (this.becoming) for (const k of PLAYER_KEYS) base[k] = null;
     // the presence holds this page's chat lines too
     const budget = PRESENCE_BUDGET - (this.chat.items.length ? C.utf8Size({ chat: this.chat.items.map(([n, t]) => [n, t]) }) : 0);
@@ -858,6 +885,12 @@ export class HostSession {
           this.settings.turns === 'sbp' ? 'sbp' : 'paired',
           (t) => this.setLayout(cur.id, this.seats.length, t),
         );
+      // the points to win and the house rules
+      houseRuleRows(
+        this.settings,
+        (label, key, opts) => segRow(label, opts, this.settings[key], (v) => this.setRule(key, v)),
+        (html) => lay.appendChild(el('p', 'form-note', html)),
+      );
       const box = body.querySelector('.code-box');
       const link = selfHosted();
       const copy = btn(link ? '複製邀請連結' : '複製代碼', 'ghost', () => {
@@ -1063,7 +1096,7 @@ export class ClientSession {
       }
     }
     if (pr.st !== 'play' || !pr.pub) {
-      if (this.ui) this.ui.render(seats, seat, { mp: pr.mp || null, ru: pr.ru || null, tv: pr.tv });
+      if (this.ui) this.ui.render(seats, seat, { mp: pr.mp || null, ru: pr.ru || null, tv: pr.tv, hr: typeof pr.hr === 'string' ? pr.hr : null });
       if (this.onLobby) this.onLobby(seats, seat, typeof pr.rem === 'number' ? pr.rem : null, Date.now());
       return;
     }
@@ -1354,7 +1387,7 @@ export class ClientSession {
         // before the host has seen us arrive there may still be open seats: we are about to get one
         const open = seats.some((s) => s.kind === 'open');
         statusEl.textContent = seat >= 0 ? `你坐在第 ${seat + 1} 席，等待主持人開始戰役…` : open ? '正在取得席位…' : '席位已滿，目前在旁觀望。';
-        termsEl.innerHTML = roomTerms(lay.mp, lay.ru, seats.length, lay.tv);
+        termsEl.innerHTML = roomTerms(lay.mp, lay.ru, seats.length, lay.tv, lay.hr);
         list.innerHTML = seatRows(seats, this.me());
       },
       status: (t) => (statusEl.textContent = t),
@@ -1499,7 +1532,7 @@ export class MatchSession {
     await this.lobby.presence({ mm: null });
     this.host = new HostSession({
       app: this.app,
-      settings: { ...this.settings, target: 10, numbers: 'balanced' },
+      settings: officialSettings(this.settings),
       toast: this.toast,
       official: true,
       quiet: true,
@@ -1753,7 +1786,7 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
         const h = r.presence.host;
         const row = el('div', 'resp');
         const playing = h.st === 'play';
-        const isle = h.mp && (MAP_LIST.some((d) => d.id === h.mp) || publishedCode(h.mp)) ? `・${mapName(h.mp)}` : '';
+        const isle = (h.mp && (MAP_LIST.some((d) => d.id === h.mp) || publishedCode(h.mp)) ? `・${mapName(h.mp)}` : '') + houseRulesText(houseRules(typeof h.hr === 'string' ? h.hr : null)).map((t) => '・' + t).join('');
         row.innerHTML = `<b class="num" style="letter-spacing:.12em">${esc(String(h.code).toUpperCase())}</b><span>${esc(cleanName(h.nm, '主持人'))} 的房間${esc(isle)}</span><span class="st">${playing ? '戰役進行中' : `空位 ${Number(h.f) || 0}/${Math.max(0, (Number(h.n) || 1) - 1)}`}</span>`;
         const b = btn(playing ? '重新加入／觀戰' : '加入', playing ? '' : 'primary', () => {
           cleanup();

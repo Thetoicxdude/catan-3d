@@ -98,7 +98,9 @@ function wsChannel(base, name, peer) {
   let retry = 0;
   let retryTimer = null;
   let pingTimer = null;
-  let lastPong = 0;
+  let lastPong = 0; // when the server last said anything on this socket
+  let pingAt = 0; // when the oldest ping still unanswered went out (0: none)
+  let probeTimer = null;
   let nextId = 1;
   const waiting = new Map();
   const meObj = () => Object.freeze({ peer, by: null, isMe: true, sameTab: true, kind: 'viewer', guest: false, presence: Object.freeze({ ...mine }), updatedAt: myUpdated });
@@ -165,6 +167,30 @@ function wsChannel(base, name, peer) {
   const stopPing = () => {
     clearInterval(pingTimer);
     pingTimer = null;
+    clearTimeout(probeTimer);
+    probeTimer = null;
+    pingAt = 0;
+  };
+  const ping = () => {
+    if (!pingAt) pingAt = Date.now();
+    return send('ping');
+  };
+  // Is the socket still alive? A socket can die without a word (a phone that slept or switched
+  // apps, a network that changed under it) and keep looking open; the room then goes quiet on this
+  // page until it is reloaded. Ask now, and drop it (a new one brings the room as it is now) when no
+  // answer comes within `ms`.
+  const probe = (ms) => {
+    const sock = ws;
+    if (left || !sock || sock.readyState !== 1) return;
+    if (!ping()) {
+      drop(sock);
+      return;
+    }
+    clearTimeout(probeTimer);
+    probeTimer = setTimeout(() => {
+      probeTimer = null;
+      if (ws === sock && pingAt && Date.now() - pingAt >= ms - 50) drop(sock);
+    }, ms);
   };
   const drop = (sock) => {
     if (ws !== sock) return;
@@ -198,22 +224,20 @@ function wsChannel(base, name, peer) {
     ws = sock;
     sock.onopen = () => {
       if (ws !== sock) return;
+      stopPing();
       lastPong = Date.now();
       send({ t: 'hello', id: 0, p: mine });
-      stopPing();
       // a socket that stops answering pings is dropped and reopened
       pingTimer = setInterval(() => {
         if (ws !== sock) return;
-        if (Date.now() - lastPong > 45000) {
-          drop(sock);
-          return;
-        }
-        send('ping');
+        if (Date.now() - lastPong > 45000) drop(sock);
+        else probe(8000);
       }, 15000);
     };
     sock.onmessage = (e) => {
       if (ws !== sock) return;
       lastPong = Date.now();
+      pingAt = 0;
       if (e.data === 'pong') return;
       let m;
       try {
@@ -276,17 +300,35 @@ function wsChannel(base, name, peer) {
     // back from the back/forward cache: the socket was closed on the way out
     if (e.persisted && !left && !ws) connect();
   };
+  // waiting to reconnect: try now
+  const reconnectNow = () => {
+    clearTimeout(retryTimer);
+    retry = 0;
+    connect();
+  };
   const onOnline = () => {
-    if (!left && !ws) {
-      clearTimeout(retryTimer);
-      retry = 0;
-      connect();
-    }
+    if (left) return;
+    if (!ws) reconnectNow();
+    else probe(4000); // the network came back: the old socket rarely survives that
+  };
+  // Back in front (a phone that locked or switched apps, a tab left in the background): the timers
+  // that would notice a dead socket ran late or not at all meanwhile.
+  const onVisible = () => {
+    if (left || document.visibilityState !== 'visible') return;
+    if (!ws) reconnectNow();
+    else if (Date.now() - lastPong > 5000) probe(4000);
+  };
+  // a phone moving between Wi-Fi and mobile data
+  const net = typeof navigator !== 'undefined' && navigator.connection && typeof navigator.connection.addEventListener === 'function' ? navigator.connection : null;
+  const onNet = () => {
+    if (!left && ws) probe(4000);
   };
   if (typeof window !== 'undefined') {
     window.addEventListener('pagehide', onPageHide);
     window.addEventListener('pageshow', onPageShow);
     window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisible);
+    if (net) net.addEventListener('change', onNet);
   }
   connect();
   return {
@@ -361,6 +403,8 @@ function wsChannel(base, name, peer) {
         window.removeEventListener('pagehide', onPageHide);
         window.removeEventListener('pageshow', onPageShow);
         window.removeEventListener('online', onOnline);
+        document.removeEventListener('visibilitychange', onVisible);
+        if (net) net.removeEventListener('change', onNet);
       }
       const sock = ws;
       ws = null;

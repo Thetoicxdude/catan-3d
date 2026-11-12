@@ -11,18 +11,34 @@ import { Pieces, buildHarbors } from './pieces.js';
 import { Territory } from './territory.js';
 import { StrategyCamera, ZOOM_MIN, ZOOM_MAX } from './camera.js';
 import { Markers } from './markers.js';
-import { Labels } from './labels.js';
+import { Labels, screenWidth } from './labels.js';
 import { FogCover } from './fog.js';
 import { GLSL_NOISE } from './noise.js';
 import { resCard, icon, RES_NAMES } from '../ui/icons.js';
 
-// number tokens stay large enough to read at every zoom (0.8 at least), smaller still only when the
-// provinces themselves get small on screen (a large map on a phone), so that tokens do not overlap
-let tokenFloor = 0.8;
-const TOKEN_SCALE = (zh) => Math.min(1.15, Math.max(tokenFloor, 92 / zh));
-// and each token no wider than about 0.62 of its own province on screen (58 px at scale 1): on a big map
-// seen at a slant the far provinces are narrower than the ones the floor above is measured on
-const TOKEN_FIT = { fit: HEX_SIZE * 1.732 * 0.62, size: 58, fitMin: 0.3 };
+// Map labels are sized by the province under them, as it is on screen (seen at a slant, the far
+// provinces are narrower than the near ones), so they shrink with the map as it is zoomed out and the
+// land always shows round them; labels too small to read fade away (labels.js: ground, px, fadePx).
+const HEX_W = HEX_SIZE * 1.732; // a province, flat side to flat side
+// A number token (62 px at scale 1): two fifths of its province, 48 px at most. Where provinces are
+// small on screen (a phone, a big map) up to three fifths, so the number stays readable at 17 px; on
+// still smaller provinces it shrinks with them and is gone below about 13 px.
+export function tokenPx(hexPx) {
+  let px = Math.min(48, hexPx * 0.4);
+  if (px < 17) px = Math.min(17, hexPx * 0.62);
+  return px;
+}
+const TOKEN_FIT = { ground: HEX_W, px: tokenPx, size: 62, fadePx: [12, 15] };
+// the robber's badge (41 px) on a province without a token: the size of one
+const ROBBER_FIT = { ground: HEX_W, px: tokenPx, size: 41, fadePx: [12, 15] };
+// A harbour badge (80 px): out at sea, so it may be a little wider than a token, 66 px at most and 36 px
+// while the provinces allow; gone where the coast is too small to tell the harbours apart.
+const harborPx = (hexPx) => {
+  let px = Math.min(66, hexPx * 0.6);
+  if (px < 36) px = Math.min(36, hexPx * 1.1);
+  return px;
+};
+const HARBOR_FIT = { ground: HEX_W, px: harborPx, size: 80, fadePx: [26, 34] };
 
 // (Seafarers, the fog islands) the hexes nobody has explored yet, and a key that changes with every
 // discovery
@@ -455,10 +471,7 @@ export class MapView {
         const hot = H.number === 6 || H.number === 8;
         el.className = 'token' + (hot ? ' hot' : '');
         el.innerHTML = `<b>${H.number}</b><i>${'<u></u>'.repeat(pips(H.number))}</i>`;
-        const it = this.labels.add(el, new THREE.Vector3(h.x, Math.max(y, 0.5) + 1.2, h.z), {
-          scale: (zh) => TOKEN_SCALE(zh),
-          ...TOKEN_FIT,
-        });
+        const it = this.labels.add(el, new THREE.Vector3(h.x, Math.max(y, 0.5) + 1.2, h.z), { ...TOKEN_FIT });
         this.tokenLabels.push({ hex: h.id, it });
       }
       // (no province names on the map: the board stays clean)
@@ -469,16 +482,11 @@ export class MapView {
     rb.className = 'robber-badge';
     rb.innerHTML = icon('robber', 24);
     rb.title = '強盜佔領中：這裡不會產出資源';
-    this.robberLabel = this.labels.add(rb, new THREE.Vector3(0, 1.7, 0), {
-      scale: (zh) => TOKEN_SCALE(zh),
-      ...TOKEN_FIT,
-      hidden: true,
-    });
+    this.robberLabel = this.labels.add(rb, new THREE.Vector3(0, 1.7, 0), { ...ROBBER_FIT, hidden: true });
     this.robberShown = -1;
     // harbours: a token with the resource (or every colour for "any") and the rate, out at sea past the
     // pier, with a line to the coast it serves; it shrinks with the map when zoomed out
     this.harborLabels = [];
-    const hbScale = (zh) => Math.min(1.05, Math.max(0.55, 105 / zh));
     for (const a of this.harbors.anchors) {
       const el = document.createElement('div');
       const type = a.harbor.type;
@@ -486,8 +494,8 @@ export class MapView {
       el.className = 'harbor-badge' + (any ? ' any' : ` rc-${type}`);
       el.innerHTML = `<i class="hb-tail"></i><span class="hb-ico"></span><b>${any ? '3:1' : '2:1'}</b>`;
       el.title = any ? '港口：任意 3 張相同資源換 1 張' : `港口：${RES_NAMES[type]} 2 張換 1 張任意資源`;
-      const it = this.labels.add(el, a.pos, { scale: hbScale });
-      this.harborLabels.push({ it, el, shore: a.shore, scale: hbScale });
+      const it = this.labels.add(el, a.pos, { ...HARBOR_FIT });
+      this.harborLabels.push({ it, el, shore: a.shore });
     }
     this.buildNationLabels();
   }
@@ -505,8 +513,7 @@ export class MapView {
       b.copy(hl.shore).project(cam);
       const dx = ((b.x - a.x) / 2) * w;
       const dy = (-(b.y - a.y) / 2) * h;
-      const s = hl.scale(zoomH);
-      const len = Math.hypot(dx, dy) / s;
+      const len = Math.hypot(dx, dy) / (hl.it.s || 1);
       const key = `${Math.round(len)}:${Math.atan2(dy, dx).toFixed(2)}`;
       if (key === hl.key) continue;
       hl.key = key;
@@ -962,11 +969,9 @@ export class MapView {
     this.flora.update(t, dt);
     this.harbors.update(t);
     if (this.fog) this.fog.update(t, dt, paper);
-    // a province's width on screen, in pixels (the same estimate as the markers'): a token (58 px) takes
-    // at most about 0.62 of it, so that the tokens of neighbouring provinces keep apart
-    tokenFloor = Math.min(0.8, Math.max(0.45, ((this.size.h / (0.65 * H)) * HEX_SIZE * 1.732) / 93));
-    const tokenScale = TOKEN_SCALE(H);
-    this.markers.update(dt, H, this.size.h, this.coarse, tokenScale, this.camera.cam, this.size.w);
+    // (the robber's target rings follow the size of a token in the middle of the screen)
+    const midTokenPx = tokenPx(screenWidth(this.camera.cam, this.camera.target, HEX_W, this.size.w, this.size.h));
+    this.markers.update(dt, H, this.size.h, this.coarse, midTokenPx, this.camera.cam, this.size.w);
     this.alignNationLabels();
     const sk = this.sky.material.uniforms;
     sk.uInvProj.value.copy(this.camera.cam.projectionMatrixInverse);

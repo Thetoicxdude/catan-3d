@@ -121,10 +121,11 @@ export function describe(e, players, me, view) {
     }
     case 'discardRequired': {
       const mine = e.amounts[me];
+      const lim = (view && view.rules && view.rules.discard) || 7;
       return {
-        log: `擲出 7！手牌超過 7 張的玩家必須棄掉一半`,
+        log: `擲出 7！手牌超過 ${lim} 張的玩家必須棄掉一半`,
         hl: true,
-        toast: { title: '強盜出沒', text: mine ? `你必須棄掉 ${mine} 張牌` : '手牌超過 7 張的國家必須棄牌', icon: 'robber' },
+        toast: { title: '強盜出沒', text: mine ? `你必須棄掉 ${mine} 張牌` : `手牌超過 ${lim} 張的國家必須棄牌`, icon: 'robber' },
       };
     }
     case 'discard':

@@ -49,7 +49,8 @@ const amountsObj = (s) => {
 // The standard island travels in full. Other maps send only the map, the seed and the number method:
 // every page lays the same board out itself (the generator is deterministic), and hk — a checksum of
 // the host's board — catches a page running another version of the game. ru: the turn rule (5–6
-// players: 'p' paired turns, 's' special building phase).
+// players: 'p' paired turns, 's' special building phase). The room's own rules, when it changed them:
+// x the numbers dealt more like the dice fall, hl the hand limit for a 7, dd the dice deck.
 export function encodeBoard(st) {
   let b;
   if (st.map && st.map !== DEFAULT_MAP) b = { mp: st.map, m: st.board.method === 'spiral' ? 's' : 'b', ts: st.mapSeed >>> 0, hk: boardHash(st.board) };
@@ -63,6 +64,9 @@ export function encodeBoard(st) {
     };
   }
   if (st.rules && st.rules.turns) b.ru = st.rules.turns === 'sbp' ? 's' : 'p';
+  if (st.board.mix === 'rich') b.x = 1;
+  if (st.rules && st.rules.discard) b.hl = st.rules.discard;
+  if (st.rules && st.rules.dice === 'deck') b.dd = 1;
   return b;
 }
 
@@ -88,10 +92,10 @@ export class BoardMismatch extends Error {
 
 const laidOut = new Map();
 function layOut(b) {
-  const key = `${b.mp}:${b.ts}:${b.m}`;
+  const key = `${b.mp}:${b.ts}:${b.m}:${b.x ? 'x' : ''}`;
   let hit = laidOut.get(key);
   if (!hit) {
-    const board = generateBoard({ rng: seedState(b.ts >>> 0) }, { numbers: b.m === 's' ? 'spiral' : 'balanced' });
+    const board = generateBoard({ rng: seedState(b.ts >>> 0) }, { numbers: b.m === 's' ? 'spiral' : 'balanced', mix: b.x ? 'rich' : undefined });
     hit = { board, hash: boardHash(board) };
     if (laidOut.size > 6) laidOut.clear();
     laidOut.set(key, hit);
@@ -105,7 +109,9 @@ export function decodeBoard(b, robber) {
   useMap(b.mp || DEFAULT_MAP);
   if (!b.h) {
     const board = layOut(b);
-    return { hexes: board.hexes, harbors: board.harbors, vertexHarbor: board.vertexHarbor, robber, method: board.method };
+    const out = { hexes: board.hexes, harbors: board.harbors, vertexHarbor: board.vertexHarbor, robber, method: board.method };
+    if (board.mix) out.mix = board.mix;
+    return out;
   }
   const names = b.n.split('|');
   const hexes = [];
@@ -116,7 +122,9 @@ export function decodeBoard(b, robber) {
   const harbors = b.hb.split(',').map((x) => ({ edge: parseInt(x, 10), type: HB_R[x.replace(/^\d+/, '')] }));
   const vertexHarbor = new Array(GEO.vertices.length).fill(null);
   for (const hb of harbors) for (const v of GEO.edges[hb.edge].v) vertexHarbor[v] = hb.type;
-  return { hexes, harbors, vertexHarbor, robber, method: b.m === 's' ? 'spiral' : 'balanced' };
+  const out = { hexes, harbors, vertexHarbor, robber, method: b.m === 's' ? 'spiral' : 'balanced' };
+  if (b.x) out.mix = 'rich';
+  return out;
 }
 export function encodeSeats(st) {
   return st.players.map((p) => [p.name, p.color, KIND[p.kind] || 'a', p.ai ? LVL[p.ai.level] || 'n' : '']);
@@ -451,9 +459,11 @@ export function decodeView(board, seats, pub, priv, seat) {
     rolls: String(pub.rs).split('.').map(Number),
     map: board.mp || DEFAULT_MAP,
   };
-  // the rules: the map's, with the room's turn rule
+  // the rules: the map's, with the room's (the turn rule, the hand limit, the dice deck)
   const rules = { ...(mapDef(board.mp || DEFAULT_MAP).rules || {}) };
   if (board.ru) rules.turns = board.ru === 's' ? 'sbp' : 'paired';
+  if (Number(board.hl) > 0) rules.discard = Number(board.hl);
+  if (board.dd) rules.dice = 'deck';
   if (Object.keys(rules).length) {
     view.rules = rules;
     if (rules.turns) view.sub = pub.sb ? { k: pub.sb[0] === 's' ? 'sbp' : 'pair', lead: pub.sb[1], rest: [...String(pub.sb[2] || '')].map(Number) } : null;
@@ -505,6 +515,8 @@ export function encodeFull(st) {
     p: st.players.map((p, i) => encodePrivate(st, i)),
     d: st.devDeck.map((t) => DEV[t]).join(''),
     g: Array.isArray(st.rng) ? st.rng.slice() : null,
+    // (the dice deck) the cards still to turn, a base-36 digit each
+    ...(st.diceDeck ? { dk: st.diceDeck.map((c) => c.toString(36)).join('') } : {}),
     sd: st.seed >>> 0,
     // (the fog islands) what the fog still hides, and its numbers
     ...(st.fog ? { fo: [st.fog.pool.map((t) => TER[t]).join(''), st.fog.numbers.join('.')] } : {}),
@@ -530,6 +542,7 @@ export function decodeFull(board, seats, pub, full) {
     };
   });
   const st = { ...v, players, devDeck: [...String(full.d || '')].map((c) => DEV_R[c]), rng: Array.isArray(full.g) ? full.g.slice() : null, seed: full.sd >>> 0 };
+  if (typeof full.dk === 'string') st.diceDeck = [...full.dk].map((c) => parseInt(c, 36)).filter((c) => c >= 0 && c < 36);
   if (full.fo) st.fog = { pool: [...String(full.fo[0])].map((c) => TER_R[c]), numbers: full.fo[1] ? String(full.fo[1]).split('.').map(Number) : [] };
   // (a map players made travels with the game, as createGame keeps it)
   if (st.map && !isBuiltIn(st.map)) st.mapDef = mapDef(st.map);

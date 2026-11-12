@@ -154,12 +154,40 @@ function repairNumbers(holder, numbers, land) {
   return land.every((id) => bad(id) === 0);
 }
 
+// Numbers dealt more like the dice fall (a room's choice, 'rich'): as many tokens as the map has, but
+// fewer 2, 3, 11 and 12 and more 5 and 9 (then 4 and 10): each number gets a share of the tokens in
+// proportion to how often the dice roll it. The 6s and 8s stay as many as the map has, so the red
+// numbers never crowd the island.
+const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 9: 4, 10: 3, 11: 2, 12: 1 };
+const RICH = [5, 9, 4, 10, 3, 11, 2, 12]; // (ties go to the likelier number)
+export function richNumbers(tokens) {
+  const out = tokens.filter((n) => !PIPS[n]);
+  const n = tokens.length - out.length;
+  const total = RICH.reduce((a, k) => a + PIPS[k], 0);
+  const exact = RICH.map((k) => (n * PIPS[k]) / total);
+  const counts = exact.map(Math.floor);
+  let left = n - counts.reduce((a, b) => a + b, 0);
+  const byRest = RICH.map((k, i) => i).sort((a, b) => exact[b] - counts[b] - (exact[a] - counts[a]) || a - b);
+  for (const i of byRest) {
+    if (left <= 0) break;
+    counts[i]++;
+    left--;
+  }
+  RICH.forEach((k, i) => {
+    for (let j = 0; j < counts[i]; j++) out.push(k);
+  });
+  return out;
+}
+
 // opts.numbers: 'spiral' (the official order, on maps that have one) or 'balanced' (shuffled until
-// no 6/8 and no equal numbers touch). The map is the one in play unless opts.map names another.
+// no 6/8 and no equal numbers touch); opts.mix: 'rich' deals richNumbers instead of the map's own (and
+// so never the official spiral). The map is the one in play unless opts.map names another.
 export function generateBoard(holder, opts = {}) {
   if (opts.map) useMap(opts.map);
   const def = GEO.def;
-  const method = opts.numbers === 'spiral' && def.spiral && def.radius != null ? 'spiral' : 'balanced';
+  const rich = opts.mix === 'rich';
+  const method = opts.numbers === 'spiral' && def.spiral && def.radius != null && !rich ? 'spiral' : 'balanced';
+  const tokensOf = (list) => (rich ? richNumbers(list) : list.slice());
   const expand = (counts) => {
     const out = [];
     for (const [t, c] of Object.entries(counts || {})) for (let i = 0; i < c; i++) out.push(t);
@@ -231,7 +259,7 @@ export function generateBoard(holder, opts = {}) {
     const land = GEO.hexes.filter((h) => dealt(terrains[h.id]) && !fixed[h.id]).map((h) => h.id);
     if (def.legacy) {
       for (let attempt = 0; attempt < 5000; attempt++) {
-        const tokens = shuffle(holder, def.numbers.slice());
+        const tokens = shuffle(holder, tokensOf(def.numbers));
         const cand = fixed.slice();
         land.forEach((id, i) => (cand[id] = tokens[i] || 0));
         numbers = cand;
@@ -243,7 +271,7 @@ export function generateBoard(holder, opts = {}) {
       const landBy = {};
       for (const id of land) (landBy[groupOf(def.tiles[id])] = landBy[groupOf(def.tiles[id])] || []).push(id);
       for (const [g, ids] of Object.entries(landBy)) {
-        const tokens = shuffle(holder, (g ? groups[g].numbers : def.numbers).slice());
+        const tokens = shuffle(holder, tokensOf(g ? groups[g].numbers : def.numbers));
         ids.forEach((id, i) => (numbers[id] = tokens[i] || 0));
       }
       repairNumbers(holder, numbers, land.filter((id) => numbers[id]));
@@ -286,6 +314,7 @@ export function generateBoard(holder, opts = {}) {
   // (or off the board, coming in the first time it is moved: -1)
   if (def.robber && def.robber.off) robber = -1;
   const board = { hexes, harbors, vertexHarbor, robber, method };
+  if (rich) board.mix = 'rich';
   // the pirate's sea hex (Seafarers; off the board when the map names none)
   if (def.pirate) board.pirate = GEO.hexAt(def.pirate[0], def.pirate[1]);
   else if (def.rules && def.rules.seafarers) board.pirate = -1;

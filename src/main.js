@@ -4,7 +4,7 @@ import { GEO } from './engine/geometry.js';
 import { randomSeed } from './engine/rng.js';
 import { MapView } from './render/scene.js';
 import { Game, loadSave, clearSave } from './game/game.js';
-import { showMenu, defaultSettings, playersFromSettings, PALETTE, buildInfo, fitSettings, gameSetup } from './ui/menu.js';
+import { showMenu, defaultSettings, playersFromSettings, PALETTE, buildInfo, fitSettings, gameSetup, officialSettings } from './ui/menu.js';
 import { showHome } from './ui/home.js';
 import { Dialogs } from './ui/dialogs.js';
 import { HostSession, ClientSession, MatchSession, showOnlineEntry, rememberedRoom, forgetRoom } from './net/online.js';
@@ -40,7 +40,10 @@ function loadSettings() {
     if (s && typeof s === 'object') {
       const seats = Array.isArray(s.seats) && s.seats.length >= 3 ? s.seats.map((x) => (x && x.name === '白楊共和國' ? { ...x, name: '碧海共和國' } : x)) : d.seats;
       const color = PALETTE.some((p) => p.hex === s.color) ? s.color : d.color;
-      return fitSettings({ ...d, ...s, color, quality: s.qualityPicked ? s.quality || d.quality : d.quality, seats });
+      const merged = { ...d, ...s, color, quality: s.qualityPicked ? s.quality || d.quality : d.quality, seats };
+      // (settings saved before the house rules: their points to win become the offset)
+      if (s.vpAdj === undefined) delete merged.vpAdj;
+      return fitSettings(merged);
     }
   } catch {
     /* storage unavailable */
@@ -96,6 +99,7 @@ function menuMaps() {
 }
 
 let settings = loadSettings();
+applyLook(settings);
 setSfx(settings.sound !== false);
 let map = null;
 let mapKey = '';
@@ -172,7 +176,7 @@ async function showPreview(reroll) {
     return; // a campaign started meanwhile: never replace its map with a preview
   }
   const players = playersFromSettings(settings);
-  const st = createGame({ seed: previewSeed, players, board: { numbers: settings.numbers }, ...gameSetup(settings) });
+  const st = createGame({ seed: previewSeed, players, ...gameSetup(settings) });
   try {
     buildMap(st, players, settings.quality);
   } catch (e) {
@@ -238,6 +242,12 @@ async function homeLobby() {
 function onSettingsChange(s) {
   settings = s;
   saveSettings(s);
+  applyLook(s);
+}
+
+// the interface's look: the clean one (theme2.css) or the classic bronze
+function applyLook(s) {
+  document.documentElement.classList.toggle('ui2', !!s && s.ui === 'clean');
 }
 
 function openMenu() {
@@ -276,6 +286,7 @@ function openMenu() {
         Object.assign(settings, s);
         saveSettings(settings);
         setSfx(settings.sound !== false);
+        applyLook(settings);
         // the preview island is redrawn in the new quality straight away (same quality: kept as is)
         if (key === 'quality' && !game) showPreview(false);
       }),
@@ -462,8 +473,8 @@ async function startOnlineHost(players, net, official = false) {
   loading(true, '佈置戰場');
   await nextFrame();
   // official rooms play the standard game (10 points, balanced numbers) on the island they listed
-  const gs = official ? { ...settings, target: 10, numbers: 'balanced', map: 'base-4' } : settings;
-  const preview = createGame({ seed: previewSeed, players, targetVP: gs.target, board: { numbers: gs.numbers }, ...gameSetup(gs) });
+  const gs = official ? officialSettings(settings) : settings;
+  const preview = createGame({ seed: previewSeed, players, ...gameSetup(gs) });
   if (!official) countPlay(preview.map);
   buildMap(preview, players, settings.quality);
   map.onFrame = null;
@@ -691,9 +702,10 @@ function hookGame() {
   };
   game.onSettings = (s) => {
     // in-game settings never carry a game's own rules back to the menus (an official game plays to 10)
-    const { target, numbers, opponents, seats, ...rest } = s;
+    const { target, numbers, opponents, seats, vpAdj, discard, dice, mix, ...rest } = s;
     settings = { ...settings, ...rest };
     saveSettings(settings);
+    applyLook(settings);
   };
   window.__game = game;
 }
@@ -716,7 +728,7 @@ async function startGame(saved) {
     settings = { ...settings, ...(saved.settings || {}), quality: settings.quality };
   } else {
     players = playersFromSettings(settings);
-    state = createGame({ seed: previewSeed, players, targetVP: settings.target, board: { numbers: settings.numbers }, ...gameSetup(settings) });
+    state = createGame({ seed: previewSeed, players, ...gameSetup(settings) });
     countPlay(state.map);
   }
   try {

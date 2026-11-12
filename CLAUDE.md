@@ -5,8 +5,8 @@
 ## 指令
 - `npm run build`：打包。輸出 `site/`（部署用：頁面＋`assets/`）與 `dist/`（claude.ai artifact 版頁面與 `dist/index.test.html` 測試頁）。
 - `npm run dev`：打包後用 wrangler 在 http://127.0.0.1:8787 跑整個網站與房間伺服器。
-- `npm test`：規則單元測試、標準地圖回歸（`test/golden.mjs`）、網路序列化、時間限制、帳號、模擬（標準 300 局、大島嶼配對回合 120 局與特別建造 40 局、航海家劇本 1 與 2 各 60 局、劇本 3 與 9 各 40 局、5–6 人航海家四張各 30 局；`node test/sim.mjs N --map=base-6 --turns=sbp`、`--map=sea-1`、`sea-2`、`sea-3`、`sea-9`、`sea-1-6`…`sea-9-6` 可單獨跑）。
-- `node test/rooms.mjs`：房間伺服器協定（需先 `npm run dev`）。
+- `npm test`：規則單元測試、標準地圖回歸（`test/golden.mjs`）、網路序列化、時間限制、帳號、模擬（標準 300 局、大島嶼配對回合 120 局與特別建造 40 局、航海家劇本 1 與 2 各 60 局、劇本 3 與 9 各 40 局、5–6 人航海家四張各 30 局、房規 40＋20 局；`node test/sim.mjs N --map=base-6 --turns=sbp`（加 `--house` 用房規）、`--map=sea-1`、`sea-2`、`sea-3`、`sea-9`、`sea-1-6`…`sea-9-6` 可單獨跑）。
+- `node test/rooms.mjs`：房間伺服器協定（需先 `npm run dev`）；`python3 test/lobby.py`：主畫面官方房間在連線無聲斷掉後自己接上（需先 `npm run dev`）。
 - 瀏覽器測試（Playwright，SwiftShader 很慢）：`python3 test/ui1.py`…`ui4.py`、`ui5.py`（大島嶼 6 人單機，`TURNS=sbp` 測特別建造）、`online.py`、`online2.py`（斷線重連、主持人重新整理時交接）、`online3.py`（觀戰）、`online4.py`（主持人交接與接手、回合時間、聊天、退出由電腦代替）、`online5.py`（6 席大島嶼房間）、`ui6.py`（航海家單機：開局放船、造船、移船、金礦、重新整理後繼續；`MAP=sea-2` 跑四座島嶼、`MAP=sea-3` 跑霧島、`MAP=sea-9` 跑新世界，`MAP=sea-1-6`…`sea-9-6` 跑 5–6 人版；`online6.py` 也接受 `MAP`）、`online6.py`（航海家線上房間）、`match.py`（快速配對）。加 `ROOMS=ws` 會改走真正的房間伺服器（需先 `npm run dev`）。截圖存到 `SHOTS` 指定的資料夾。
 - 帳號：`node test/accounts.mjs`（token 驗證）；完整流程見 `docs/catan-3d-status.md` 的「帳號與戰績」。
 - 地圖工坊：`node test/custom.mjs`（草稿轉地圖定義、檢查、在畫出來的地圖上打完整局；範例草稿在 `test/drafts.mjs`，`node test/sim.mjs N --map=draft:twin` 可單獨模擬）；`python3 test/editor.py`（瀏覽器：畫地圖、3D 預覽、試玩、重新整理後繼續、手機）。
@@ -21,6 +21,7 @@
 - 規則引擎 `src/engine/` 是純函式、seed 可重播；電腦對手在 `src/ai/`。
 - 地圖由地圖定義決定（`src/engine/maps.js`：格子、地形池、數字、港口、人數、銀行、發展卡、回合規則）。幾何從定義算出，`GEO` 是可切換的共用值（`useMap`；對局狀態的 `map` 欄位，`ensureMap(st)` 換回）。只能同時有一張地圖在用，畫別張地圖要用 `withMap`。
 - 標準地圖（`base-4`）用原本的產生器（`legacy`），不要改它的抽牌順序：`node test/golden.mjs` 會比對 24 局的盤面、幾何與對局過程。新地圖用另一個產生器（同地形不相鄰、修正數字）。
+- 房規（`menu.js` 的 `houseRuleRows`、`gameSetup`；單人設定與自訂房間，官方房間用 `officialSettings` 固定標準）：設定 `vpAdj`（勝利分數相對地圖原本的分數）、`discard`（棄牌門檻，`st.rules.discard`，引擎用 `handLimit`）、`dice: 'deck'`（平衡骰，`st.rules.dice`，牌堆 `st.diceDeck` 只在主持人那裡，`encodeFull` 的 `dk`）、`mix: 'rich'`（數字偏向高機率，`board.js` 的 `richNumbers`，盤面的 `mix`；非標準地圖靠 `encodeBoard` 的 `x` 讓各頁面排出同樣盤面）。標準規則時這些欄位都不存在，所以 `golden.mjs` 不受影響。房間大廳的 presence 用 `hr`（`houseCode`）告訴玩家。
 - 5–6 人（`base-6`）：`st.rules.turns` 是 `paired`（配對回合，預設）或 `sbp`（特別建造階段）；回合後段在 `st.sub = { k, lead, rest }`，`st.current` 是正在行動的玩家。
 - 航海家（地圖定義 `rules.seafarers`，規則在 `src/engine/seafarers.js`）：船在 `st.ships`（每條路徑一格，`-1` 是空的），海盜在 `board.pirate`。地形池可以含 `sea`，所以哪裡是陸地要看盤面（`seaInfo(board)`，依盤面快取），不是只看地圖定義。格子的 `g` 是分組，各組有自己的地形池與數字（`groups`）。開局：有 `setup.group` 時只能在那組的島上，沒有時任何島都可以；玩家開局所在的島記在 `players[].home`（本島，`homeIslands(st, p)`），在其他島第一次蓋村莊得 `isleBonus` 分。霧島（地圖定義 `fog`）：格子 `t: 'fog'` 在盤面上是 `fog`，`st.fog` 是霧裡剩下的地形與數字（只在主持人那裡）；道路、船抵達霧旁的路口時由引擎 `discover` 用遊戲亂數抽出並換一個新的 `st.board`，畫面偵測到後在原地重建（`MapView.rebuildBoard`），雲霧在 `src/render/fog.js`。新世界（地圖定義 `islands`）：盤面產生器把地形池的陸地隨機長成幾座互不相連的島（`board.js` 的 `islandLayout`）；`robber: { off: true }` 時強盜（與沒有起點的海盜）是 `-1`，畫面與電腦都要處理這個值。5–6 人航海家（`sea-1-6`…`sea-9-6`）的格子用 `picture()` 畫成文字（`S` 海、`P` 海盜起點、`F` 霧）；配對回合的第二位開始行動時 `shipMoved` 重設（第二位也能移一艘船），特別建造階段不能移船。選單的地圖表是 `MAP_TABLE`（左欄 3–4 人、右欄 5–6 人，`menu.js` 的 `mapTable` 給單人設定與線上房間共用），按鈕用定義的 `short`。
 - 地圖工坊（玩家自己畫的地圖）：`src/engine/custom.js` 把草稿（編輯器格子上的海、隨機陸地或指定地形，加上人數、勝利分數、開局島、外島加分）轉成地圖定義；草稿沒說的照標準島嶼的比例補（隨機陸地的地形、數字牌、港口數量與種類），同一份草稿一定得到同一份定義。好幾座島或有金礦時一定用航海家規則。地圖代號 `my-<內容雜湊>`（改了內容就是另一張地圖），用 `registerMap` 登記（`maps.js` 分內建 `MAPS` 與登記的 `CUSTOM`，`isBuiltIn`）；不是內建的地圖整份定義存在對局狀態的 `mapDef`，所以存檔不靠草稿。介面在 `src/ui/editor.js`（草稿存在 localStorage `catan3d-drafts-v1`，邊畫邊存）；主畫面的「地圖工坊」卡片、單人設定的「玩家地圖」。發布（只在自架版）：`server/maps.js`（路由與 `Accounts` 裡的 `maps`、`ratings` 兩張表；伺服器用同一份 `custom.js` 檢查草稿；同一位作者發布同樣的草稿得到同一個代號；讀單張地圖與列表有邊緣快取）、`src/net/maps.js`（代號 6 碼，地圖代號 `u-<代號>`，`loadPublished` 抓一次並登記）、`src/ui/maps-ui.js`（公開地圖列表、發布結果、戰役結束的評分）。最近開過的已發布地圖連草稿存在 localStorage `catan3d-maps-seen-v1`；連結 `#map=代號` 打開單人設定。線上房間可以用內建或已發布的地圖（本機草稿要先發布，建房時遇到會換回標準島嶼）：玩家的頁面在 `handleHost` 先用代號抓地圖再排盤面，接手主持時 `decodeFull` 把地圖定義放回狀態。
@@ -29,8 +30,9 @@
 - 帳號（只在自架版）：`server/accounts.js`（Google ID token 驗證、SQLite Durable Object `Accounts`）、`src/net/account.js`、`src/ui/account-ui.js`；用戶端 ID 在 `server/config.js`。不保存 email。
 - `src/net/room.js` 依環境選傳輸：claude.ai 的 room 功能、自架站的 WebSocket 房間（頁面有 `window.__rooms`）、測試用的 BroadcastChannel（`window.__mockRoom`）。三者介面相同。
 - `server/worker.js`：靜態網站＋`/rooms/<名稱>` WebSocket → `PresenceRoom` Durable Object（休眠 API、同分頁重連接手、過期清除、速率限制、只接受同站或本機來源）。
-- 畫面風格：`src/ui/theme.css` 最後載入，把面板、按鈕、對話框統一成主畫面的古銅回紋框（`assets/ui/frame_*.webp`）、琺瑯底與金字；沒有素材包時 `<html>` 會有 `no-art`，框線退回簡單線條。遊戲物件的圖示來自 game-icons.net（`src/ui/gameicons.js`，由 `tools/icons.mjs` 產生；CC BY 3.0，主畫面左下角的出處不可拿掉）。
-- 地圖上的 DOM 標籤（數字牌、港口、強盜徽章）在 `src/render/labels.js`：外框只負責定位（inline transform），動畫只能加在裡面的元素上。
+- 畫面風格：`src/ui/theme.css` 最後載入，把面板、按鈕、對話框統一成主畫面的古銅回紋框（`assets/ui/frame_*.webp`）、琺瑯底與金字；沒有素材包時 `<html>` 會有 `no-art`，框線退回簡單線條。清爽介面（設定 `ui: 'clean'`，`<html>` 加 `ui2`）在 `src/ui/theme2.css`，所有規則都放在 `html.ui2` 底下；細框與分隔線是 Kenney Fantasy UI Borders（CC0），`python3 tools/ui-kit.py` 把 `tools/art/kenney-ui/` 的圖染色後寫成 `src/ui/kit.css`（data URI，claude.ai 版沒有素材包也能用）。遊戲物件的圖示來自 game-icons.net（`src/ui/gameicons.js`，由 `tools/icons.mjs` 產生；CC BY 3.0，主畫面左下角的出處不可拿掉）。
+- 地圖上的 DOM 標籤（數字牌、港口、強盜徽章）在 `src/render/labels.js`：外框只負責定位（inline transform），動畫只能加在裡面的元素上。大小依標籤下方格子在畫面上的寬度決定（選項 `ground`、`px`、`size`、`fadePx`；`scene.js` 的 `tokenPx`、`harborPx`），不要再用鏡頭高度決定。
+- `room.js` 的 WebSocket 傳輸會在頁面回到前景、網路恢復或切換時送 ping，沒回應就重連（`probe`）；不要拿掉，手機上主畫面的即時更新靠它。
 
 ## 驗證時要注意
 - 測試頁用和 claude.ai 完全相同的外框（`build.mjs` 的 `HOST_SKELETON`）；看畫面時要用真實字型與實際尺寸，並檢查數字牌是否在自己的地塊上（`test/ui1.py` 有自動檢查）。
