@@ -260,6 +260,22 @@ class GpuTimer {
   }
 }
 
+// The graphics card's name as the browser gives it, without the wrapping: "ANGLE (NVIDIA, NVIDIA GeForce
+// RTX 3070 (0x00002484) Direct3D11 vs_5_0 ps_5_0, D3D11)" → "NVIDIA GeForce RTX 3070".
+function gpuLabel(s) {
+  s = String(s || '');
+  const m = s.match(/^ANGLE \((.*)\)$/);
+  if (m) {
+    const parts = m[1].split(', ');
+    s = parts.length > 1 ? parts[1] : parts[0];
+  }
+  return s
+    .replace(/\s*\(0x[0-9A-Fa-f]+\)/g, '')
+    .replace(/\s*Direct3D.*$/, '')
+    .replace(/^ANGLE Metal Renderer:\s*/, '')
+    .trim();
+}
+
 // Let go of everything an object tree holds on the graphics card. three.js ties each geometry,
 // material and texture to the renderer that drew it with a "dispose" listener; scenery shared between
 // maps (the asset pack, materials kept by the scenery modules) would otherwise hold on to every
@@ -1315,7 +1331,7 @@ export class MapView {
     if (this.gpuName === undefined) {
       const gl = r.getContext();
       const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-      this.gpuName = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)).replace(/^ANGLE \((.*)\)$/, '$1').split(',').slice(0, 2).join(',').replace(/\s*\(0x[0-9A-Fa-f]+\)|Direct3D.*$/g, '').trim() : '';
+      this.gpuName = dbg ? gpuLabel(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
     }
     const load = pf.gpuMs != null ? Math.min(100, Math.round((pf.gpuMs * pf.fps) / 10)) : null;
     const rows = [

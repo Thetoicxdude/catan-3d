@@ -35,9 +35,10 @@
 - 效能（第十六輪；起因是電競電腦也發熱、卡頓）：
   - 繪圖步調與解析度的邏輯在 `src/render/pace.js`（純函式，`test/pace.mjs`）。`MapView.start()` 每次螢幕更新被叫一次，只在其中幾次畫：有東西在變 60 幀（`poke()`）、靜止 30、視窗不在前景 15（玩家的指標、滾輪、按鍵算在場，`attend()`）、分頁藏起來不畫；設定 `fps` 是省電／標準／不限。地圖上新加會動的東西要 `poke()`，或在 `frame()` 裡讓 `lively` 成立，不然只照靜止的幀率畫（還是會動，只是 30 幀）。
   - 解析度＝像素預算（`pixelRatioCap`：低 1.8、中 2.4、高 4.2 百萬像素）×調整器（`Governor`）。調整器以靜止時的每幀時間為預算，只看靜止、沒有重畫陰影的幀；量得到顯示卡時間（`EXT_disjoint_timer_query_webgl2`）時不看遲到的幀（那是頁面在忙）。建好、改尺寸、換素材後先 `hold()`。
-  - 著色器一律在載入時編好：新的物件種類加進 `Pieces.prewarm`／`Markers.prewarm`，用 `MapView.precompile`（會綁上後處理的 render target，否則編到給畫布用的另一個版本）。three.js 在最後一個用到某程式的材質 dispose 時就丟掉程式，所以換材質要先畫新的再丟舊的（`disposeLater`）。`test/shaders.py` 會檢查。
+  - 著色器一律在載入時編好：新的物件種類加進 `Pieces.prewarm`／`Markers.prewarm`，用 `MapView.precompile`（會綁上後處理的 render target，否則編到給畫布用的另一個版本；也先把貼圖送上顯示卡，並在兩幀之間做 three.js 的「第一次使用」`getUniforms()`：在一幀中途做，要等瀏覽器的繪圖程序把排隊的指令做完，每種新東西卡 10–50 ms）。three.js 在最後一個用到某程式的材質 dispose 時就丟掉程式，所以換材質要先畫新的再丟舊的（`disposeLater`）。`test/shaders.py` 會檢查。
   - `MapView.dispose()` 要放掉所有顯示資源並 `forceContextLoss()`；掛在 window 上的監聽要在 dispose 時拿掉（鏡頭的按鍵監聽曾經讓每一份舊地圖都留在顯示卡上）。`test/mapleak.py` 會檢查。
   - 後處理（`post.js`）：環境光遮蔽半解析度、不做半透明感知（那會每幀多畫兩次場景裡的半透明物件）、強度接近 0（拉遠的紙地圖）時改用一般的 RenderPass；調色寫在輸出 pass 裡。
+  - 主執行緒：每步棋的領土計算在下一個工作才做（`updateTerritory`），不要和介面更新疊成一次長停頓；地圖每幀的流程裡不要讀版面（`offsetParent`、`getBoundingClientRect` 等會逼瀏覽器重排），小地圖用 IntersectionObserver 記是否看得到；音效裝置在第一次點擊後的空檔開啟（`sfx.js`）。
   - 蓋在地圖上的 CSS 動畫只動 opacity／transform（放在偽元素上），不要動畫 box-shadow，也不要 backdrop-filter。
   - 設定 →「效能資訊」在地圖左下角顯示每秒幀數、螢幕 Hz、顯示卡每幀時間與負載、程式每幀時間、繪製解析度與調整比例、繪製次數、顯示卡名稱；玩家回報卡頓時請他截這個。
 - 地圖上的 DOM 標籤（數字牌、港口、強盜徽章）在 `src/render/labels.js`：外框只負責定位（inline transform），動畫只能加在裡面的元素上。大小依標籤下方格子在畫面上的寬度決定（選項 `ground`、`px`、`size`、`fadePx`；`scene.js` 的 `tokenPx`、`harborPx`），不要再用鏡頭高度決定。
