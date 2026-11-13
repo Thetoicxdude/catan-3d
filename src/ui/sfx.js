@@ -40,10 +40,20 @@ function ac() {
     return null;
   }
 }
-// browsers only allow audio after a gesture: wake the context on the first one
+// browsers only allow audio after a gesture: wake the context on the first one. (A context not made
+// yet is made a moment after the first gesture, while nothing much happens: opening the sound device
+// held the page up for a tenth of a second or more on some computers, and done by the first sound it
+// came in the middle of the first building's animation.)
 if (typeof window !== 'undefined') {
+  let early = false;
   const wake = () => {
     if (ctx && ctx.state === 'suspended') ctx.resume();
+    else if (!ctx && !early && enabled) {
+      early = true;
+      const make = () => ac();
+      if (window.requestIdleCallback) window.requestIdleCallback(make, { timeout: 1500 });
+      else setTimeout(make, 200);
+    }
   };
   window.addEventListener('pointerdown', wake, { passive: true });
   window.addEventListener('keydown', wake);

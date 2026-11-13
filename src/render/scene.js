@@ -456,6 +456,11 @@ export class MapView {
       const done = r.compileAsync(obj, this.camera.cam, scene);
       r.setRenderTarget(prev);
       await done;
+      // (and each program's first use, now, between frames: three.js then reads back the program's
+      // log and the places of its uniforms, which waits for the browser's graphics process to catch up
+      // with everything queued before. In the middle of a frame that was a stall of 10–50 ms for each
+      // new kind of thing on the map; here it costs next to nothing.)
+      if (!this.disposed) for (const p of r.info.programs) p.getUniforms();
     } catch {
       r.setRenderTarget(prev); // compiled on first draw instead
     }
