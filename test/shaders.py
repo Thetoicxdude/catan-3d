@@ -52,9 +52,15 @@ async def main():
         p1 = await page.evaluate(PROGS)
         new = [x.split(':')[0] for x in p1 if x not in p0]
         rebuilds = await page.evaluate('__game.map.rebuilds || 0')
-        ok = not new and not errs
-        print(json.dumps({'quality': Q, 'art': ART, 'map': MAP, 'turn': await page.evaluate('__game.state.turn'), 'board_rebuilds': rebuilds, 'programs_at_start': len(p0), 'after_opening': len(p1), 'compiled_during_play': new}))
-        print(('PASS' if ok else 'FAIL'), 'no shader compiled during play', errs[:3])
+        # the board built again in place, as when the fog lifts on the fog islands: the new terrain,
+        # water and scenery are drawn with the programs the old ones had
+        await page.evaluate('__game.map.rebuildBoard(__game.state)')
+        await page.wait_for_timeout(4000)
+        p2 = await page.evaluate(PROGS)
+        rebuilt = [x.split(':')[0] for x in p2 if x not in p1]
+        ok = not new and not rebuilt and not errs
+        print(json.dumps({'quality': Q, 'art': ART, 'map': MAP, 'turn': await page.evaluate('__game.state.turn'), 'board_rebuilds': rebuilds, 'programs_at_start': len(p0), 'after_opening': len(p1), 'compiled_during_play': new, 'compiled_by_rebuild': rebuilt}))
+        print(('PASS' if ok else 'FAIL'), 'no shader compiled during play or by a rebuild of the board', errs[:3])
         await b.close()
     srv.shutdown()
     print('RESULT', 'ok' if ok else 'FAILED')

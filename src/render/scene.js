@@ -927,7 +927,31 @@ export class MapView {
       this.fog.set(hiddenFog(state.board));
     }
     const changed = this.pieces.sync(state, animate);
+    // The territories are worked out in a task of their own, a moment later: in the same task as the
+    // move itself, the panels and the rest of this update, they made one long stall of the page (and
+    // a frame or two missed) after every road and building. Moves that come quicker than that are
+    // worked out once, for the last of them.
+    if (!animate) this.updateTerritory(state);
+    else {
+      this.territoryState = state;
+      if (this.territoryTimer == null)
+        this.territoryTimer = setTimeout(() => {
+          this.territoryTimer = null;
+          if (!this.disposed && this.territoryState) this.updateTerritory(this.territoryState);
+        }, 0);
+    }
+    // (the robber may still be off the board: the new world)
+    const rob = GEO.hexes[state.board.robber];
+    if (rob) this.terrain.uniforms.uRobber.value.set(rob.q, rob.r);
+    else this.terrain.uniforms.uRobber.value.set(99, 99);
+    this.showRobber(state.board.robber, animate);
+    if (changed) this.shadowDirty = 2;
+  }
+
+  updateTerritory(state) {
+    this.territoryState = null;
     if (this.territory.update(state)) {
+      this.poke();
       for (const lbl of this.territory.labels) {
         if (!lbl) continue;
         const it = this.nationLabels[lbl.p];
@@ -952,12 +976,6 @@ export class MapView {
         }
       });
     }
-    // (the robber may still be off the board: the new world)
-    const rob = GEO.hexes[state.board.robber];
-    if (rob) this.terrain.uniforms.uRobber.value.set(rob.q, rob.r);
-    else this.terrain.uniforms.uRobber.value.set(99, 99);
-    this.showRobber(state.board.robber, animate);
-    if (changed) this.shadowDirty = 2;
   }
 
   showRobber(hex, animate) {
@@ -1389,6 +1407,7 @@ export class MapView {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    clearTimeout(this.territoryTimer);
     this.stop();
     this.resizeObs.disconnect();
     this.camera.dispose();

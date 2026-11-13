@@ -5,15 +5,16 @@
 ## 指令
 - `npm run build`：打包。輸出 `site/`（部署用：頁面＋`assets/`）與 `dist/`（claude.ai artifact 版頁面與 `dist/index.test.html` 測試頁）。
 - `npm run dev`：打包後用 wrangler 在 http://127.0.0.1:8787 跑整個網站與房間伺服器。
-- `npm test`：規則單元測試、標準地圖回歸（`test/golden.mjs`）、網路序列化、時間限制、帳號、模擬（標準 300 局、大島嶼配對回合 120 局與特別建造 40 局、航海家劇本 1 與 2 各 60 局、劇本 3 與 9 各 40 局、5–6 人航海家四張各 30 局、房規 40＋20 局；`node test/sim.mjs N --map=base-6 --turns=sbp`（加 `--house` 用房規）、`--map=sea-1`、`sea-2`、`sea-3`、`sea-9`、`sea-1-6`…`sea-9-6` 可單獨跑）。
+- `npm test`：規則單元測試、地圖繪圖的步調與解析度調整（`test/pace.mjs`）、標準地圖回歸（`test/golden.mjs`）、網路序列化、時間限制、帳號、模擬（標準 300 局、大島嶼配對回合 120 局與特別建造 40 局、航海家劇本 1 與 2 各 60 局、劇本 3 與 9 各 40 局、5–6 人航海家四張各 30 局、房規 40＋20 局；`node test/sim.mjs N --map=base-6 --turns=sbp`（加 `--house` 用房規）、`--map=sea-1`、`sea-2`、`sea-3`、`sea-9`、`sea-1-6`…`sea-9-6` 可單獨跑）。
 - `node test/rooms.mjs`：房間伺服器協定（需先 `npm run dev`）；`python3 test/lobby.py`：主畫面官方房間在連線無聲斷掉後自己接上（需先 `npm run dev`）。
 - 瀏覽器測試（Playwright，SwiftShader 很慢）：`python3 test/ui1.py`…`ui4.py`、`ui5.py`（大島嶼 6 人單機，`TURNS=sbp` 測特別建造）、`online.py`、`online2.py`（斷線重連、主持人重新整理時交接）、`online3.py`（觀戰）、`online4.py`（主持人交接與接手、回合時間、聊天、退出由電腦代替）、`online5.py`（6 席大島嶼房間）、`ui6.py`（航海家單機：開局放船、造船、移船、金礦、重新整理後繼續；`MAP=sea-2` 跑四座島嶼、`MAP=sea-3` 跑霧島、`MAP=sea-9` 跑新世界，`MAP=sea-1-6`…`sea-9-6` 跑 5–6 人版；`online6.py` 也接受 `MAP`）、`online6.py`（航海家線上房間）、`match.py`（快速配對）。加 `ROOMS=ws` 會改走真正的房間伺服器（需先 `npm run dev`）。截圖存到 `SHOTS` 指定的資料夾。
+- 效能（瀏覽器，一次只跑一個）：`python3 test/pace.py`（幀率：操作 60、靜止 30、視窗在背景 15、設定的省電／不限與效能資訊）、`python3 test/mapleak.py`（換 5 次島嶼再開戰役，只能剩 1 份地圖與 WebGL；`ART=1 QUALITY=high` 帶素材包）、`python3 test/shaders.py`（開局後與地圖原地重建時不能再編譯著色器；`QUALITY=high ART=1`、`MAP=sea-1`、`MAP=sea-3 TURNS=16`）。SwiftShader 量不到真實顯示卡的時間：要看真實數字，在設定開「效能資訊」。
 - 帳號：`node test/accounts.mjs`（token 驗證）；完整流程見 `docs/catan-3d-status.md` 的「帳號與戰績」。
 - 地圖工坊：`node test/custom.mjs`（草稿轉地圖定義、檢查、在畫出來的地圖上打完整局；範例草稿在 `test/drafts.mjs`，`node test/sim.mjs N --map=draft:twin` 可單獨模擬）；`python3 test/editor.py`（瀏覽器：畫地圖、3D 預覽、試玩、重新整理後繼續、手機）。
 - 玩家地圖（發布）：先 `node test/accounts.mjs --keys DIR` 做測試金鑰、把 `DIR/dev.vars` 放成 `.dev.vars`，`npm run dev` 後跑 `API=http://127.0.0.1:8787 KEYS=DIR node test/accounts.mjs`（含發布、評分、移除的伺服器流程）與 `KEYS=DIR python3 test/maps.py`（瀏覽器：發布拿代號、連結、公開列表、用代號開房、評分）。`node test/accounts.mjs --token DIR SUB` 印出測試用的登入 token。
 
 ## 部署
-- 推送到 `main` 由 Cloudflare Workers Builds 自動部署（Build `npm run build`、Deploy `npx wrangler deploy`）；其他分支產生預覽網址。
+- 推送到 `main` 由 Cloudflare Workers Builds 自動部署（Build `npm run build`、Deploy `npx wrangler deploy`）。其他分支的建置會失敗、沒有預覽網址（實作 Durable Object 的 Worker 不產生預覽網址），要試新版用本機 `npm run dev`。
 - `wrangler.jsonc` 的 `name` 要和 Cloudflare 上的 Worker 名稱一致（`catan-3d`）。
 - 免費方案：Durable Objects 每天 10 萬次請求、寫入 10 萬列；不要加會大量寫入或常駐喚醒房間的功能。
 
@@ -31,6 +32,14 @@
 - `src/net/room.js` 依環境選傳輸：claude.ai 的 room 功能、自架站的 WebSocket 房間（頁面有 `window.__rooms`）、測試用的 BroadcastChannel（`window.__mockRoom`）。三者介面相同。
 - `server/worker.js`：靜態網站＋`/rooms/<名稱>` WebSocket → `PresenceRoom` Durable Object（休眠 API、同分頁重連接手、過期清除、速率限制、只接受同站或本機來源）。
 - 畫面風格：`src/ui/theme.css` 最後載入，把面板、按鈕、對話框統一成主畫面的古銅回紋框（`assets/ui/frame_*.webp`）、琺瑯底與金字；沒有素材包時 `<html>` 會有 `no-art`，框線退回簡單線條。清爽介面（設定 `ui: 'clean'`，`<html>` 加 `ui2`）在 `src/ui/theme2.css`，所有規則都放在 `html.ui2` 底下；細框與分隔線是 Kenney Fantasy UI Borders（CC0），`python3 tools/ui-kit.py` 把 `tools/art/kenney-ui/` 的圖染色後寫成 `src/ui/kit.css`（data URI，claude.ai 版沒有素材包也能用）。遊戲物件的圖示來自 game-icons.net（`src/ui/gameicons.js`，由 `tools/icons.mjs` 產生；CC BY 3.0，主畫面左下角的出處不可拿掉）。
+- 效能（第十六輪；起因是電競電腦也發熱、卡頓）：
+  - 繪圖步調與解析度的邏輯在 `src/render/pace.js`（純函式，`test/pace.mjs`）。`MapView.start()` 每次螢幕更新被叫一次，只在其中幾次畫：有東西在變 60 幀（`poke()`）、靜止 30、視窗不在前景 15（玩家的指標、滾輪、按鍵算在場，`attend()`）、分頁藏起來不畫；設定 `fps` 是省電／標準／不限。地圖上新加會動的東西要 `poke()`，或在 `frame()` 裡讓 `lively` 成立，不然只照靜止的幀率畫（還是會動，只是 30 幀）。
+  - 解析度＝像素預算（`pixelRatioCap`：低 1.8、中 2.4、高 4.2 百萬像素）×調整器（`Governor`）。調整器以靜止時的每幀時間為預算，只看靜止、沒有重畫陰影的幀；量得到顯示卡時間（`EXT_disjoint_timer_query_webgl2`）時不看遲到的幀（那是頁面在忙）。建好、改尺寸、換素材後先 `hold()`。
+  - 著色器一律在載入時編好：新的物件種類加進 `Pieces.prewarm`／`Markers.prewarm`，用 `MapView.precompile`（會綁上後處理的 render target，否則編到給畫布用的另一個版本）。three.js 在最後一個用到某程式的材質 dispose 時就丟掉程式，所以換材質要先畫新的再丟舊的（`disposeLater`）。`test/shaders.py` 會檢查。
+  - `MapView.dispose()` 要放掉所有顯示資源並 `forceContextLoss()`；掛在 window 上的監聽要在 dispose 時拿掉（鏡頭的按鍵監聽曾經讓每一份舊地圖都留在顯示卡上）。`test/mapleak.py` 會檢查。
+  - 後處理（`post.js`）：環境光遮蔽半解析度、不做半透明感知（那會每幀多畫兩次場景裡的半透明物件）、強度接近 0（拉遠的紙地圖）時改用一般的 RenderPass；調色寫在輸出 pass 裡。
+  - 蓋在地圖上的 CSS 動畫只動 opacity／transform（放在偽元素上），不要動畫 box-shadow，也不要 backdrop-filter。
+  - 設定 →「效能資訊」在地圖左下角顯示每秒幀數、螢幕 Hz、顯示卡每幀時間與負載、程式每幀時間、繪製解析度與調整比例、繪製次數、顯示卡名稱；玩家回報卡頓時請他截這個。
 - 地圖上的 DOM 標籤（數字牌、港口、強盜徽章）在 `src/render/labels.js`：外框只負責定位（inline transform），動畫只能加在裡面的元素上。大小依標籤下方格子在畫面上的寬度決定（選項 `ground`、`px`、`size`、`fadePx`；`scene.js` 的 `tokenPx`、`harborPx`），不要再用鏡頭高度決定。
 - `room.js` 的 WebSocket 傳輸會在頁面回到前景、網路恢復或切換時送 ping，沒回應就重連（`probe`）；不要拿掉，手機上主畫面的即時更新靠它。
 

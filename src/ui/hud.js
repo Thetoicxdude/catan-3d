@@ -285,6 +285,15 @@ export class Hud {
     this.mini = el('div', 'minimap panel');
     this.mini.innerHTML = `<canvas width="368" height="300" aria-label="小地圖"></canvas><div class="mapmodes"></div>`;
     this.miniCanvas = this.mini.querySelector('canvas');
+    // (whether the minimap is on screen, kept up to date by the browser: read from the layout in the
+    // middle of a map frame, it made the page work out its styles and layout again there and then)
+    this.miniShown = true;
+    if (typeof IntersectionObserver !== 'undefined') {
+      this.miniObs = new IntersectionObserver((es) => {
+        this.miniShown = es[es.length - 1].isIntersecting;
+      });
+      this.miniObs.observe(this.miniCanvas);
+    }
     this.miniCanvas.addEventListener('click', (e) => {
       const rr = this.miniCanvas.getBoundingClientRect();
       const f = this.miniFrame();
@@ -840,7 +849,7 @@ export class Hud {
 
   drawMinimap(view, players, viewport) {
     const c = this.miniCanvas;
-    if (!c.offsetParent) return;
+    if (!this.miniShown) return;
     const g = c.getContext('2d');
     const { W, H, k, cx, cz } = this.miniFrame();
     const sx = (x) => W / 2 + (x - cx) * k;
