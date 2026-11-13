@@ -225,13 +225,14 @@ export class Fx {
     a.querySelector('h3').textContent = title;
     a.querySelector('p').textContent = sub || '';
     this.layer.appendChild(a);
+    // (only transform and opacity: a blur would be redrawn at every frame, over the map)
     a.animate(
       [
-        { transform: 'translate(-50%, -50%) scale(0.7)', opacity: 0, filter: 'blur(6px)' },
-        { offset: 0.12, transform: 'translate(-50%, -50%) scale(1.04)', opacity: 1, filter: 'blur(0px)' },
-        { offset: 0.2, transform: 'translate(-50%, -50%) scale(1)', opacity: 1, filter: 'blur(0px)' },
-        { offset: 0.85, transform: 'translate(-50%, -50%) scale(1)', opacity: 1, filter: 'blur(0px)' },
-        { transform: 'translate(-50%, -54%) scale(0.98)', opacity: 0, filter: 'blur(2px)' },
+        { transform: 'translate(-50%, -50%) scale(0.7)', opacity: 0 },
+        { offset: 0.12, transform: 'translate(-50%, -50%) scale(1.04)', opacity: 1 },
+        { offset: 0.2, transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+        { offset: 0.85, transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+        { transform: 'translate(-50%, -54%) scale(0.98)', opacity: 0 },
       ],
       { duration: 2600, easing: 'ease-out', fill: 'forwards' },
     ).onfinish = () => a.remove();

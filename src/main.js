@@ -41,6 +41,9 @@ function loadSettings() {
       const seats = Array.isArray(s.seats) && s.seats.length >= 3 ? s.seats.map((x) => (x && x.name === '白楊共和國' ? { ...x, name: '碧海共和國' } : x)) : d.seats;
       const color = PALETTE.some((p) => p.hex === s.color) ? s.color : d.color;
       const merged = { ...d, ...s, color, quality: s.qualityPicked ? s.quality || d.quality : d.quality, seats };
+      // the interface follows the default (the map table since round 17) unless the player has picked
+      // one: 'classic' was the default before and is saved with every other setting, so it says nothing
+      if (!s.uiPicked && (!s.ui || s.ui === 'classic')) merged.ui = d.ui;
       // (settings saved before the house rules: their points to win become the offset)
       if (s.vpAdj === undefined) delete merged.vpAdj;
       return fitSettings(merged);
@@ -251,10 +254,12 @@ function onSettingsChange(s) {
   applyLook(s);
 }
 
-// the interface's look: the clean one (theme2.css) or the classic bronze; and how the map is drawn
+// the interface's look: the map table (theme3.css), the clean one (theme2.css) or the classic bronze; and
+// how the map is drawn
 // (the frame rate, the performance read-out)
 function applyLook(s) {
   document.documentElement.classList.toggle('ui2', !!s && s.ui === 'clean');
+  document.documentElement.classList.toggle('ui3', !!s && s.ui === 'atlas');
   if (map && s) map.setOptions({ fps: s.fps, stats: s.perfInfo });
 }
 

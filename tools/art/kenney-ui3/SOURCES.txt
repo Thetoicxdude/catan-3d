@@ -1,0 +1,15 @@
+The art behind src/ui/kit3.css (tools/ui-kit3.py). Everything here is by Kenney (www.kenney.nl) and
+released under Creative Commons Zero (CC0, see License.txt): it may be used freely, crediting is not
+required.
+
+Cartography Pack (Retina)   parchmentBasic, parchmentAncient, parchmentFolded (paper);
+                            banner, castle, castleWide, chest, compass, elementShield, flag, gate,
+                            houses, lighthouse, mill, mine, rocksMountain, ship, towerWatch,
+                            waterWheel (ink drawings); textureWater (the waves)
+UI Pack - Adventure         banner_classic_curtain (the ribbons), round_damaged_brown (the wax seal),
+                            hexagon_brown (the hexagon)
+Fantasy UI Borders          divider-fade-000, divider-005 (ink rules), panel-border-019 (ink frame)
+Medals                      shaded_medal3 (the award medal, recoloured)
+
+The walnut is Poly Haven's weathered wood (assets/tex/wood_d.webp, CC0); the cloth weave, the pennant
+and the torn edge of the paper are drawn by tools/ui-kit3.py.

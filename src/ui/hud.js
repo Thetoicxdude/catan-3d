@@ -34,6 +34,8 @@ const BUILD = {
   ship: { name: '船', en: 'Ship', fx: '在海上或海岸邊，接在你的船或海邊的村莊、城市旁。船隊能把村莊送到別的島。', cost: COSTS.ship, piece: 'ships', unit: '艘' },
 };
 const TERRAIN_HEX = { forest: '#2f6b2f', hills: '#b5532c', pasture: '#8fcf4f', fields: '#e8c547', mountains: '#8d8d96', desert: '#d9c48e', gold: '#f0b62a', fog: '#7d8790' };
+// (the map table: washes of colour on the parchment, which shows through as the sea)
+const TERRAIN_WASH = { forest: '#7f9c66', hills: '#cf8a5e', pasture: '#b5cd84', fields: '#e8cd78', mountains: '#aeaba2', desert: '#eadbb0', gold: '#e9bd52', fog: '#c2bcae' };
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -488,7 +490,7 @@ export class Hud {
         if (v.largestArmy === p.id) badges.push(`<span class="badge" title="最大騎士團 +2">${icon('knight', 12)}騎士團</span>`);
         const thinking = ctx.thinking === p.id ? `<span class="thinking"><span class="spinner"></span>思考中</span>` : '';
         const lead = v.sub && v.sub.lead === p.id && v.phase !== 'over';
-        return `<div class="nation${v.current === p.id && v.phase !== 'over' ? ' current' : ''}${lead ? ' lead' : ''}" data-p="${p.id}">
+        return `<div class="nation${v.current === p.id && v.phase !== 'over' ? ' current' : ''}${lead ? ' lead' : ''}" data-p="${p.id}" style="--pc:${P.color}">
           <img class="flag" alt="" src="${flagURL(P.color, p.id)}">
           <div class="nm" style="color:${P.color}">${esc(P.name)}<em>${kind}</em></div>
           <div class="vp" title="${isMe ? '你的分數（含分數卡）' : '公開分數'}"><b class="num">${vp}</b><span>分</span></div>
@@ -854,8 +856,12 @@ export class Hud {
     const { W, H, k, cx, cz } = this.miniFrame();
     const sx = (x) => W / 2 + (x - cx) * k;
     const sz = (z) => H / 2 + (z - cz) * k;
-    g.fillStyle = '#244258';
-    g.fillRect(0, 0, W, H);
+    const atlas = document.documentElement.classList.contains('ui3');
+    if (atlas) g.clearRect(0, 0, W, H);
+    else {
+      g.fillStyle = '#244258';
+      g.fillRect(0, 0, W, H);
+    }
     const s = 10 * k;
     for (const h of GEO.hexes) {
       const Hx = view.board.hexes[h.id];
@@ -869,9 +875,9 @@ export class Hud {
         else g.moveTo(x, y);
       }
       g.closePath();
-      g.fillStyle = TERRAIN_HEX[Hx.terrain] || '#8a8a7a';
+      g.fillStyle = (atlas ? TERRAIN_WASH : TERRAIN_HEX)[Hx.terrain] || '#8a8a7a';
       g.fill();
-      g.strokeStyle = 'rgba(20,16,10,0.55)';
+      g.strokeStyle = atlas ? 'rgba(58,36,20,0.7)' : 'rgba(20,16,10,0.55)';
       g.lineWidth = 1;
       g.stroke();
       if (view.board.robber === h.id) {
@@ -936,7 +942,7 @@ export class Hud {
       g.strokeRect(sx(V.x) - r, sz(V.z) - r, r * 2, r * 2);
     });
     if (viewport && viewport.every(Boolean)) {
-      g.strokeStyle = 'rgba(255,248,225,0.95)';
+      g.strokeStyle = atlas ? 'rgba(142,36,22,0.9)' : 'rgba(255,248,225,0.95)';
       g.lineWidth = 2;
       g.beginPath();
       viewport.forEach((p, i) => (i ? g.lineTo(sx(p.x), sz(p.z)) : g.moveTo(sx(p.x), sz(p.z))));

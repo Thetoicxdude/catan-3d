@@ -60,8 +60,9 @@ export function defaultSettings() {
     dice: 'random',
     mix: 'standard',
     speed: 'normal',
-    // the interface: 'classic' (bronze frames) or 'clean' (theme2.css)
-    ui: 'classic',
+    // the interface: 'atlas' (the map table, theme3.css), 'classic' (bronze frames) or 'clean' (theme2.css);
+    // uiPicked once the player has chosen one in the settings
+    ui: 'atlas',
     // how often the map is drawn (render/pace.js): 'eco' | 'std' | 'max'; perfInfo: the read-out
     fps: 'std',
     perfInfo: false,
@@ -118,7 +119,7 @@ export function fitSettings(s) {
   if (!DISCARD.includes(s.discard)) s.discard = 7;
   if (!DICE.includes(s.dice)) s.dice = 'random';
   if (!MIX.includes(s.mix)) s.mix = 'standard';
-  if (s.ui !== 'clean') s.ui = 'classic';
+  if (!['classic', 'clean', 'atlas'].includes(s.ui)) s.ui = 'atlas';
   if (!['eco', 'std', 'max'].includes(s.fps)) s.fps = 'std';
   s.perfInfo = s.perfInfo === true;
   if (!Array.isArray(s.seats)) s.seats = [];

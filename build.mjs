@@ -22,8 +22,9 @@ const res = await build({
   legalComments: 'none',
 });
 const js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
-// (kit.css and theme2.css: the clean interface, on when <html> has ui2; see theme2.css)
-const css = ['src/ui/styles.css', 'src/ui/map.css', 'src/ui/cards.css', 'src/ui/home.css', 'src/ui/theme.css', 'src/ui/kit.css', 'src/ui/theme2.css']
+// (kit.css and theme2.css: the clean interface, on when <html> has ui2; kit3.css and theme3.css: the map
+// table, on when <html> has ui3)
+const css = ['src/ui/styles.css', 'src/ui/map.css', 'src/ui/cards.css', 'src/ui/home.css', 'src/ui/theme.css', 'src/ui/kit.css', 'src/ui/theme2.css', 'src/ui/kit3.css', 'src/ui/theme3.css']
   .map((f) => {
     try {
       return readFileSync(f, 'utf8');

@@ -43,6 +43,7 @@ export class Dialogs {
   open({ kind, title, cls = '', body, foot = [], dismissable = true, clear = false, onClose = null, refresh = null, headExtra = '' }) {
     this.close(true);
     const m = el('div', 'modal panel ' + cls);
+    if (kind) m.dataset.kind = kind;
     m.setAttribute('role', 'dialog');
     m.setAttribute('aria-modal', 'true');
     m.setAttribute('aria-label', title);
@@ -520,6 +521,7 @@ export class Dialogs {
           b.addEventListener('click', () => {
             settings[key] = val;
             if (key === 'quality') settings.qualityPicked = true; // chosen by hand: no more automatic default
+            if (key === 'ui') settings.uiPicked = true;
             onChange(settings, key);
             render();
           });
@@ -552,8 +554,9 @@ export class Dialogs {
         [false, '關'],
       ]);
       seg('介面風格', 'ui', [
+        ['atlas', '製圖桌'],
         ['classic', '經典'],
-        ['clean', '清爽（試用）'],
+        ['clean', '清爽'],
       ]);
       body.appendChild(g);
       body.appendChild(el('p', 'lead', '畫面品質會在下一局或重新載入地圖時套用。幀率是地圖在動（移動鏡頭、建造）時每秒畫幾次；靜止時只剩海浪和羊在動，會自動降到一半，視窗不在前景時更低，電腦比較不會熱。'));
