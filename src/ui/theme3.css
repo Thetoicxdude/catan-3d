@@ -1,11 +1,15 @@
 /* ───────── the map table (設定 → 介面風格 → 製圖桌) ─────────
    Each thing on the screen is made of what it would be on a cartographer's table, so no two look
-   alike: the realm's bar is a walnut beam with a brass strip, the bank a wooden tray, the nations a
-   torn parchment list with each nation's wax seal, the log an unrolled scroll, the orders brass
-   medallions set in a walnut tray (the main one a red wax seal), the current order a cloth ribbon, the
-   minimap a parchment chart in a frame with a compass rose, notes and dialogs parchment with ink.
-   The materials are in kit3.css (tools/ui-kit3.py: Kenney's CC0 Cartography Pack, UI Pack - Adventure
-   and Fantasy UI Borders, Poly Haven's CC0 wood). Everything here is under html.ui3. */
+   alike: the realm's bar is a walnut beam with a brass strip, the bank and the orders walnut trays,
+   the nations, the log, the notes and the dialogs parchment written in ink, the current order a cloth
+   band, the points wax seals, the orders brass medallions (the one to give now a red seal), the
+   minimap a chart in a walnut frame, the harbours parchment tags, the awards medals.
+   No surface is a picture: nothing is tiled, sliced into a 9-slice frame or stretched to fit (a texture
+   repeated or cut to size shows its seams). The surfaces are plain colours, with a smooth gradient at
+   most for a bevel; the lines and frames are drawn with borders. Pictures are used only whole and at
+   or below their own size: the wax seal, the pennant and the hexagon as shapes (masks), the ink
+   drawings, the medal (kit3.css, tools/ui-kit3.py: Kenney's CC0 Cartography Pack, UI Pack - Adventure,
+   Fantasy UI Borders and Medals). Everything here is under html.ui3. */
 html.ui3 {
   --u3-ink: #3a2414;
   --u3-ink-soft: #5b3d25;
@@ -15,10 +19,25 @@ html.ui3 {
   --u3-gilt: #e2c480;
   --u3-gilt-hi: #f5dfa6;
   --u3-cream: #f2e4c4;
+  /* parchment: a plain sheet, a little lighter in the middle, its edge drawn by shadows */
+  --u3-paper: #ebdab0;
+  --u3-paper-bg: radial-gradient(ellipse 90% 80% at 50% 38%, #f4e8c9 0%, #ecdbb2 62%, #e2cc9b 100%);
+  --u3-paper-edge: inset 0 0 0 1px rgba(92, 60, 30, 0.55), inset 0 0 0 3px rgba(244, 232, 201, 0.6), inset 0 0 18px rgba(140, 100, 50, 0.3), 0 6px 16px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --u3-rule: 1px solid rgba(74, 46, 24, 0.28);
+  --u3-rule-head: 3px double rgba(74, 46, 24, 0.5);
+  /* walnut: plain dark wood with a bevel */
+  --u3-wood: linear-gradient(180deg, #5e3e24 0%, #4a311c 34%, #3b2715 70%, #2d1d0f 100%);
+  --u3-wood-dark: linear-gradient(180deg, #402b18 0%, #2f1f11 55%, #23170c 100%);
+  /* cloth: plain crimson (green for waiting and good news, ochre for a plain roll), two gilt threads */
+  --u3-cloth: linear-gradient(180deg, #b53d26 0%, #962a1b 46%, #7c1e12 100%);
+  --u3-cloth-hi: linear-gradient(180deg, #c84a30 0%, #a83220 46%, #8c2516 100%);
+  --u3-cloth-green: linear-gradient(180deg, #3f7c54 0%, #2e6242 46%, #224d33 100%);
+  --u3-cloth-ochre: linear-gradient(180deg, #bb8a3c 0%, #9c6c28 46%, #7f561c 100%);
+  --u3-threads: linear-gradient(rgba(245, 214, 150, 0.6), rgba(245, 214, 150, 0.6)) 0 3px / 100% 1px no-repeat,
+    linear-gradient(rgba(245, 214, 150, 0.6), rgba(245, 214, 150, 0.6)) 0 calc(100% - 3px) / 100% 1px no-repeat;
   --u3-brass: linear-gradient(180deg, #f6dc98 0%, #d0a457 38%, #96692a 72%, #5f3f15 100%);
   --u3-brass-knob: radial-gradient(circle at 36% 30%, #fff1c2 0%, #e2b866 22%, #a87a34 55%, #5b3c14 92%);
   --u3-wax: radial-gradient(circle at 36% 30%, #e0644a 0%, #b03220 34%, #7d1a0f 72%, #4f0d06 100%);
-  --u3-paper-shadow: drop-shadow(0 5px 7px rgba(0, 0, 0, 0.45)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
   --tb-h: 58px;
 }
 
@@ -27,13 +46,13 @@ html.ui3 .panel { border: 0; border-image: none; background: none; box-shadow: n
 /* scrollbars: a walnut thumb in a faint groove */
 html.ui3 { scrollbar-color: #7a4e28 rgba(58, 36, 20, 0.14); }
 
-/* ── paper: a torn sheet of parchment, its text in ink ── */
-html.ui3 .log, html.ui3 .ol-body, html.ui3 .toast, html.ui3 .tooltip, html.ui3 .cost-pop, html.ui3 .modal {
-  border: 22px solid transparent;
-  border-image: var(--u3-sheet) 44 fill / 22px stretch;
-  background: none;
-  box-shadow: none;
-  filter: var(--u3-paper-shadow);
+/* ── paper: a sheet of parchment, its text in ink ── */
+html.ui3 .log, html.ui3 .ol-body, html.ui3 .toast, html.ui3 .tooltip, html.ui3 .cost-pop, html.ui3 .modal,
+html.ui3 .setup-card.panel, html.ui3 .ed-board.panel, html.ui3 .pass-screen .panel, html.ui3 .fx-announce, html.ui3 .hm-logo, html.ui3 .title-block {
+  border: 0; border-image: none; border-radius: 3px;
+  background: var(--u3-paper-bg), var(--u3-paper);
+  box-shadow: var(--u3-paper-edge);
+  filter: none;
   color: var(--u3-ink);
   --ink: var(--u3-ink);
   --ink-dim: var(--u3-ink-soft);
@@ -43,38 +62,30 @@ html.ui3 .log, html.ui3 .ol-body, html.ui3 .toast, html.ui3 .tooltip, html.ui3 .
   --line: rgba(74, 46, 24, 0.28);
 }
 
-/* ── buttons: walnut planks with a brass edge; the main one a crimson plank; quiet ones in ink ──
-   (the walnut tile has a joint between its two planks every 256 px: each use places it off the button) */
+/* ── buttons: walnut with a brass edge; the main one crimson cloth; quiet ones in ink ── */
 html.ui3 .btn {
-  background: var(--u3-walnut) 0 -96px / 400px auto, #3a2414;
-  border: 1px solid #1c1108; border-radius: 4px; color: var(--u3-cream);
+  background: var(--u3-wood); border: 1px solid #1c1108; border-radius: 4px; color: var(--u3-cream);
   font-family: var(--font-display); font-weight: 700; letter-spacing: 0.08em; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
   box-shadow: inset 0 0 0 1px rgba(232, 196, 128, 0.42), inset 0 1px 0 rgba(255, 230, 180, 0.25), 0 2px 4px rgba(0, 0, 0, 0.45);
 }
 html.ui3 .btn:hover:not(:disabled) { border-color: #1c1108; box-shadow: inset 0 0 0 1px rgba(245, 223, 166, 0.85), inset 0 1px 0 rgba(255, 230, 180, 0.3), 0 0 10px rgba(245, 214, 140, 0.35), 0 2px 4px rgba(0, 0, 0, 0.45); }
 html.ui3 .btn.primary {
-  background: linear-gradient(180deg, rgba(220, 90, 64, 0.25), rgba(0, 0, 0, 0.12)), var(--u3-weave) 0 0 / 24px, #9a2818;
-  background-blend-mode: normal, multiply, normal;
-  color: #fff1d6; border-color: #4a0e07;
+  background: var(--u3-cloth); color: #fff1d6; border-color: #4a0e07;
   box-shadow: inset 0 0 0 1px rgba(255, 196, 160, 0.45), inset 0 -2px 0 rgba(0, 0, 0, 0.25), 0 2px 5px rgba(0, 0, 0, 0.5);
 }
-html.ui3 .btn.primary:hover:not(:disabled) { background-color: #b23420; box-shadow: inset 0 0 0 1px rgba(255, 214, 180, 0.8), 0 0 14px rgba(230, 110, 80, 0.45), 0 2px 5px rgba(0, 0, 0, 0.5); }
+html.ui3 .btn.primary:hover:not(:disabled) { background: var(--u3-cloth-hi); box-shadow: inset 0 0 0 1px rgba(255, 214, 180, 0.8), 0 0 14px rgba(230, 110, 80, 0.45), 0 2px 5px rgba(0, 0, 0, 0.5); }
 html.ui3 .btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: inherit; text-shadow: none; font-family: var(--font-body); font-weight: 500; }
 html.ui3 .btn.ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); box-shadow: none; }
 html.ui3 .btn.danger { color: #ffb8a4; }
 
-/* ───────── the realm's bar: a walnut beam with a brass strip, nailed ───────── */
+/* ───────── the realm's bar: a walnut beam with a brass strip ───────── */
 html.ui3 .topbar {
-  background: var(--u3-walnut) 0 -120px / 512px auto, #2a1a0e;
-  border: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 220, 170, 0.12), inset 0 -10px 14px -10px rgba(0, 0, 0, 0.7), 0 7px 16px rgba(0, 0, 0, 0.5);
+  background: var(--u3-wood); border: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 220, 170, 0.14), inset 0 -10px 14px -10px rgba(0, 0, 0, 0.7), 0 7px 16px rgba(0, 0, 0, 0.5);
 }
 html.ui3 .topbar::after {
   left: 0; right: 0; bottom: -5px; height: 5px; border: 0; border-image: none;
-  background:
-    radial-gradient(circle at 50% 50%, #fff0c4 0 1px, #b0853f 1.6px, #4d3210 2.6px, transparent 3px) 0 0 / 96px 5px repeat-x,
-    var(--u3-brass);
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.55);
+  background: var(--u3-brass); box-shadow: 0 2px 3px rgba(0, 0, 0, 0.55);
 }
 /* the nation's flag hangs from the beam as a pennant */
 html.ui3 .tb-nation { gap: 12px; align-self: stretch; align-items: center; }
@@ -101,7 +112,7 @@ html.ui3 .res-chip.rcard .n, html.ui3 .bank .bk-card .cnt {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
 }
 html.ui3 .bank .bk-card.low .cnt { color: #fff1d6; background: var(--u3-wax); border-color: #3a0804; text-shadow: 0 1px 0 rgba(60, 6, 2, 0.8); }
-/* counts as brass studs; the points a wax seal */
+/* the points: a wax seal */
 html.ui3 .tb-stats { gap: 14px; }
 html.ui3 .stat { color: #d9c39a; text-shadow: 0 1px 0 #000; }
 html.ui3 .stat .gi, html.ui3 .stat .ico { color: var(--u3-gilt); filter: drop-shadow(0 1px 0 #000); }
@@ -115,9 +126,8 @@ html.ui3 .stat.vp .n {
 html.ui3 .stat.vp small { color: #c9b089; margin-left: 2px; }
 /* the turn on a parchment tag pinned to the beam */
 html.ui3 .turn-box {
-  padding: 3px 11px 4px; color: var(--u3-ink); text-align: center; transform: rotate(-1.5deg);
-  background: var(--u3-parch) 0 0 / 220px auto, #e9d5a8; border-radius: 2px;
-  box-shadow: inset 0 0 8px rgba(120, 80, 40, 0.45), 0 2px 4px rgba(0, 0, 0, 0.55);
+  padding: 3px 11px 4px; color: var(--u3-ink); text-align: center; transform: rotate(-1.5deg); border-radius: 2px;
+  background: var(--u3-paper); box-shadow: inset 0 0 0 1px rgba(92, 60, 30, 0.45), inset 0 0 8px rgba(140, 100, 50, 0.35), 0 2px 4px rgba(0, 0, 0, 0.55);
 }
 html.ui3 .turn-box .t1 { color: var(--u3-ink-faint); font-size: 11px; }
 html.ui3 .turn-box .t2 { color: var(--u3-ink); }
@@ -132,29 +142,27 @@ html.ui3 .tb-right .icon-btn {
 html.ui3 .tb-right .icon-btn:hover:not(:disabled) { background: var(--u3-brass-knob); border-color: #3a2408; box-shadow: inset 0 -2px 3px rgba(60, 30, 5, 0.45), 0 0 10px rgba(255, 214, 130, 0.55), 0 2px 4px rgba(0, 0, 0, 0.6); }
 html.ui3 .tb-right .icon-btn svg { width: 18px; height: 18px; }
 
-/* ───────── the current order: a cloth ribbon ───────── */
+/* ───────── the current order: a cloth band with two gilt threads ───────── */
 html.ui3 .banner {
-  border-style: solid; border-color: transparent; border-width: 6px 40px 16px;
-  border-image: var(--u3-ribbon) 18 84 40 84 fill / 6px 40px 16px stretch;
-  background: none; box-shadow: none; border-left-color: transparent;
-  padding: 6px 2px 4px; gap: 10px; color: #fbe7c8; font-family: var(--font-display); font-weight: 700; letter-spacing: 0.06em;
-  text-shadow: 0 1px 1px rgba(40, 4, 2, 0.85);
-  filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.45));
+  border: 0; border-image: none; border-radius: 3px; padding: 7px 22px 8px; gap: 10px;
+  background: var(--u3-threads), var(--u3-cloth);
+  box-shadow: inset 0 0 0 1px rgba(60, 8, 4, 0.6), inset 0 1px 0 rgba(255, 200, 170, 0.3), 0 5px 12px rgba(0, 0, 0, 0.45);
+  color: #fbe7c8; font-family: var(--font-display); font-weight: 700; letter-spacing: 0.06em; text-shadow: 0 1px 1px rgba(40, 4, 2, 0.85);
+  filter: none;
 }
 html.ui3 .banner .msg b { color: #ffd98f; }
-html.ui3 .banner.wait { border-image-source: var(--u3-ribbon-green); color: #e6f0d8; }
-html.ui3 .banner.urgent { border-image-source: var(--u3-ribbon); background: none; border-color: transparent; }
-html.ui3 .banner.urgent::after { inset: 6px 10px 2px; border-radius: 4px; box-shadow: 0 0 22px 4px rgba(255, 120, 80, 0.55); }
+html.ui3 .banner.wait { background: var(--u3-threads), var(--u3-cloth-green); box-shadow: inset 0 0 0 1px rgba(6, 30, 14, 0.6), inset 0 1px 0 rgba(200, 240, 200, 0.25), 0 5px 12px rgba(0, 0, 0, 0.45); color: #e6f0d8; text-shadow: 0 1px 1px rgba(4, 24, 10, 0.85); }
+html.ui3 .banner.urgent { background: var(--u3-threads), var(--u3-cloth); border-color: transparent; }
+html.ui3 .banner.urgent::after { inset: 0; border-radius: 3px; box-shadow: 0 0 22px 4px rgba(255, 120, 80, 0.55); }
 html.ui3 .banner .btn { min-height: 28px; padding: 0 12px; font-size: 13px; }
 
 /* the next step, above the orders: a slip of paper */
 html.ui3 .nexthint {
   border: 0; border-radius: 2px; color: var(--u3-ink); font-family: var(--font-display); font-weight: 700;
-  background: var(--u3-parch) 0 0 / 260px auto, #ead7aa;
-  box-shadow: inset 0 0 10px rgba(120, 80, 40, 0.45), 0 4px 10px rgba(0, 0, 0, 0.5);
+  background: var(--u3-paper); box-shadow: inset 0 0 0 1px rgba(92, 60, 30, 0.45), inset 0 0 10px rgba(140, 100, 50, 0.3), 0 4px 10px rgba(0, 0, 0, 0.5);
   bottom: calc(108px + var(--safe-b));
 }
-html.ui3 .nexthint.urgent { background: var(--u3-weave) 0 0 / 24px, #9a2818; background-blend-mode: multiply; color: #fff1d6; box-shadow: inset 0 0 0 1px rgba(255, 196, 160, 0.45), 0 4px 10px rgba(0, 0, 0, 0.5); }
+html.ui3 .nexthint.urgent { background: var(--u3-cloth); color: #fff1d6; box-shadow: inset 0 0 0 1px rgba(255, 196, 160, 0.45), 0 4px 10px rgba(0, 0, 0, 0.5); }
 html.ui3 .nexthint.why { color: var(--u3-ink); }
 
 /* ───────── the right side: the bank's tray, the nations' list ───────── */
@@ -162,7 +170,7 @@ html.ui3 .outliner { width: 264px; gap: 8px; background: none; border: 0; box-sh
 /* the bank: a walnut tray, the cards in it, a brass plate with its name */
 html.ui3 .bank {
   position: relative; border: 0; border-radius: 7px; padding-top: 6px;
-  background: var(--u3-walnut-dark) 0 0 / 420px auto, #1c120a;
+  background: var(--u3-wood-dark);
   box-shadow: inset 0 0 0 2px #120a04, inset 0 0 0 3px rgba(226, 190, 120, 0.3), inset 0 8px 12px rgba(0, 0, 0, 0.55), 0 6px 14px rgba(0, 0, 0, 0.5);
 }
 html.ui3 .bank .ol-head {
@@ -176,21 +184,18 @@ html.ui3 .bank .ol-head small { display: none; }
 html.ui3 .bank .bk-row { padding: 12px 10px 9px; gap: 3px; }
 html.ui3 .bank .bk-card { --w: 27px; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6)); }
 html.ui3 .bank .bk-card .cnt { top: auto; bottom: -7px; right: -8px; min-width: 18px; height: 18px; font-size: 11.5px; border-width: 1px; }
-/* the nations: a torn parchment list, the title between two ink flourishes */
-html.ui3 .outliner .ol-body { padding: 0; border-width: 18px; border-image-width: 18px; max-height: calc(100vh - var(--tb-h) - var(--safe-t) - 270px); min-height: 0; }
+/* the nations: a parchment list, the title between two ink flourishes */
+html.ui3 .outliner .ol-body { padding: 8px 10px 6px; max-height: calc(100vh - var(--tb-h) - var(--safe-t) - 270px); min-height: 0; }
 html.ui3 .ol-body .ol-head {
   justify-content: center; gap: 10px; padding: 0 2px 5px; border: 0; background: none;
   font-size: 13px; letter-spacing: 0.4em; color: var(--u3-red);
 }
 html.ui3 .ol-body .ol-head > span { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); filter: none; }
+/* (each flourish is the whole drawing, drawn once at a small size, never stretched) */
 html.ui3 .ol-body .ol-head::before, html.ui3 .ol-body .ol-head::after { content: ""; flex: 1; height: 16px; background: var(--u3-div-ink-l) right center / auto 16px no-repeat; }
 html.ui3 .ol-body .ol-head::after { background-image: var(--u3-div-ink); background-position: left center; }
-html.ui3 .nation {
-  grid-template-columns: 26px 1fr auto; gap: 1px 8px; padding: 6px 4px 6px 6px;
-  border-bottom: 1px solid transparent;
-  border-image: var(--u3-rule-ink) 0 0 36 / 0 0 6px stretch;
-}
-html.ui3 .nation:last-child { border-image: none; }
+html.ui3 .nation { grid-template-columns: 26px 1fr auto; gap: 1px 8px; padding: 6px 4px 6px 6px; border-bottom: var(--u3-rule); }
+html.ui3 .nation:last-child { border-bottom: 0; }
 /* the flag as a little pennant */
 html.ui3 .nation .flag {
   width: 22px; height: 32px; object-fit: cover; border-radius: 0; box-shadow: none;
@@ -204,7 +209,7 @@ html.ui3 .nation .meta .gi, html.ui3 .nation .meta .ico { color: var(--u3-ink-so
 /* an award (longest road, largest army, a new island): a medal pinned on a strip of crimson cloth */
 html.ui3 .nation .badge {
   position: relative; height: 17px; padding: 0 6px 0 15px; margin-left: 6px; border: 0; border-radius: 1px;
-  background: var(--u3-weave) 0 0 / 16px, #8e2416; background-blend-mode: multiply; color: #fbe7c8;
+  background: var(--u3-cloth); color: #fbe7c8;
   font-family: var(--font-display); font-weight: 700; text-shadow: 0 1px 0 rgba(40, 4, 2, 0.8);
   box-shadow: inset 0 0 0 1px rgba(255, 200, 170, 0.25), 0 1px 2px rgba(0, 0, 0, 0.35);
 }
@@ -223,8 +228,8 @@ html.ui3 .nation .vp b { color: #fff6e2; font-size: 20px; text-shadow: 0 1px 1px
 html.ui3 .nation .vp span { display: none; }
 /* the nation whose turn it is: a crimson bookmark down its side */
 html.ui3 .nation.current { background: linear-gradient(90deg, rgba(142, 36, 22, 0.12), rgba(142, 36, 22, 0)); }
-html.ui3 .nation.current::before { left: -12px; top: 3px; bottom: 3px; width: 6px; background: var(--u3-weave) 0 0 / 12px, #9a2818; background-blend-mode: multiply; box-shadow: 1px 0 2px rgba(0, 0, 0, 0.35); }
-html.ui3 .nation.lead::before { left: -12px; width: 6px; background: #9a2818; opacity: 0.45; }
+html.ui3 .nation.current::before { left: -10px; top: 3px; bottom: 3px; width: 5px; background: var(--u3-cloth); box-shadow: 1px 0 2px rgba(0, 0, 0, 0.35); }
+html.ui3 .nation.lead::before { left: -10px; width: 5px; background: #9a2818; opacity: 0.45; }
 html.ui3 .spinner { border-color: rgba(90, 60, 30, 0.35); border-top-color: var(--u3-red); }
 /* a computer thinking: a ring of red ink turning slowly around its seal (the list is too narrow for
    the words beside the name; they stay for screen readers) */
@@ -236,18 +241,19 @@ html.ui3 .outliner.many .nation { padding: 3px 4px 3px 6px; }
 html.ui3 .outliner.many .nation .vp { width: 32px; min-width: 32px; height: 32px; }
 html.ui3 .outliner.many .nation .vp b { font-size: 17px; }
 
-/* ───────── the log: an unrolled scroll on two wooden rods ───────── */
-html.ui3 .log { width: 300px; max-height: 210px; overflow: visible; }
+/* ───────── the log: a sheet unrolled between two wooden rods ───────── */
+html.ui3 .log { width: 300px; max-height: 210px; overflow: visible; padding: 10px 12px 8px; }
 html.ui3 .log::before, html.ui3 .log::after {
-  content: ""; position: absolute; left: -30px; right: -30px; height: 11px; border-radius: 6px; pointer-events: none;
+  content: ""; position: absolute; left: -10px; right: -10px; height: 11px; border-radius: 6px; pointer-events: none;
   background:
     radial-gradient(circle at 50% 40%, #e2b86a 0 2px, #8a5a24 3.5px, #3a220c 5.5px, transparent 6px) left center / 12px 12px no-repeat,
     radial-gradient(circle at 50% 40%, #e2b86a 0 2px, #8a5a24 3.5px, #3a220c 5.5px, transparent 6px) right center / 12px 12px no-repeat,
     linear-gradient(180deg, #a1693a 0%, #6d4220 45%, #3a210c 100%) center / calc(100% - 16px) 100% no-repeat;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.4);
 }
-html.ui3 .log::before { top: -27px; }
-html.ui3 .log::after { bottom: -27px; }
-html.ui3 .log-head { background: none; border-bottom: 1px solid transparent; border-image: var(--u3-rule-ink) 0 0 36 / 0 0 6px stretch; padding: 0 0 3px; }
+html.ui3 .log::before { top: -6px; }
+html.ui3 .log::after { bottom: -6px; }
+html.ui3 .log-head { background: none; border-bottom: var(--u3-rule); padding: 0 0 3px; }
 html.ui3 .log-tabs button { color: var(--u3-ink-faint); font-weight: 700; }
 html.ui3 .log-tabs button.on { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); border-bottom-color: transparent; filter: none; }
 html.ui3 .log-tabs button:hover { color: var(--u3-ink); }
@@ -257,13 +263,13 @@ html.ui3 .log-body p { color: var(--u3-ink-soft); }
 html.ui3 .log-body p.hl { color: var(--u3-ink); font-weight: 500; }
 html.ui3 .log-body .who { filter: brightness(0.75) saturate(1.2); }
 html.ui3 .log-body .t { color: var(--u3-ink-faint); }
-/* a compass rose drawn faintly in the corner of the scroll */
+/* a compass rose drawn faintly in the corner of the sheet */
 html.ui3 .log-head::after {
-  content: ""; position: absolute; right: -6px; bottom: -8px; width: 64px; height: 64px; pointer-events: none; opacity: 0.13;
+  content: ""; position: absolute; right: 4px; bottom: 6px; width: 64px; height: 64px; pointer-events: none; opacity: 0.13;
   background: var(--u3-ink-compass) center / contain no-repeat;
 }
 html.ui3 .log.collapsed { max-height: none; }
-html.ui3 .log.collapsed .log-head { border-image: none; padding: 0; }
+html.ui3 .log.collapsed .log-head { border-bottom: 0; padding: 0; }
 html.ui3 .log.collapsed .log-head::after { display: none; }
 html.ui3 .chat-list p { color: var(--u3-ink); }
 html.ui3 .chat-list p.note { color: var(--u3-ink-faint); }
@@ -273,7 +279,7 @@ html.ui3 .chat-form input { background: rgba(255, 250, 235, 0.55); border: 1px s
 /* ───────── the orders: brass medallions in a walnut tray ───────── */
 html.ui3 .actionbar {
   padding: 6px 12px 4px; border-radius: 12px; border: 0; border-image: none;
-  background: var(--u3-walnut) 0 -60px / 512px auto, #2a1a0e;
+  background: var(--u3-wood);
   box-shadow: inset 0 0 0 2px #140b04, inset 0 0 0 3px rgba(228, 190, 120, 0.32), inset 0 7px 12px rgba(0, 0, 0, 0.5), 0 9px 18px rgba(0, 0, 0, 0.55);
 }
 html.ui3 .act {
@@ -308,15 +314,15 @@ html.ui3 .act.primary.glow::after { inset: auto; top: 1px; left: 50%; width: 50p
 html.ui3 .act .count { top: 2px; right: 6px; z-index: 2; background: var(--u3-brass-knob); color: #2b1a0a; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
 html.ui3 .act-sep { width: 2px; margin: 8px 7px 12px; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.7) 20%, rgba(0, 0, 0, 0.7) 80%, transparent); box-shadow: 1px 0 0 rgba(255, 220, 160, 0.12); }
 
-/* ───────── the minimap: a parchment chart in a walnut frame, a compass rose in its corner ───────── */
+/* ───────── the minimap: a chart in a walnut frame, a compass rose in its corner ───────── */
 html.ui3 .minimap {
   padding: 9px; gap: 6px; border-radius: 6px;
-  background: var(--u3-walnut-dark) 0 0 / 400px auto, #1c120a;
+  background: var(--u3-wood-dark);
   box-shadow: inset 0 0 0 2px #120a04, inset 0 0 0 3px rgba(226, 190, 120, 0.3), 0 8px 16px rgba(0, 0, 0, 0.55);
 }
 html.ui3 .minimap canvas {
-  background: var(--u3-ink-waves) 0 0 / 44px auto, var(--u3-parch-old) center / 260px auto, #e2cc9a;
-  box-shadow: inset 0 0 0 1px rgba(60, 36, 16, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.6);
+  background: #e6d3a6;
+  box-shadow: inset 0 0 0 1px rgba(60, 36, 16, 0.6), inset 0 0 16px rgba(140, 100, 50, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.6);
   mix-blend-mode: normal;
 }
 html.ui3 .minimap::after {
@@ -336,8 +342,8 @@ html.ui3 .mapmodes button.on { color: #ffe8c2; background: var(--u3-wax); border
 /* ───────── on the map: the harbours on parchment tags, their resource in a brass ring ───────── */
 html.ui3 .harbor-badge {
   padding: 2px 9px 2px 2px; border-radius: 3px; color: var(--u3-ink);
-  background: var(--u3-parch) 0 0 / 150px auto, #ead7aa; border: 1px solid rgba(58, 36, 20, 0.8);
-  box-shadow: inset 0 0 6px rgba(120, 80, 40, 0.5), 0 3px 8px rgba(0, 0, 0, 0.5);
+  background: var(--u3-paper); border: 1px solid rgba(58, 36, 20, 0.8);
+  box-shadow: inset 0 0 6px rgba(140, 100, 50, 0.4), 0 3px 8px rgba(0, 0, 0, 0.5);
 }
 html.ui3 .harbor-badge .hb-ico { box-shadow: 0 0 0 2px #c9a35a, 0 0 0 3px #3e270d, inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
 html.ui3 .harbor-badge.any .hb-ico { box-shadow: 0 0 0 2px #c9a35a, 0 0 0 3px #3e270d, inset 0 0 0 7px #e6d2a3; }
@@ -345,7 +351,7 @@ html.ui3 .harbor-badge b { color: var(--u3-ink); }
 html.ui3 .harbor-badge .hb-tail { background: linear-gradient(90deg, rgba(234, 215, 170, 0.95) 0%, rgba(234, 215, 170, 0.95) 70%, rgba(234, 215, 170, 0.2) 100%); }
 
 /* ───────── dispatches: parchment notes with a wax seal ───────── */
-html.ui3 .toast { padding: 0; gap: 2px 12px; border-width: 18px; border-image-width: 18px; }
+html.ui3 .toast { padding: 10px 14px; gap: 2px 12px; }
 html.ui3 .toast .ti {
   width: 38px; height: 38px; border-radius: 0; color: #ffe8c2; box-shadow: none;
   background: var(--u3-wax);
@@ -355,32 +361,32 @@ html.ui3 .toast h4 { color: var(--u3-red); }
 html.ui3 .toast p { color: var(--u3-ink-soft); }
 
 /* ───────── tooltips and the price notes of the orders ───────── */
-html.ui3 .tooltip, html.ui3 .cost-pop { border-width: 16px; border-image-width: 16px; padding: 0; border-radius: 0; }
+html.ui3 .tooltip, html.ui3 .cost-pop { padding: 8px 12px; }
 html.ui3 .tooltip h5 { color: var(--u3-red); }
 html.ui3 .tooltip p { color: var(--u3-ink-soft); }
 html.ui3 .tooltip p b { color: var(--u3-ink); }
 
-/* ───────── dialogs: a folded parchment sheet, ink and a red title ───────── */
-html.ui3 .modal { border-width: 26px; border-image: var(--u3-sheet-fold) 52 fill / 26px stretch; }
-html.ui3 .modal-head { background: none; border-bottom: 1px solid transparent; border-image: var(--u3-rule-ink) 0 0 36 / 0 0 6px stretch; padding: 2px 4px 9px; }
+/* ───────── dialogs: a sheet of parchment, ink and a red title ───────── */
+/* (isolation: the drawing in the corner stays between the paper and the writing) */
+html.ui3 .modal { padding: 14px 18px; isolation: isolate; }
+html.ui3 .modal-head { background: none; border-bottom: var(--u3-rule-head); padding: 2px 4px 9px; }
 html.ui3 .modal-head h3 { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); filter: none; text-shadow: none; }
 html.ui3 .modal-body { padding: 12px 4px; }
-html.ui3 .modal-foot { background: none; border-top: 1px solid transparent; border-image: var(--u3-rule-ink) 36 0 0 / 6px 0 0 stretch; padding: 10px 2px 0; }
+html.ui3 .modal-foot { background: none; border-top: var(--u3-rule-head); padding: 10px 2px 0; }
 html.ui3 .modal-layer { background: radial-gradient(ellipse at center, rgba(12, 8, 4, 0.3), rgba(12, 8, 4, 0.66)); }
 html.ui3 .modal .row-label { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); filter: none; }
 html.ui3 .modal .tabs button.on { color: var(--u3-red); border-bottom-color: var(--u3-red); }
 html.ui3 .modal .res-pick, html.ui3 .modal .offer-line, html.ui3 .modal .resp { background: rgba(255, 250, 235, 0.35); border-color: rgba(74, 46, 24, 0.25); }
 html.ui3 .modal .res-pick.on { background: rgba(142, 36, 22, 0.1); border-color: var(--u3-red); box-shadow: 0 0 0 1px var(--u3-red); }
-html.ui3 .modal .stepper button { background: var(--u3-walnut) 0 -40px / 200px auto, #3a2414; color: var(--u3-cream); border-color: #1c1108; }
 html.ui3 .modal .seg { border-color: rgba(74, 46, 24, 0.4); }
 html.ui3 .modal .seg button { background: rgba(255, 250, 235, 0.35); color: var(--u3-ink-soft); border-right-color: rgba(74, 46, 24, 0.25); }
-html.ui3 .modal .seg button.on { background: var(--u3-weave) 0 0 / 24px, #9a2818; background-blend-mode: multiply; color: #fff1d6; }
+html.ui3 .modal .seg button.on { background: var(--u3-cloth); color: #fff1d6; }
 html.ui3 .modal input[type="text"], html.ui3 .modal input[type="number"], html.ui3 .modal select { background: rgba(255, 250, 235, 0.6); border: 1px solid rgba(74, 46, 24, 0.4); color: var(--u3-ink); }
 html.ui3 .modal .cards-inline .c { background: rgba(74, 46, 24, 0.08); }
 html.ui3 .modal .btn.ghost { color: var(--u3-ink-soft); }
 html.ui3 .modal .btn.ghost:hover:not(:disabled) { background: rgba(74, 46, 24, 0.08); }
-/* each sheet has its own drawing (Kenney's Cartography Pack): in red ink beside the title, and large
-   and faint in a corner of the paper, under the writing */
+/* each sheet has its own drawing (Kenney's Cartography Pack): in red ink beside the title, and faint
+   in a corner of the paper, under the writing (at its own size at most: 128 px) */
 html.ui3 { --u3-vig: var(--u3-ink-compass); }
 html.ui3 .setup-card { --u3-vig: var(--u3-ink-flag); }
 html.ui3 .modal[data-kind="trade"], html.ui3 .modal[data-kind="incoming"] { --u3-vig: var(--u3-ink-ship); }
@@ -401,18 +407,16 @@ html.ui3 :is(.modal, .setup-card, .ed-board) .modal-head h3::before {
   content: ""; flex: none; width: 30px; height: 30px; margin: -6px 0 -4px; background: var(--u3-red);
   -webkit-mask: var(--u3-vig) center / contain no-repeat; mask: var(--u3-vig) center / contain no-repeat;
 }
-/* (the sheet's filter makes it a stacking context: the drawing stays between the paper and the writing) */
 html.ui3 .modal::after {
-  content: ""; position: absolute; z-index: -1; right: 1%; bottom: 2%; width: 36%; max-width: 200px; aspect-ratio: 1; pointer-events: none;
+  content: ""; position: absolute; z-index: -1; right: 14px; bottom: 12px; width: min(128px, 34%); aspect-ratio: 1; pointer-events: none;
   background: var(--u3-vig) center / contain no-repeat; opacity: 0.08;
 }
-html.ui3 .modal.narrow::after { width: 44%; }
 
 /* the end of a campaign: the nations in order on ruled lines, the winner framed in ink */
 html.ui3 .standings { gap: 2px; }
 html.ui3 .standing {
   grid-template-columns: 30px 26px minmax(0, 1fr) auto; padding: 7px 8px; border-radius: 0;
-  background: none; border: 0; border-bottom: 1px solid transparent; border-image: var(--u3-rule-ink) 0 0 36 / 0 0 6px stretch;
+  background: none; border: 0; border-bottom: var(--u3-rule);
 }
 html.ui3 .standing .flag { width: 22px; height: 32px; object-fit: cover; border-radius: 0; box-shadow: none; -webkit-mask: var(--u3-pennant-mask) center / 100% 100% no-repeat; mask: var(--u3-pennant-mask) center / 100% 100% no-repeat; }
 html.ui3 .standing .rk {
@@ -421,36 +425,28 @@ html.ui3 .standing .rk {
 }
 html.ui3 .standing .bd { color: var(--u3-ink-soft); }
 html.ui3 .standing .tot { color: var(--u3-ink); }
-html.ui3 .standing.win {
-  padding: 4px 2px; margin-bottom: 4px; background: rgba(142, 36, 22, 0.07);
-  border: 10px solid transparent; border-image: var(--u3-frame-ink) 30 / 10px stretch;
-}
+html.ui3 .standing.win { padding: 6px 8px; margin-bottom: 4px; background: rgba(142, 36, 22, 0.07); border: 3px double rgba(74, 46, 24, 0.6); }
 html.ui3 .standing.win .rk { color: #ffeccc; text-shadow: 0 1px 1px rgba(60, 6, 2, 0.9); background: var(--u3-wax); -webkit-mask-image: var(--u3-seal-mask); mask-image: var(--u3-seal-mask); width: 32px; height: 32px; font-size: 17px; }
 html.ui3 .standing.win .tot { color: var(--u3-red); }
 html.ui3 .hist i { background: linear-gradient(180deg, #b8402a, #6c160c); box-shadow: inset 0 0 0 1px rgba(40, 4, 2, 0.25); }
 html.ui3 .hist span { color: var(--u3-ink-soft); }
 html.ui3 .hist b { color: var(--u3-ink); }
 
-/* ───────── the roll's sum on a ribbon; news of the longest road and the like on a sheet ───────── */
+/* ───────── the roll's sum on a cloth band; news of the longest road and the like on a sheet ───────── */
+/* (the band's colour says what the roll brings: ochre, green for a 6 or an 8, crimson for the robber's 7) */
 html.ui3 .fx-sum {
-  border-radius: 0; background: none; box-shadow: none; gap: 16px; padding: 4px 6px 2px;
-  border-style: solid; border-color: transparent; border-width: 10px 62px 26px;
-  border-image: var(--u3-ribbon) 18 84 40 84 fill / 10px 62px 26px stretch;
-  filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.5));
+  border: 0; border-radius: 4px; gap: 16px; padding: 6px 40px 8px;
+  background: var(--u3-threads), var(--u3-cloth-ochre);
+  box-shadow: inset 0 0 0 1px rgba(50, 26, 4, 0.6), inset 0 1px 0 rgba(255, 230, 180, 0.3), 0 14px 30px rgba(0, 0, 0, 0.5);
 }
-html.ui3 .fx-sum b { color: #ffeccc; text-shadow: 0 3px 0 #4a0d06, 0 0 18px rgba(255, 180, 120, 0.45); }
-html.ui3 .fx-sum span { color: var(--u3-gilt-hi); text-shadow: 0 1px 1px #3a0804; }
-/* (the ribbon's cloth says what the roll brings: ochre, green for a 6 or an 8, crimson for the robber's 7) */
-html.ui3 .fx-sum { border-image-source: var(--u3-ribbon-ochre); }
-html.ui3 .fx-sum.hot { border-image-source: var(--u3-ribbon-green); }
+html.ui3 .fx-sum b { color: #ffeccc; text-shadow: 0 3px 0 rgba(50, 20, 4, 0.9), 0 0 18px rgba(255, 190, 120, 0.4); }
+html.ui3 .fx-sum span { color: var(--u3-gilt-hi); text-shadow: 0 1px 1px rgba(20, 8, 2, 0.9); }
+html.ui3 .fx-sum.hot { background: var(--u3-threads), var(--u3-cloth-green); box-shadow: inset 0 0 0 1px rgba(6, 30, 14, 0.6), inset 0 1px 0 rgba(200, 240, 200, 0.25), 0 14px 30px rgba(0, 0, 0, 0.5); }
 html.ui3 .fx-sum.hot b { color: #fff4cf; }
-html.ui3 .fx-sum.seven { border-color: transparent; box-shadow: none; border-image-source: var(--u3-ribbon); }
+html.ui3 .fx-sum.seven { background: var(--u3-threads), var(--u3-cloth); border-color: transparent; box-shadow: inset 0 0 0 1px rgba(60, 8, 4, 0.6), inset 0 1px 0 rgba(255, 200, 170, 0.3), 0 14px 30px rgba(0, 0, 0, 0.5); }
 html.ui3 .fx-sum.seven b { color: #ffd0a8; }
 html.ui3 .fx-sum.seven span { color: #ffd9c4; }
-html.ui3 .fx-announce {
-  border: 26px solid transparent; border-image: var(--u3-sheet-old) 52 fill / 26px stretch; border-radius: 0;
-  background: none; box-shadow: none; padding: 0 6px 0 0; color: var(--u3-ink); filter: var(--u3-paper-shadow);
-}
+html.ui3 .fx-announce { padding: 14px 26px 14px 16px; }
 html.ui3 .fx-announce h3 { color: var(--u3-red); }
 html.ui3 .fx-announce p { color: var(--u3-ink-soft); }
 html.ui3 .fx-announce .ic, html.ui3 .fx-announce.danger .ic {
@@ -466,19 +462,15 @@ html.ui3 .fx-medal {
 html.ui3 .fx-medal.big { width: 62px; height: 62px; }
 html.ui3 .fx-medal > :is(svg, .gi, .ico) { display: none; }
 
-/* ───────── setup and room screens: the same folded sheet as the dialogs ───────── */
-html.ui3 .setup-card.panel {
-  border: 26px solid transparent; border-image: var(--u3-sheet-fold) 52 fill / 26px stretch; background: none; box-shadow: none;
-  filter: var(--u3-paper-shadow); color: var(--u3-ink);
-  --ink: var(--u3-ink); --ink-dim: var(--u3-ink-soft); --ink-faint: var(--u3-ink-faint); --brass: var(--u3-red); --brass-hi: var(--u3-red); --line: rgba(74, 46, 24, 0.28);
-}
-html.ui3 .setup-card .modal-head { background: none; border-bottom: 1px solid transparent; border-image: var(--u3-rule-ink) 0 0 36 / 0 0 6px stretch; padding: 2px 4px 9px; }
+/* ───────── setup and room screens: a sheet like the dialogs ───────── */
+html.ui3 .setup-card.panel { padding: 14px 18px 12px; }
+html.ui3 .setup-card .modal-head { background: none; border-bottom: var(--u3-rule-head); padding: 2px 4px 9px; }
 html.ui3 .setup-card .modal-head h3, html.ui3 .menu-screen:not(.home) .modal-head h3 { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); filter: none; }
-html.ui3 .setup-card .modal-foot { background: none; border-top: 1px solid transparent; border-image: var(--u3-rule-ink) 36 0 0 / 6px 0 0 stretch; padding: 10px 2px 0; }
+html.ui3 .setup-card .modal-foot { background: none; border-top: var(--u3-rule-head); padding: 10px 2px 0; }
 html.ui3 .setup-card .row-label { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); filter: none; }
 html.ui3 .setup-card .seg { border-color: rgba(74, 46, 24, 0.4); }
 html.ui3 .setup-card .seg button { background: rgba(255, 250, 235, 0.35); color: var(--u3-ink-soft); border-right-color: rgba(74, 46, 24, 0.25); }
-html.ui3 .setup-card .seg button.on { background: var(--u3-weave) 0 0 / 24px, #9a2818; background-blend-mode: multiply; color: #fff1d6; }
+html.ui3 .setup-card .seg button.on { background: var(--u3-cloth); color: #fff1d6; }
 html.ui3 .setup-card .seg.maps button { border-bottom-color: rgba(74, 46, 24, 0.2); }
 html.ui3 .setup-card .seg.maps .mt-col, html.ui3 .setup-card .seg.maps .mt-kind { background: rgba(74, 46, 24, 0.12); color: var(--u3-ink-soft); border-bottom-color: rgba(74, 46, 24, 0.2); }
 html.ui3 .setup-card .seg.maps .mt-kind { color: var(--u3-red); background: rgba(74, 46, 24, 0.06); }
@@ -486,11 +478,8 @@ html.ui3 .setup-card .offer-line { background: rgba(255, 250, 235, 0.35); border
 /* the opponents: lines of a ledger, each with its pennant, the name written on a dotted line
    (the fields carry inline styles for the other looks, hence the !important) */
 html.ui3 .seat-list { gap: 0; }
-html.ui3 .seat {
-  padding: 5px 4px 6px; border-radius: 0; background: none; border: 0; border-bottom: 1px solid transparent;
-  border-image: var(--u3-rule-ink) 0 0 36 / 0 0 6px stretch;
-}
-html.ui3 .seat:last-child { border-image: none; }
+html.ui3 .seat { padding: 5px 4px 6px; border-radius: 0; background: none; border: 0; border-bottom: var(--u3-rule); }
+html.ui3 .seat:last-child { border-bottom: 0; }
 html.ui3 .seat .flag { width: 22px; height: 32px; object-fit: cover; border-radius: 0; box-shadow: none; justify-self: center; -webkit-mask: var(--u3-pennant-mask) center / 100% 100% no-repeat; mask: var(--u3-pennant-mask) center / 100% 100% no-repeat; }
 html.ui3 .seat input[type="text"] {
   background: transparent !important; border: 0 !important; border-bottom: 1px dashed rgba(74, 46, 24, 0.55) !important; border-radius: 0 !important;
@@ -504,16 +493,12 @@ html.ui3 .swatch { border-color: rgba(58, 36, 20, 0.7); box-shadow: 0 0 0 1px rg
 html.ui3 .swatch.on { box-shadow: 0 0 0 2px var(--u3-red), 0 0 10px rgba(142, 36, 22, 0.45); }
 
 /* the map workshop: the drawing board is a sheet too */
-html.ui3 .ed-board.panel {
-  border: 26px solid transparent; border-image: var(--u3-sheet) 52 fill / 26px stretch; background: none; box-shadow: none;
-  filter: var(--u3-paper-shadow); color: var(--u3-ink);
-  --ink: var(--u3-ink); --ink-dim: var(--u3-ink-soft); --ink-faint: var(--u3-ink-faint); --brass: var(--u3-red); --brass-hi: var(--u3-red); --line: rgba(74, 46, 24, 0.28);
-}
-html.ui3 .ed-board .modal-head { background: none; border-bottom: 1px solid transparent; border-image: var(--u3-rule-ink) 0 0 36 / 0 0 6px stretch; padding: 2px 4px 9px; }
+html.ui3 .ed-board.panel { padding: 12px 16px; }
+html.ui3 .ed-board .modal-head { background: none; border-bottom: var(--u3-rule-head); padding: 2px 4px 9px; }
 html.ui3 .ed-board .modal-head h3 { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); filter: none; }
 html.ui3 .ed-board .seg { border-color: rgba(74, 46, 24, 0.4); }
 html.ui3 .ed-board .seg button { background: rgba(255, 250, 235, 0.35); color: var(--u3-ink-soft); border-right-color: rgba(74, 46, 24, 0.25); }
-html.ui3 .ed-board .seg button.on { background: var(--u3-weave) 0 0 / 24px, #9a2818; background-blend-mode: multiply; color: #fff1d6; }
+html.ui3 .ed-board .seg button.on { background: var(--u3-cloth); color: #fff1d6; }
 html.ui3 .ed-tool { background: rgba(255, 250, 235, 0.45); border-color: rgba(74, 46, 24, 0.3); color: var(--u3-ink-soft); }
 html.ui3 .ed-tool.on { background: rgba(142, 36, 22, 0.12); border-color: var(--u3-red); color: var(--u3-ink); box-shadow: 0 0 0 1px var(--u3-red) inset; }
 html.ui3 .ed-cell.off { fill: rgba(74, 46, 24, 0.05); stroke: rgba(74, 46, 24, 0.38); }
@@ -526,50 +511,35 @@ html.ui3 .ed-msgs .err { color: #8e2416; } html.ui3 .ed-msgs .warn { color: #7a5
 html.ui3 :is(.modal, .setup-card, .ed-board, .pass-screen) { color-scheme: light; accent-color: #8e2416; }
 html.ui3 :is(.modal, .setup-card, .ed-board, .pass-screen) :is(.resp, .offer-line, .res-pick, .ed-facts div, .ed-mine-row, .ed-msgs li) { background: rgba(255, 250, 235, 0.38); border-color: rgba(74, 46, 24, 0.25); }
 html.ui3 :is(.modal, .setup-card, .ed-board, .pass-screen) :is(input[type="text"], input[type="number"], select, textarea) { background: rgba(255, 250, 235, 0.62); border: 1px solid rgba(74, 46, 24, 0.4); color: var(--u3-ink); }
-html.ui3 :is(.modal, .setup-card, .ed-board) .stepper button { background: var(--u3-walnut) 0 -40px / 200px auto, #3a2414; color: var(--u3-cream); border-color: #1c1108; }
+html.ui3 :is(.modal, .setup-card, .ed-board) .stepper button { background: var(--u3-wood); color: var(--u3-cream); border-color: #1c1108; }
 html.ui3 .room-terms { color: var(--u3-red); }
 html.ui3 .online-card { border-bottom-color: rgba(74, 46, 24, 0.25); }
-/* the room's code: large, in red ink, inside a frame drawn in ink */
-html.ui3 .code-box {
-  padding: 4px 6px; gap: 10px; border-radius: 0; box-shadow: none; background: rgba(255, 250, 235, 0.3);
-  border: 10px solid transparent; border-image: var(--u3-frame-ink) 30 / 10px stretch;
-}
+/* the room's code: large, in red ink, inside a double ink line */
+html.ui3 .code-box { padding: 8px 12px; gap: 10px; border-radius: 0; box-shadow: none; background: rgba(255, 250, 235, 0.3); border: 3px double rgba(74, 46, 24, 0.55); }
 html.ui3 .code-box .lbl, html.ui3 .code-box .btn { white-space: nowrap; }
-html.ui3 .join-row input { background: var(--u3-parch) 0 0 / 220px auto, #ead7aa; color: var(--u3-red); box-shadow: inset 0 0 8px rgba(120, 80, 40, 0.45), inset 0 0 0 1px rgba(74, 46, 24, 0.55); }
 html.ui3 .code-box .lbl { color: var(--u3-ink-soft); }
 html.ui3 .ed-facts b, html.ui3 .code-box b { color: var(--u3-red); }
+html.ui3 .join-row input { background: var(--u3-paper); color: var(--u3-red); box-shadow: inset 0 0 8px rgba(140, 100, 50, 0.4), inset 0 0 0 1px rgba(74, 46, 24, 0.55); }
 /* hot seat: the next player is called on a sheet */
 html.ui3 .pass-screen { background: radial-gradient(ellipse at center, rgba(30, 20, 10, 0.85), rgba(10, 7, 4, 0.96)); }
-html.ui3 .pass-screen .panel {
-  border: 26px solid transparent; border-image: var(--u3-sheet-old) 52 fill / 26px stretch; filter: var(--u3-paper-shadow); color: var(--u3-ink);
-  --ink: var(--u3-ink); --ink-dim: var(--u3-ink-soft); --ink-faint: var(--u3-ink-faint); --brass-hi: var(--u3-red);
-}
+html.ui3 .pass-screen .panel { padding: 26px 34px; }
 html.ui3 .pass-screen h2 { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); filter: none; }
 /* the asset pack coming in: a slip of paper */
-html.ui3 .asset-chip { background: var(--u3-parch) 0 0 / 220px auto, #ead7aa; border: 0; color: var(--u3-ink-soft); box-shadow: inset 0 0 8px rgba(120, 80, 40, 0.45), 0 4px 10px rgba(0, 0, 0, 0.45); }
+html.ui3 .asset-chip { background: var(--u3-paper); border: 0; color: var(--u3-ink-soft); box-shadow: inset 0 0 0 1px rgba(92, 60, 30, 0.45), inset 0 0 8px rgba(140, 100, 50, 0.35), 0 4px 10px rgba(0, 0, 0, 0.45); }
 html.ui3 .asset-chip b { color: var(--u3-red); }
 html.ui3 .asset-chip i { background: var(--u3-red); }
 
-/* ───────── home ───────── */
-/* who you are: the flag a pennant, the name on a crimson ribbon, the account a walnut plate */
+/* ───────── home (its ways to play and the official room keep their own cards and frame) ───────── */
+/* who you are: the flag a pennant, the name on a crimson band, the account a walnut plate */
 html.ui3 .hm-flag { border: 0; border-image: none; filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.6)); }
 html.ui3 .hm-flag img { width: 42px; height: 60px; -webkit-mask: var(--u3-pennant-mask) center / 100% 100% no-repeat; mask: var(--u3-pennant-mask) center / 100% 100% no-repeat; }
-html.ui3 .hm-name {
-  clip-path: none; background: none; padding: 0 6px;
-  border-style: solid; border-color: transparent; border-width: 5px 32px 13px;
-  border-image: var(--u3-ribbon) 18 84 40 84 fill / 5px 32px 13px stretch;
-}
-html.ui3 .hm-name input { color: #fbe7c8; text-shadow: 0 1px 1px rgba(40, 4, 2, 0.85); height: 36px; }
-html.ui3 .hm-name:focus-within { filter: drop-shadow(0 0 6px rgba(255, 200, 140, 0.8)) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.6)); }
-html.ui3 .hm-account { background: var(--u3-walnut) 0 -96px / 400px auto, #3a2414; border-color: rgba(232, 196, 128, 0.55); }
+html.ui3 .hm-name { background: var(--u3-threads), var(--u3-cloth); }
+html.ui3 .hm-name input { color: #fbe7c8; text-shadow: 0 1px 1px rgba(40, 4, 2, 0.85); }
+html.ui3 .hm-account { background: var(--u3-wood); border-color: rgba(232, 196, 128, 0.55); }
 html.ui3 .gem { border-color: #6b4a1d; }
 
-/* the title: a cartouche of old parchment, as in the corner of a chart, the name in red ink */
-html.ui3 .hm-logo {
-  gap: 10px; padding: 0 12px 0 2px; margin: -10px 0 0 -12px;
-  border: 22px solid transparent; border-image: var(--u3-sheet-old) 44 fill / 22px stretch;
-  filter: var(--u3-paper-shadow); transform: rotate(-1.2deg); transform-origin: 0 0;
-}
+/* the title: a cartouche of parchment, as in the corner of a chart, the name in red ink */
+html.ui3 .hm-logo { gap: 10px; padding: 8px 18px 8px 10px; margin: -4px 0 0 -6px; transform: rotate(-1deg); transform-origin: 0 0; }
 html.ui3 .hm-crest { width: 54px; height: 54px; filter: drop-shadow(0 2px 2px rgba(60, 36, 16, 0.45)); }
 html.ui3 .hm-title { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); filter: none; text-shadow: 0 1px 0 rgba(255, 244, 214, 0.6); font-size: 42px; }
 html.ui3 .hm-sub { color: var(--u3-ink); text-shadow: none; margin-top: 5px; }
@@ -578,10 +548,7 @@ html.ui3 .hm-sub::after { background-image: var(--u3-div-ink); background-positi
 html.ui3 .hm-live { margin-left: 14px; }
 
 /* the setup and room screens: their title on the same cartouche */
-html.ui3 .title-block {
-  justify-self: start; max-width: 31em; padding: 2px 8px 4px; color: var(--u3-ink);
-  border: 26px solid transparent; border-image: var(--u3-sheet-old) 52 fill / 26px stretch; filter: var(--u3-paper-shadow);
-}
+html.ui3 .menu-screen .title-block { justify-self: start; max-width: 31em; padding: 14px 20px 12px; }
 html.ui3 .title-block .eyebrow { color: var(--u3-ink-faint); }
 html.ui3 .title-block h1 {
   background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); -webkit-text-fill-color: currentColor;
@@ -591,66 +558,6 @@ html.ui3 .title-block h1 span { -webkit-text-fill-color: var(--u3-ink); color: v
 html.ui3 .title-block p { color: var(--u3-ink-soft); text-shadow: none; }
 html.ui3 .title-block p.credits { color: var(--u3-ink-faint); }
 html.ui3 .title-block p.credits a { color: var(--u3-red); border-bottom-color: rgba(142, 36, 22, 0.35); }
-
-/* the official room: a chart on the table, in a walnut frame with a brass inlay */
-html.ui3 .ho-board::before {
-  background: var(--u3-walnut) 0 0 / 640px auto, #2a1a0e;
-  padding: 4.3%; box-sizing: border-box;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-}
-html.ui3 .ho-board::after {
-  opacity: 1; background: var(--u3-brass); inset: calc(4.3% * 1.8388 - 2px) calc(4.3% - 2px); border-radius: 3px;
-  padding: 3px; box-sizing: border-box;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-}
-html.ui3 .ho-board.joined::before { filter: sepia(0.5) saturate(1.6) brightness(1.35); }
-html.ui3 .ho-glow { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6), 0 16px 30px rgba(0, 0, 0, 0.6); }
-/* the room's terms on old parchment, in ink */
-html.ui3 .ho-side { background: var(--u3-parch-old) center / 420px auto, #dcc595; box-shadow: inset 8px 0 14px -6px rgba(60, 36, 16, 0.5); }
-html.ui3 .ho-side::before { width: clamp(5px, 0.9cqw, 8px); background: linear-gradient(90deg, #120a04, #5a3a1e 35%, #2a1a0e 70%, #120a04); }
-html.ui3 .ho-board.joined .ho-side::before { filter: none; }
-html.ui3 .ho-title span { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); filter: none; }
-html.ui3 .ho-tags span { background: var(--u3-weave) 0 0 / 20px, #8e2416; background-blend-mode: multiply; color: #fbe7c8; text-shadow: 0 1px 1px rgba(40, 4, 2, 0.8); }
-html.ui3 .ho-n { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-ink); filter: none; }
-html.ui3 .ho-timer .rim { fill: #c39a50; stroke: #5b3c14; }
-html.ui3 .ho-timer .track { fill: #efe2c2; stroke: rgba(58, 36, 20, 0.18); }
-html.ui3 .ho-timer .arc { stroke: var(--u3-red); }
-html.ui3 .ho-timer b { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-ink); }
-html.ui3 .ho-timer span { color: var(--u3-ink-faint); }
-html.ui3 .ho-hint { color: var(--u3-ink-soft); text-shadow: none; }
-
-/* the ways to play: parchment cards, each with its own ribbon and a faint drawing behind the emblem */
-html.ui3 .hm-card { background: var(--u3-sheet) center / 100% 100% no-repeat !important; background-color: transparent !important; border-radius: 0; }
-html.ui3 .hm-card::before {
-  content: ""; position: absolute; left: 14%; right: 14%; top: 9%; height: 62%; pointer-events: none; opacity: 0.16;
-  background: var(--u3-ink-castleWide) center / contain no-repeat;
-}
-html.ui3 .hm-card[data-k="create"]::before { background-image: var(--u3-ink-flag); }
-html.ui3 .hm-card[data-k="join"]::before { background-image: var(--u3-ink-houses); }
-html.ui3 .hm-card[data-k="workshop"]::before { background-image: var(--u3-ink-compass); }
-html.ui3 .hm-card[data-k="continue"]::before { background-image: var(--u3-ink-ship); }
-html.ui3 .hm-em .emblem { filter: drop-shadow(0 3px 2px rgba(60, 36, 16, 0.45)); }
-html.ui3 .hm-lbl {
-  left: 3%; width: 94%; top: 79%; height: 15%;
-  background: var(--u3-ribbon) center / 100% 100% no-repeat; color: #fbe7c8; text-shadow: 0 1px 1px rgba(30, 4, 2, 0.85);
-  padding-bottom: 3%; box-sizing: border-box;
-}
-html.ui3 .hm-card[data-k="create"] .hm-lbl { background-image: var(--u3-ribbon-blue); }
-html.ui3 .hm-card[data-k="join"] .hm-lbl { background-image: var(--u3-ribbon-green); }
-html.ui3 .hm-card[data-k="workshop"] .hm-lbl { background-image: var(--u3-ribbon-ochre); }
-html.ui3 .hm-card:hover, html.ui3 .hm-card:focus-visible { filter: drop-shadow(0 16px 18px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 12px rgba(255, 220, 160, 0.4)); }
-/* without the asset pack (the claude.ai page): every material above is in kit3.css, so the classic
-   look's plain fallbacks for the home are undone */
-html.ui3 .home.no-art .hm-card { box-shadow: none; }
-html.ui3 .home.no-art .hm-em { background: none; border-radius: 0; }
-html.ui3 .home.no-art .hm-lbl { background: var(--u3-ribbon) center / 100% 100% no-repeat; border-radius: 0; }
-html.ui3 .home.no-art .hm-card[data-k="create"] .hm-lbl { background-image: var(--u3-ribbon-blue); }
-html.ui3 .home.no-art .hm-card[data-k="join"] .hm-lbl { background-image: var(--u3-ribbon-green); }
-html.ui3 .home.no-art .hm-card[data-k="workshop"] .hm-lbl { background-image: var(--u3-ribbon-ochre); }
-html.ui3 .home.no-art .ho-board::before { background: var(--u3-walnut) 0 0 / 640px auto, #2a1a0e; border: 0; border-radius: 0; box-sizing: border-box; }
-html.ui3 .home.no-art .ho-board::after { display: block; }
 
 /* rules and settings: medallions in brass rings, as on the orders */
 html.ui3 .hm-medal .emblem { background: radial-gradient(circle at 50% 38%, #3d2a18 0%, #1e1309 72%); border: 3px solid #c9a35a; box-shadow: 0 0 0 2px #3e270d, inset 0 2px 5px rgba(0, 0, 0, 0.85), 0 5px 10px rgba(0, 0, 0, 0.6); }
@@ -666,26 +573,21 @@ html.ui3 .hm-medal .emblem { background: radial-gradient(circle at 50% 38%, #3d2
   html.ui3 .act.primary.glow::after { width: 40px; height: 40px; margin-left: -20px; top: 0; }
   html.ui3 .act svg, html.ui3 .act .gi, html.ui3 .act .ico { width: 20px; height: 20px; margin-top: 10px; }
   html.ui3 .act .lbl { font-size: 10.5px; margin-top: 6px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  html.ui3 .banner { border-width: 5px 22px 12px; border-image-width: 5px 22px 12px; }
-  html.ui3 .log::before, html.ui3 .log::after { left: -14px; right: -14px; }
+  html.ui3 .banner { padding: 6px 14px 7px; }
   html.ui3 .hm-flag img { width: 32px; height: 46px; }
-  html.ui3 .setup-card.panel { border-width: 18px; border-image-width: 18px; }
+  html.ui3 .setup-card.panel { padding: 10px 12px 10px; }
   /* (the workshop's grid wants every pixel of a phone's width) */
-  html.ui3 .ed-board.panel { border-width: 12px; border-image-width: 12px; }
-  html.ui3 .modal { border-width: 18px; border-image-width: 18px; }
+  html.ui3 .ed-board.panel { padding: 8px 8px; }
+  html.ui3 .modal { padding: 10px 12px; }
 }
 @media (max-width: 760px) {
   html.ui3 .code-box b { font-size: 28px; letter-spacing: 0.14em; }
-  html.ui3 .hm-logo { border-width: 14px; border-image-width: 14px; margin: -6px 0 0 -6px; padding: 0 8px 0 0; transform: rotate(-0.8deg); }
+  html.ui3 .hm-logo { margin: -2px 0 0 -2px; padding: 6px 12px 6px 8px; transform: rotate(-0.8deg); }
   html.ui3 .hm-title { font-size: 30px; }
   html.ui3 .hm-live { margin-left: 8px; }
-  html.ui3 .title-block { border-width: 16px; border-image-width: 16px; padding: 0 4px 2px; max-width: none; }
+  html.ui3 .menu-screen .title-block { padding: 10px 14px 10px; max-width: none; }
   html.ui3 .title-block .eyebrow { display: none; }
   html.ui3 .title-block h1 { font-size: 30px; margin: 0 0 4px; }
   html.ui3 .title-block h1 span { margin-top: 6px; }
   html.ui3 .title-block p { font-size: 13px; }
-  html.ui3 .ho-side { border: 0; border-image: none; border-radius: 4px; background: var(--u3-parch-old) center / 420px auto, #dcc595; box-shadow: inset 0 0 0 2px #2a1a0e, inset 0 0 0 3px rgba(226, 190, 120, 0.4), 0 6px 12px rgba(0, 0, 0, 0.5); }
-  html.ui3 .ho-board::before, html.ui3 .ho-board::after { aspect-ratio: 958 / 521; bottom: auto; }
-  /* (the board is taller than its frame here, so the inlay is placed by the board's width) */
-  html.ui3 .ho-board::after { inset: auto; left: calc(4.3cqw - 2px); top: calc(4.3cqw - 2px); width: calc(91.4cqw + 4px); height: calc(45.78cqw + 4px); aspect-ratio: auto; }
 }
