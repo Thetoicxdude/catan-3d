@@ -430,6 +430,26 @@ export class MapView {
   // middle of play (a hitch of a good part of a second on Windows, the first time each shader is met).
   async precompile(obj, scene = this.scene) {
     const r = this.renderer;
+    // (and their textures go up to the card now, not on the frame they first show: the first
+    // settlements and roads of a campaign otherwise held the page up for a tenth of a second or two
+    // on integrated graphics)
+    const tex = new Set();
+    const add = (v) => {
+      if (v && v.isTexture && !v.isRenderTargetTexture) tex.add(v);
+    };
+    obj.traverse((o) => {
+      for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) {
+        for (const v of Object.values(m)) add(v);
+        if (m.uniforms) for (const u of Object.values(m.uniforms)) add(u && u.value);
+      }
+    });
+    for (const t of tex) {
+      try {
+        r.initTexture(t);
+      } catch {
+        /* uploaded on first draw instead */
+      }
+    }
     const prev = r.getRenderTarget();
     try {
       r.setRenderTarget(scene === this.scene && this.post ? this.post.target() : null);
