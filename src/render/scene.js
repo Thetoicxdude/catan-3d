@@ -234,10 +234,11 @@ class GpuTimer {
     this.open = null;
     this.waiting = null;
   }
-  begin() {
+  // (tag: what kind of frame it was, handed back with the measurement)
+  begin(tag) {
     if (!this.ext || this.open || this.waiting) return;
-    this.open = this.gl.createQuery();
-    this.gl.beginQuery(this.ext.TIME_ELAPSED_EXT, this.open);
+    this.open = { q: this.gl.createQuery(), tag };
+    this.gl.beginQuery(this.ext.TIME_ELAPSED_EXT, this.open.q);
   }
   end() {
     if (!this.open) return;
@@ -245,17 +246,17 @@ class GpuTimer {
     this.waiting = this.open;
     this.open = null;
   }
-  // → the ms of the card's work, once for each measurement that came back whole
+  // → { ms, tag } once for each measurement that came back whole
   poll() {
-    const q = this.waiting;
-    if (!q) return null;
+    const w = this.waiting;
+    if (!w) return null;
     const gl = this.gl;
-    if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) return null;
+    if (!gl.getQueryParameter(w.q, gl.QUERY_RESULT_AVAILABLE)) return null;
     const broken = gl.getParameter(this.ext.GPU_DISJOINT_EXT);
-    const ns = gl.getQueryParameter(q, gl.QUERY_RESULT);
-    gl.deleteQuery(q);
+    const ns = gl.getQueryParameter(w.q, gl.QUERY_RESULT);
+    gl.deleteQuery(w.q);
     this.waiting = null;
-    return broken ? null : ns / 1e6;
+    return broken ? null : { ms: ns / 1e6, tag: w.tag };
   }
 }
 
@@ -350,6 +351,7 @@ export class MapView {
     this.hoverId = null;
     this.markers = null;
     this.glows = [];
+    this.disposeLater = []; // (materials and textures let go after the next frame: rebuildBoard)
     this.running = false;
     this.onHexHover = null;
     this.onFrame = null;
@@ -626,7 +628,8 @@ export class MapView {
     }
     this.applying = false;
     this.shadowDirty = 3;
-    this.governor.hold(performance.now(), 3000);
+    // (the new textures go up to the card and the shadows are drawn again over the next seconds)
+    this.governor.hold(performance.now(), 6000);
     this.poke(600);
     if (this.onAssets) this.onAssets(pack);
   }
@@ -870,7 +873,10 @@ export class MapView {
     };
     const old = this.terrain;
     drop(old.mesh);
-    old.mesh.material.dispose();
+    // (the old terrain and water materials go once the new ones have been drawn: disposed now, their
+    // shader programs would go with them and be compiled again for the new ones, a long hitch in the
+    // middle of play)
+    this.disposeLater.push(old.mesh.material);
     if (old.heightTex) old.heightTex.dispose();
     if (old.hexTex) old.hexTex.dispose();
     drop(this.flora.group);
@@ -879,9 +885,8 @@ export class MapView {
     this.terrain = buildTerrain(state.board, seed, this.quality);
     scene.add(this.terrain.mesh);
     this.camera.heightAt = this.terrain.heightAt;
-    const water = this.water.material;
+    this.disposeLater.push(this.water.material);
     this.water.material = waterMaterial(this.terrain);
-    water.dispose();
     // the same kind of scenery as before (the asset pack's, once it has been put in)
     const pack = this.flora.real ? assetStatus.pack : null;
     this.floraArgs = [this.terrain, state.board, seed, this.quality];
@@ -896,6 +901,7 @@ export class MapView {
     this.pieces = new Pieces(scene, this.terrain, this.players, this.models);
     this.markers.setPieces(this.pieces);
     this.markers.terrain = this.terrain;
+    this.disposeLater.push(this.territory.fillTex, this.territory.borderTex);
     this.territory = new Territory(this.players, this.terrain);
     this.terrain.uniforms.uTerritory.value = this.territory.fillTex;
     this.terrain.uniforms.uBorder.value = this.territory.borderTex;
@@ -1207,7 +1213,10 @@ export class MapView {
 
     const info = this.renderer.info;
     info.reset();
-    this.gpu.begin();
+    // (a still frame that draws the cached shadow map as it is: the frames the picture's size is
+    // chosen by; moving frames go through the lighter chain, and a frame that redraws the shadows
+    // costs more whatever the size)
+    this.gpu.begin(!moving && !this.renderer.shadowMap.needsUpdate);
     if (this.post) {
       this.post.setZoom(paper, zoom01);
       this.post.setMotion(moving, dt);
@@ -1217,19 +1226,23 @@ export class MapView {
     this.renderer.render(this.overlay, this.camera.cam);
     this.renderer.autoClear = true;
     this.gpu.end();
+    if (this.disposeLater.length) {
+      for (const x of this.disposeLater) x.dispose();
+      this.disposeLater.length = 0;
+    }
     if (this.onFrame) this.onFrame(dt, camMoved);
 
     // the resolution governor: a card that can't keep the pace gets a smaller picture (pace.js)
-    const gpuMs = this.gpu.poll();
+    const got = this.gpu.poll();
     const pf = this.perf;
-    if (gpuMs != null) {
-      pf.gpu.push(gpuMs);
+    if (got) {
+      pf.gpu.push(got.ms);
       if (pf.gpu.length > 15) pf.gpu.shift();
     }
     if (want > 0) {
       // (the picture is sized for the map at rest: pace.js)
       const budget = 1000 / Math.max(30, this.fps.idle);
-      if (this.governor.frame({ now: cpu0, gap, want, gpuMs, budget }) != null) this.applyPixelRatio();
+      if (this.governor.frame({ now: cpu0, gap, want, gpuMs: got && got.tag ? got.ms : null, budget }) != null) this.applyPixelRatio();
     }
     // what the performance read-out shows (setOptions({ stats: true }))
     pf.frames++;
@@ -1387,6 +1400,7 @@ export class MapView {
       const seen = new Set();
       disposeTree(this.scene, seen);
       disposeTree(this.overlay, seen);
+      for (const x of this.disposeLater) x.dispose();
       if (this.scene.environment) this.scene.environment.dispose();
       disposeShared(assetStatus.pack, seen);
       if (this.post) this.post.dispose();
