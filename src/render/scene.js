@@ -533,7 +533,18 @@ export class MapView {
     this.camera.h = 150;
     this.camera.goalH = 112;
     this.shadowDirty = 3;
-    // the shaders of what the campaign will put on the map, built ahead of the first settlement
+    // Shaders are compiled now, while the loading screen is up, not in the middle of play: one frame
+    // through each post-processing chain (and the shadow map), then what the campaign will put on
+    // the map later (settlements, roads, their previews, the placement markers).
+    if (this.post) {
+      try {
+        this.camera.apply();
+        this.renderer.shadowMap.needsUpdate = true;
+        this.post.warm();
+      } catch {
+        /* compiled on the first frames instead */
+      }
+    }
     this.precompile(this.pieces.prewarm(this.models, !!(GEO.def.rules && GEO.def.rules.seafarers)));
     this.precompile(this.markers.prewarm(), this.overlay);
   }

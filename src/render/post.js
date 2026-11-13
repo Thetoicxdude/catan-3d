@@ -103,6 +103,14 @@ export class PostFX {
     (this.moving ? this.motion : this.composer).render(dt);
   }
 
+  // Draw one frame through each chain, when the map is built: the passes' shaders (ambient occlusion,
+  // anti-aliasing, the grade) are compiled here, under the loading screen, and not on the first frame
+  // the camera comes to rest in the middle of the opening.
+  warm() {
+    this.composer.render(0.016);
+    this.motion.render(0.016);
+  }
+
   // one of the buffers the map is drawn into (shaders are compiled for these: MapView.precompile)
   target() {
     return this.composer.renderTarget1;
