@@ -47,9 +47,16 @@ export function pixelRatioCap(w, h, dpr, quality) {
 
 // The resolution governor. It is told about every frame drawn: how long after the one before it
 // came (against the pace asked for) and, where the browser measures it, how long the graphics card
-// worked on it. A card that can't keep the pace, or needs most of each frame's time to do it, gets a
-// smaller picture, one step at a time; a card with plenty to spare gets it back. `scale` is the
-// share of the allowed resolution in use (1: all of it).
+// worked on it. The picture's size is chosen for the map at rest: a still frame must take the card
+// no more than about half the time between frames at the resting pace (`budget`, ms), whatever the
+// pace of the moment. (Frames while something moves come at twice the resting rate, and a card that
+// can't keep up with that for the second an animation lasts draws a few fewer of them; shrinking the
+// picture for that would blur the board for the whole game on integrated graphics.) A card that
+// needs more gets a smaller picture, one step at a time; a card with plenty to spare gets it back.
+// Late frames are evidence only where the browser can't say how long the card worked: when it can,
+// a frame late while the card had time to spare was held up by the page (a turn being computed, a
+// panel rebuilt), which a smaller picture wouldn't help. `scale` is the share of the allowed
+// resolution in use (1: all of it).
 const STEP = 0.85;
 export const SCALE_MIN = 0.5;
 export class Governor {
@@ -77,9 +84,9 @@ export class Governor {
   }
 
   // gap: ms since the frame before; want: the ms between frames asked for; gpuMs: the card's time
-  // for an earlier frame, when a measurement has come back (gpuWant: the pace that frame was drawn
-  // at). → the new scale when it changes, else null.
-  frame({ now, gap, want, gpuMs = null, gpuWant = 0 }) {
+  // for an earlier frame, when a measurement has come back; budget: the ms between frames at rest.
+  // → the new scale when it changes, else null.
+  frame({ now, gap, want, gpuMs = null, budget = want }) {
     // (the page was hidden, or something else held it up: nothing to learn about the card)
     if (!(gap > 0) || gap > 250) {
       this.clear();
@@ -88,16 +95,20 @@ export class Governor {
     // (a change of size is a hitch of its own)
     if (now - this.changedAt < 600 || now < this.heldUntil) return null;
     if (this.t0 == null) this.t0 = now;
-    this.n++;
-    if (gap > want * 1.35 + 2) this.late++;
-    if (gpuMs != null && gpuMs > 0.05) this.shares.push(gpuMs / (gpuWant || want));
-    if (this.n < 30 || now - this.t0 < 1000) return null;
-    const late = this.late / this.n;
+    // (only frames asked for at the resting pace or slower: at the quicker pace while something moves,
+    // a frame that comes late says nothing about the resting picture)
+    if (want >= budget * 0.9) {
+      this.n++;
+      if (gap > want * 1.35 + 2) this.late++;
+    }
+    if (gpuMs != null && gpuMs > 0.05) this.shares.push(gpuMs / budget);
+    if (this.n + this.shares.length < 30 || now - this.t0 < 1000) return null;
     // (the middle one: a frame that compiled a shader or redrew the shadows says nothing of the rest)
     const share = this.shares.length >= 5 ? this.shares.sort((a, b) => a - b)[this.shares.length >> 1] : null;
+    const late = this.n >= 20 ? this.late / this.n : null;
     this.clear();
-    const slow = late > 0.4 || (share != null && share > 0.6);
-    const easy = late < 0.05 && (share == null || share < 0.33);
+    const slow = share != null ? share > 0.6 : late != null && late > 0.4;
+    const easy = share != null ? share < 0.33 : late != null && late < 0.05;
     if (slow && this.scale > SCALE_MIN + 1e-6) {
       // (a step up that had to be taken back: wait longer before the next try)
       if (now - this.raisedAt < 15000) this.wait = Math.min(this.wait * 2, 240000);

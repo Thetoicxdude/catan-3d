@@ -239,23 +239,23 @@ class GpuTimer {
     this.open = this.gl.createQuery();
     this.gl.beginQuery(this.ext.TIME_ELAPSED_EXT, this.open);
   }
-  end(tag) {
+  end() {
     if (!this.open) return;
     this.gl.endQuery(this.ext.TIME_ELAPSED_EXT);
-    this.waiting = { q: this.open, tag };
+    this.waiting = this.open;
     this.open = null;
   }
-  // → { ms, tag } once for each measurement that came back whole
+  // → the ms of the card's work, once for each measurement that came back whole
   poll() {
-    const w = this.waiting;
-    if (!w) return null;
+    const q = this.waiting;
+    if (!q) return null;
     const gl = this.gl;
-    if (!gl.getQueryParameter(w.q, gl.QUERY_RESULT_AVAILABLE)) return null;
+    if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) return null;
     const broken = gl.getParameter(this.ext.GPU_DISJOINT_EXT);
-    const ns = gl.getQueryParameter(w.q, gl.QUERY_RESULT);
-    gl.deleteQuery(w.q);
+    const ns = gl.getQueryParameter(q, gl.QUERY_RESULT);
+    gl.deleteQuery(q);
     this.waiting = null;
-    return broken ? null : { ms: ns / 1e6, tag: w.tag };
+    return broken ? null : ns / 1e6;
   }
 }
 
@@ -1216,18 +1216,20 @@ export class MapView {
     this.renderer.autoClear = false;
     this.renderer.render(this.overlay, this.camera.cam);
     this.renderer.autoClear = true;
-    this.gpu.end(want);
+    this.gpu.end();
     if (this.onFrame) this.onFrame(dt, camMoved);
 
     // the resolution governor: a card that can't keep the pace gets a smaller picture (pace.js)
-    const got = this.gpu.poll();
+    const gpuMs = this.gpu.poll();
     const pf = this.perf;
-    if (got) {
-      pf.gpu.push(got.ms);
+    if (gpuMs != null) {
+      pf.gpu.push(gpuMs);
       if (pf.gpu.length > 15) pf.gpu.shift();
     }
     if (want > 0) {
-      if (this.governor.frame({ now: cpu0, gap, want, gpuMs: got ? got.ms : null, gpuWant: got ? got.tag : 0 }) != null) this.applyPixelRatio();
+      // (the picture is sized for the map at rest: pace.js)
+      const budget = 1000 / Math.max(30, this.fps.idle);
+      if (this.governor.frame({ now: cpu0, gap, want, gpuMs, budget }) != null) this.applyPixelRatio();
     }
     // what the performance read-out shows (setOptions({ stats: true }))
     pf.frames++;
