@@ -71,7 +71,7 @@ async def main():
         await page.click(f'[data-map="{MAP}"]')
         await page.wait_for_timeout(800)
         card = await page.inner_text('.setup-card')
-        check('the scenario on the setup screen', '航海家' in card and f'{VP} 分（劇本規定）' in card and ('5 國（6 人局）' if BIG else '3 國（4 人局）') in card and ('移動一艘船' in card) == BIG, card.replace('\n', ' ')[:160])
+        check('the scenario on the setup screen', '航海家' in card and f'{VP} 分（劇本）' in card and ('5 國（6 人局）' if BIG else '3 國（4 人局）') in card and ('移動一艘船' in card) == BIG, card.replace('\n', ' ')[:160])
         await page.wait_for_timeout(2500)
         await page.screenshot(path=f'{SP}/{PRE}-setup.png')
         await page.click('text=開始戰役')
