@@ -33,11 +33,17 @@
   display: grid; place-items: center; color: #fff1ea; filter: none;
   background: radial-gradient(circle at 35% 30%, #e8604c, #8e1b13 72%); border: 1.5px solid #ffd2c6;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), 0 0 0 3px rgba(226, 96, 78, 0.35);
-  animation: robring 2.2s ease-in-out infinite;
+}
+/* its ring breathes for a while after the robber arrives (or comes back into view), then rests: a
+   ring of its own that grows and fades, which the compositor animates without repainting the page */
+.token .rob::after, .robber-badge::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 4px solid rgba(226, 96, 78, 0.34);
+  opacity: 0; pointer-events: none; animation: robring 2.2s ease-in-out 6;
 }
 .robber-badge { position: relative; right: auto; top: auto; width: 38px; height: 38px; }
-.robber-badge.drop, .token .rob.drop { animation: robdrop 0.7s cubic-bezier(0.2, 1.5, 0.4, 1) 1, robring 2.2s ease-in-out 0.7s infinite; }
-@keyframes robring { 0%, 100% { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), 0 0 0 3px rgba(226, 96, 78, 0.35); } 50% { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), 0 0 0 7px rgba(226, 96, 78, 0.12); } }
+.robber-badge.drop, .token .rob.drop { animation: robdrop 0.7s cubic-bezier(0.2, 1.5, 0.4, 1) 1; }
+.robber-badge.drop::after, .token .rob.drop::after { animation-delay: 0.7s; }
+@keyframes robring { 0%, 100% { transform: scale(1); opacity: 0; } 50% { transform: scale(1.3); opacity: 1; } }
 @keyframes robdrop { 0% { translate: 0 -40px; scale: 1.6; opacity: 0; } 60% { translate: 0 2px; scale: 0.95; opacity: 1; } 100% { translate: 0 0; scale: 1; } }
 .province-name {
   font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.28em;

@@ -65,7 +65,9 @@ export class PostFX {
     cfg.distanceFalloff = 1.0;
     cfg.intensity = 2.2;
     cfg.color = new THREE.Color(0.06, 0.07, 0.1);
-    cfg.halfRes = quality !== 'high';
+    // (computed at half size and scaled up along the depth edges: a quarter of the work, and under
+    // trees and houses seen from a strategy camera the difference doesn't show)
+    cfg.halfRes = true;
     this.ao.setQualityMode(quality === 'high' ? 'Medium' : 'Low');
     this.composer.addPass(this.ao);
     this.output = new OutputPass();
@@ -101,8 +103,15 @@ export class PostFX {
     (this.moving ? this.motion : this.composer).render(dt);
   }
 
+  // one of the buffers the map is drawn into (shaders are compiled for these: MapView.precompile)
+  target() {
+    return this.composer.renderTarget1;
+  }
+
   dispose() {
-    this.composer.dispose();
-    this.motion.dispose();
+    for (const c of [this.composer, this.motion]) {
+      for (const pass of c.passes) if (pass.dispose) pass.dispose();
+      c.dispose();
+    }
   }
 }

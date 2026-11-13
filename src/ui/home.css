@@ -34,12 +34,13 @@
 .hm-live { margin: 8px 0 0 72px; display: flex; align-items: center; gap: 7px; font-size: 13px; color: #d9cba8; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); }
 .hm-live b { font-family: var(--font-num); font-size: 16px; color: #fff1c8; font-weight: 700; }
 .hm-live i { width: 8px; height: 8px; border-radius: 50%; background: #6b665c; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4); }
-.hm-live.on i { background: #6fd47c; animation: hmpulse 2.2s ease-out infinite; }
+.hm-live.on i { background: #6fd47c; position: relative; }
+/* (a ring that grows and fades, left to the compositor: an animated box-shadow repaints at every screen refresh) */
+.hm-live.on i::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: rgba(111, 212, 124, 0.65); animation: hmpulse 2.2s ease-out infinite; }
 .hm-live.off i { background: var(--danger); }
 @keyframes hmpulse {
-  0% { box-shadow: 0 0 0 0 rgba(111, 212, 124, 0.65); }
-  70% { box-shadow: 0 0 0 7px rgba(111, 212, 124, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(111, 212, 124, 0); }
+  0% { transform: scale(1); opacity: 1; }
+  70%, 100% { transform: scale(2.75); opacity: 0; }
 }
 
 /* who you are: the nation you play, and (on the game's own site) your account */

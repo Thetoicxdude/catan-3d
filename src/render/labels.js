@@ -110,9 +110,25 @@ export class Labels {
         }
       }
       it.s = s;
-      const rot = o.angle ? ` rotate(${o.angle}rad)` : '';
-      box.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${s.toFixed(3)})${rot}`;
-      box.style.opacity = alpha.toFixed(3);
+      // (the page is only touched when the label really moved: with the camera at rest nothing here
+      // changes from one frame to the next)
+      const kx = Math.round(x * 10);
+      const ky = Math.round(y * 10);
+      const ks = Math.round(s * 1000);
+      const ka = Math.round(alpha * 1000);
+      const kr = o.angle || 0;
+      if (kx !== it.kx || ky !== it.ky || ks !== it.ks || kr !== it.kr) {
+        it.kx = kx;
+        it.ky = ky;
+        it.ks = ks;
+        it.kr = kr;
+        const rot = kr ? ` rotate(${kr}rad)` : '';
+        box.style.transform = `translate3d(${kx / 10}px, ${ky / 10}px, 0) translate(-50%, -50%) scale(${ks / 1000})${rot}`;
+      }
+      if (ka !== it.ka) {
+        it.ka = ka;
+        box.style.opacity = String(ka / 1000);
+      }
       if (!it.visible) {
         box.style.display = '';
         it.visible = true;

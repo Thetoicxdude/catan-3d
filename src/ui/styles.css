@@ -128,12 +128,18 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .banner .msg b { color: var(--brass-hi); font-weight: 700; }
 .banner .acts { display: flex; gap: 6px; flex: none; }
 .banner.wait { border-left-color: var(--ink-faint); color: var(--ink-dim); }
-.banner.urgent {
-  border-color: #b9483a; border-left: 4px solid #e2604e; background: rgba(48, 20, 16, 0.95);
-  animation: urgentpulse 1.6s ease-in-out infinite;
-}
+.banner.urgent { border-color: #b9483a; border-left: 4px solid #e2604e; background: rgba(48, 20, 16, 0.95); }
 .banner.urgent .msg b { color: #ffd9a8; }
-@keyframes urgentpulse { 0%, 100% { box-shadow: var(--shadow), 0 0 0 0 rgba(226, 96, 78, 0); } 50% { box-shadow: var(--shadow), 0 0 22px 3px rgba(226, 96, 78, 0.55); } }
+/* Pulses that stay on screen for minutes (the urgent banner, the main order's glow, the robber's ring)
+   fade a ready-made shadow in and out instead of animating the shadow itself: an animated box-shadow
+   is repainted by the page at every screen refresh (144–240 times a second on a gaming monitor), a
+   fading layer is left to the compositor. */
+.banner.urgent::after, .act.primary.glow::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+  animation: fadepulse 1.6s ease-in-out infinite; will-change: opacity;
+}
+.banner.urgent::after { box-shadow: 0 0 22px 3px rgba(226, 96, 78, 0.55); }
+@keyframes fadepulse { 50% { opacity: 1; } }
 
 /* next required step, right above the action bar where the eyes are */
 .nexthint {
@@ -222,8 +228,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .act.primary { background: linear-gradient(180deg, #d9bb73, #a9873f); color: #23190c; border-color: #f1d99c; }
 .act.primary .key { color: rgba(35, 25, 12, 0.55); }
 .act.primary:hover:not(:disabled) { background: linear-gradient(180deg, #e6c983, #b8944a); }
-.act.primary.glow { animation: glow 1.8s ease-in-out infinite; }
-@keyframes glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(234, 208, 142, 0.0); } 50% { box-shadow: 0 0 22px 2px rgba(234, 208, 142, 0.55); } }
+.act.primary.glow::after { box-shadow: 0 0 22px 2px rgba(234, 208, 142, 0.55); animation-duration: 1.8s; }
 .act-sep { width: 1px; margin: 4px 6px; background: var(--line); }
 
 /* ───────── log ───────── */
@@ -439,6 +444,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 @keyframes loadbar { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
 
 /* background download of the realistic asset pack */
+/* the performance read-out (設定 → 效能資訊) */
+.perf-info {
+  position: absolute; left: max(8px, var(--safe-l)); top: 38%; z-index: 96; pointer-events: none; white-space: pre;
+  font: 11px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans TC", monospace; color: #e6efd9;
+  background: rgba(8, 12, 16, 0.78); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 6px; padding: 6px 9px;
+}
 .asset-chip {
   position: absolute; left: 50%; top: calc(var(--tb-h) + 10px + var(--safe-t)); transform: translateX(-50%); z-index: 6; pointer-events: none;
   display: flex; align-items: center; gap: 8px; padding: 5px 12px 6px; border-radius: 999px; overflow: hidden;

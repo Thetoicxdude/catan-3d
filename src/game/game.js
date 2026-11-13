@@ -201,6 +201,8 @@ export class Game {
     this.map.onHexHover = null;
     this.map.onFrame = null;
     this.hudRoot.remove();
+    // (nothing on the page keeps pointing at a finished campaign, and through it at its map)
+    if (typeof window !== 'undefined' && window.__game === this) window.__game = null;
   }
 
   view() {

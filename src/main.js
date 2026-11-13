@@ -99,14 +99,19 @@ function menuMaps() {
 }
 
 let settings = loadSettings();
-applyLook(settings);
 setSfx(settings.sound !== false);
 let map = null;
+applyLook(settings);
 let mapKey = '';
 let game = null;
 let menu = null;
 let previewSeed = randomSeed();
 let drift = null;
+// (the map view is told: a view cruising by itself is scenery, drawn at the idle rate)
+function setDrift(fn) {
+  drift = fn;
+  if (map) map.cruise = !!fn;
+}
 let session = null;
 let onlineScreen = null;
 
@@ -158,6 +163,7 @@ function buildMap(state, players, quality) {
   if (map) map.dispose();
   map = new MapView(mapEl, quality);
   map.build(state, players, quality);
+  map.setOptions({ fps: settings.fps, stats: settings.perfInfo });
   map.start();
   mapKey = key;
   return map;
@@ -192,13 +198,13 @@ async function showPreview(reroll) {
   map.camera.goalH = 100 * mk;
   let t = 0;
   // title screen: a slow orbit around the island at a low, cinematic angle
-  drift = (dt) => {
+  setDrift((dt) => {
     t += dt;
     map.camera.goal.set(mc.x + Math.sin(t * 0.05) * 12 * mk, 0, mc.z + 6 + Math.cos(t * 0.04) * 8 * mk);
     map.camera.goalH = (100 + Math.sin(t * 0.07) * 12) * mk;
     map.camera.goalYaw = t * 0.045;
     map.camera.goalPitch = 56;
-  };
+  });
   map.onFrame = (dt) => drift && drift(dt);
 }
 
@@ -245,9 +251,11 @@ function onSettingsChange(s) {
   applyLook(s);
 }
 
-// the interface's look: the clean one (theme2.css) or the classic bronze
+// the interface's look: the clean one (theme2.css) or the classic bronze; and how the map is drawn
+// (the frame rate, the performance read-out)
 function applyLook(s) {
   document.documentElement.classList.toggle('ui2', !!s && s.ui === 'clean');
+  if (map && s) map.setOptions({ fps: s.fps, stats: s.perfInfo });
 }
 
 function openMenu() {
@@ -401,7 +409,7 @@ async function editorPreview(def, area) {
     return;
   }
   loading(false);
-  drift = null;
+  setDrift(null);
   map.onFrame = null;
   map.setMapMode('terrain');
   map.frameLand(area, map.camera.fitIsland(1.12));
@@ -453,7 +461,7 @@ async function hostRoom(save) {
   }
   if (save) {
     // reopen the same room and resume; returning players reclaim their seats automatically
-    drift = null;
+    setDrift(null);
     loading(true, '重新開放房間');
     await nextFrame();
     const players = save.state.players.map((p) => ({ name: p.name, color: p.color, kind: p.kind, ai: p.ai }));
@@ -469,7 +477,7 @@ async function hostRoom(save) {
 }
 
 async function startOnlineHost(players, net, official = false) {
-  drift = null;
+  setDrift(null);
   loading(true, '佈置戰場');
   await nextFrame();
   // official rooms play the standard game (10 points, balanced numbers) on the island they listed
@@ -488,7 +496,7 @@ async function startOnlineHost(players, net, official = false) {
 
 // switched: this page hosted the campaign until now and plays on as a player (adopt: its old HUD)
 async function startClientGame(view, players, net, { adopt = null, switched = false } = {}) {
-  drift = null;
+  setDrift(null);
   if (!switched) {
     loading(true, '進入戰場');
     await nextFrame();
@@ -531,7 +539,7 @@ function becomeHost(t, from) {
     if (game === old) game = null;
   }
   closeMenus();
-  drift = null;
+  setDrift(null);
   const players = t.state.players.map((p) => ({ name: p.name, color: p.color, kind: p.kind, ai: p.ai }));
   buildMap(t.state, players, settings.quality);
   map.onFrame = null;
@@ -711,7 +719,7 @@ function hookGame() {
 }
 
 async function startGame(saved) {
-  drift = null;
+  setDrift(null);
   if (menu) {
     menu.close();
     menu = null;

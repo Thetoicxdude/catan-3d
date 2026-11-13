@@ -5,7 +5,7 @@
    map modes are smaller, and the orders float in a slim bar. Everything here is under html.ui2, so the
    classic look (theme.css) stays as it was when this is off. */
 html.ui2 {
-  --glass: rgba(11, 17, 23, 0.72);
+  --glass: rgba(11, 17, 23, 0.86);
   --glass-solid: rgba(12, 18, 24, 0.94);
   --hair: rgba(226, 199, 135, 0.3);
   --hair-hi: rgba(236, 210, 150, 0.75);
@@ -15,10 +15,10 @@ html.ui2 {
 }
 
 /* ── panels: glass, a thin line with meander corners ── */
+/* (no blur of the map behind them: the map is redrawn many times a second, and a blurred backdrop has
+   the graphics card blur it again for every panel each time) */
 html.ui2 .panel {
   background: var(--glass);
-  -webkit-backdrop-filter: blur(10px) saturate(1.15);
-  backdrop-filter: blur(10px) saturate(1.15);
   border: 12px solid transparent;
   border-image: var(--k-panel) 24 / 12px round;
   border-radius: 0;
@@ -123,7 +123,7 @@ html.ui2 .act.off { opacity: 0.32; }
 html.ui2 .act-sep { margin: 10px 3px; background: linear-gradient(180deg, transparent, rgba(226, 199, 135, 0.4), transparent); }
 
 /* ── map modes: a short column of round buttons, no box ── */
-html.ui2 .minimap { background: none; border: 0; border-image: none; box-shadow: none; padding: 0; width: auto; -webkit-backdrop-filter: none; backdrop-filter: none; bottom: calc(14px + var(--safe-b)); }
+html.ui2 .minimap { background: none; border: 0; border-image: none; box-shadow: none; padding: 0; width: auto; bottom: calc(14px + var(--safe-b)); }
 html.ui2 .minimap canvas { display: none; }
 html.ui2 .mapmodes { flex-direction: column; gap: 6px; }
 html.ui2 .mapmodes button {

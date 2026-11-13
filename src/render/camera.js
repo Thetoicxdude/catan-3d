@@ -36,6 +36,7 @@ export class StrategyCamera {
     this.moved = false;
     this.onClick = null;
     this.onHover = null;
+    this.onActivity = null; // the player is at the map (pointer, wheel, keys): the view draws at once
     this.pointers = new Map();
     this.pinch = null;
     this.bounds = { minX: -58, maxX: 58, minZ: -54, maxZ: 60 };
@@ -266,6 +267,8 @@ export class StrategyCamera {
 
   attach() {
     const c = this.canvas;
+    const active = () => this.onActivity && this.onActivity();
+    for (const ev of ['pointerdown', 'pointermove', 'wheel']) c.addEventListener(ev, active, { passive: true });
     c.addEventListener(
       'wheel',
       (e) => {
@@ -386,19 +389,35 @@ export class StrategyCamera {
     });
     c.addEventListener('contextmenu', (e) => e.preventDefault());
     const KEYS = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', '=', '+', '-', '_', 'q', 'e', 'z', 'x', 'pageup', 'pagedown'];
-    window.addEventListener('keydown', (e) => {
-      const t = e.target;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const k = e.key.toLowerCase();
-      if (k === 'home') {
-        this.resetView();
-        return;
-      }
-      if (KEYS.includes(k)) this.keys.add(k);
-    });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
-    window.addEventListener('blur', () => this.keys.clear());
+    // (the window's listeners are taken off again in dispose: left on, they kept every map ever
+    // built alive, its WebGL context and all it had on the graphics card included)
+    this.winHandlers = {
+      keydown: (e) => {
+        const t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        const k = (e.key || '').toLowerCase();
+        if (k === 'home') {
+          this.resetView();
+          active();
+          return;
+        }
+        if (KEYS.includes(k)) {
+          this.keys.add(k);
+          active();
+        }
+      },
+      keyup: (e) => this.keys.delete((e.key || '').toLowerCase()),
+      blur: () => this.keys.clear(),
+    };
+    for (const [ev, fn] of Object.entries(this.winHandlers)) window.addEventListener(ev, fn);
+  }
+
+  dispose() {
+    for (const [ev, fn] of Object.entries(this.winHandlers || {})) window.removeEventListener(ev, fn);
+    this.winHandlers = null;
+    this.onClick = this.onHover = this.onActivity = this.heightAt = null;
+    this.keys.clear();
   }
 
   update(dt) {

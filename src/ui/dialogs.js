@@ -538,6 +538,15 @@ export class Dialogs {
         ['medium', '中'],
         ['low', '低'],
       ]);
+      seg('幀率', 'fps', [
+        ['eco', '省電 30'],
+        ['std', '標準 60'],
+        ['max', '不限'],
+      ]);
+      seg('效能資訊', 'perfInfo', [
+        [false, '隱藏'],
+        [true, '顯示'],
+      ]);
       seg('音效', 'sound', [
         [true, '開'],
         [false, '關'],
@@ -547,7 +556,7 @@ export class Dialogs {
         ['clean', '清爽（試用）'],
       ]);
       body.appendChild(g);
-      body.appendChild(el('p', 'lead', '畫面品質會在下一局或重新載入地圖時套用。'));
+      body.appendChild(el('p', 'lead', '畫面品質會在下一局或重新載入地圖時套用。幀率是地圖在動（移動鏡頭、建造）時每秒畫幾次；靜止時只剩海浪和羊在動，會自動降到一半，視窗不在前景時更低，電腦比較不會熱。'));
     };
     render();
     return this.open({ kind: 'settings', title: '設定', body, cls: 'narrow' });

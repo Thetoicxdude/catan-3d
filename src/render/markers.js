@@ -130,6 +130,26 @@ export class Markers {
     this.pieces = pieces;
   }
 
+  // A dot and a ribbon that are never shown and never thrown away. The markers' own materials are
+  // disposed each time the markers are cleared, and three.js deletes a shader program with the last
+  // material that uses it: without these the two programs were compiled anew every time a place to
+  // build was offered. (The map view compiles them from here before the first is needed.)
+  prewarm() {
+    if (!this.keep) {
+      const g = new THREE.Group();
+      const hold = this.group;
+      this.group = g;
+      try {
+        this.sprite(textures().dot);
+        this.ribbon(0);
+      } finally {
+        this.group = hold;
+      }
+      this.keep = g;
+    }
+    return this.keep;
+  }
+
   sprite(tex, order = 40) {
     const m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false, toneMapped: false, fog: false });
     const s = new THREE.Sprite(m);

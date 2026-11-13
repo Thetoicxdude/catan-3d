@@ -186,6 +186,30 @@ float cobble(vec2 p) {
     this.dust = [];
   }
 
+  // One of everything a campaign puts on the map later (a settlement, a city, a road, a ship, their
+  // see-through previews, the dust of a building site), never shown: the map view compiles their
+  // shaders from it ahead of time (MapView.precompile), so the first settlement of a campaign doesn't
+  // stall the picture while its shader is built. `models`: the set they will be drawn with.
+  prewarm(models = this.models, sea = false) {
+    const g = new THREE.Group();
+    const keep = [this.models, this.streetMats];
+    this.models = models;
+    this.streetMats = [];
+    try {
+      const ghost = new THREE.MeshBasicMaterial({ color: this.players[0].color, transparent: true, opacity: 0.55, depthWrite: false });
+      g.add(this.makeBuilding(0, 0, 's'), this.makeBuilding(0, 0, 'c'), this.makeRoad(0, 0, 1));
+      g.add(this.makeBuilding(0, 0, 's', ghost), new THREE.Mesh(this.roadGeometry(0, this.players[0].color, 1), ghost));
+      const yard = this.makeYard(0, 's');
+      if (yard) g.add(yard);
+      if (sea) g.add(this.makeShip(0, 0), this.makeShip(0, 0, ghost));
+      const dust = new THREE.Mesh(new THREE.RingGeometry(0.6, 1.0, 8), new THREE.MeshBasicMaterial({ color: 0xf2e6c8, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+      g.add(dust);
+    } finally {
+      [this.models, this.streetMats] = keep;
+    }
+    return g;
+  }
+
   // the realistic models arrived: rebuild every piece on the map with them
   setModels(models) {
     this.models = models;

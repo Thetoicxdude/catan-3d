@@ -14,6 +14,7 @@ import { Markers } from './markers.js';
 import { Labels, screenWidth } from './labels.js';
 import { FogCover } from './fog.js';
 import { GLSL_NOISE } from './noise.js';
+import { fpsMode, refreshInterval, refreshesPerFrame, pixelRatioCap, Governor } from './pace.js';
 import { resCard, icon, RES_NAMES } from '../ui/icons.js';
 
 // Map labels are sized by the province under them, as it is on screen (seen at a slant, the far
@@ -46,6 +47,10 @@ const hiddenFog = (board) => GEO.hexes.filter((h) => board.hexes[h.id].terrain =
 const fogKey = (board) => (GEO.def.fog ? hiddenFog(board).join('.') : '');
 
 const SUN = new THREE.Vector3(-0.55, 0.78, 0.42).normalize();
+// (scratch vectors for the per-frame fits)
+const _fitV = new THREE.Vector3();
+const _fitA = new THREE.Vector3();
+const _fitB = new THREE.Vector3();
 const SKY_SRGB = new THREE.Color('#a9c2d2');
 // the same horizon colour in display (sRGB) values, for shaders that write their colour directly
 const HAZE = new THREE.Vector3(0xa9 / 255, 0xc2 / 255, 0xd2 / 255);
@@ -220,18 +225,111 @@ function skyEnvironment(renderer) {
   return rt.texture;
 }
 
+// How long the graphics card worked on a frame, where the browser can tell (Chromium on desktop):
+// one measurement at a time, read back a few frames later.
+class GpuTimer {
+  constructor(gl) {
+    this.gl = gl;
+    this.ext = typeof gl.createQuery === 'function' ? gl.getExtension('EXT_disjoint_timer_query_webgl2') : null;
+    this.open = null;
+    this.waiting = null;
+  }
+  begin() {
+    if (!this.ext || this.open || this.waiting) return;
+    this.open = this.gl.createQuery();
+    this.gl.beginQuery(this.ext.TIME_ELAPSED_EXT, this.open);
+  }
+  end(tag) {
+    if (!this.open) return;
+    this.gl.endQuery(this.ext.TIME_ELAPSED_EXT);
+    this.waiting = { q: this.open, tag };
+    this.open = null;
+  }
+  // → { ms, tag } once for each measurement that came back whole
+  poll() {
+    const w = this.waiting;
+    if (!w) return null;
+    const gl = this.gl;
+    if (!gl.getQueryParameter(w.q, gl.QUERY_RESULT_AVAILABLE)) return null;
+    const broken = gl.getParameter(this.ext.GPU_DISJOINT_EXT);
+    const ns = gl.getQueryParameter(w.q, gl.QUERY_RESULT);
+    gl.deleteQuery(w.q);
+    this.waiting = null;
+    return broken ? null : { ms: ns / 1e6, tag: w.tag };
+  }
+}
+
+// Let go of everything an object tree holds on the graphics card. three.js ties each geometry,
+// material and texture to the renderer that drew it with a "dispose" listener; scenery shared between
+// maps (the asset pack, materials kept by the scenery modules) would otherwise hold on to every
+// renderer that ever drew it.
+function disposeMaterial(m, seen) {
+  if (!m || seen.has(m)) return;
+  seen.add(m);
+  for (const v of Object.values(m)) if (v && v.isTexture) v.dispose();
+  if (m.uniforms)
+    for (const u of Object.values(m.uniforms)) {
+      const v = u && u.value;
+      if (v && v.isTexture) v.dispose();
+      else if (Array.isArray(v)) for (const t of v) if (t && t.isTexture) t.dispose();
+    }
+  m.dispose();
+}
+function disposeTree(root, seen = new Set()) {
+  root.traverse((o) => {
+    if (o.geometry && o.geometry.dispose && !seen.has(o.geometry)) {
+      seen.add(o.geometry);
+      o.geometry.dispose();
+    }
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) disposeMaterial(m, seen);
+    disposeMaterial(o.customDepthMaterial, seen);
+    disposeMaterial(o.customDistanceMaterial, seen);
+    if (o.isInstancedMesh) o.dispose();
+    if (o.isLight && o.shadow && o.shadow.dispose) o.shadow.dispose();
+  });
+}
+// (the asset pack: every texture, geometry and material in it, wherever it sits)
+function disposeShared(x, seen = new Set(), depth = 0) {
+  if (!x || typeof x !== 'object' || seen.has(x) || depth > 6) return;
+  seen.add(x);
+  if (x.isTexture || x.isBufferGeometry) {
+    x.dispose();
+    return;
+  }
+  if (x.isMaterial) {
+    seen.delete(x);
+    disposeMaterial(x, seen);
+    return;
+  }
+  if (x.isObject3D) {
+    disposeTree(x, seen);
+    return;
+  }
+  if (ArrayBuffer.isView(x) || x instanceof ArrayBuffer || (typeof ImageBitmap !== 'undefined' && x instanceof ImageBitmap)) return;
+  for (const v of Array.isArray(x) ? x : Object.values(x)) disposeShared(v, seen, depth + 1);
+}
+
 export class MapView {
   constructor(container, quality = 'high') {
     this.container = container;
+    this.quality = quality;
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'map-canvas';
     container.appendChild(this.canvas);
     // with post-processing (medium and high) SMAA smooths the edges, so the canvas itself needs no
     // multisampling; low quality draws straight to the canvas and keeps it
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: quality === 'low', powerPreference: 'high-performance' });
-    // resolution ceiling: full sharpness on strong graphics, one pixel per CSS pixel on integrated ones
-    this.dprCap = Math.min(window.devicePixelRatio || 1, quality === 'high' ? 1.75 : 1);
-    this.renderer.setPixelRatio(this.dprCap);
+    // (the resolution is set in resize(): the ceiling depends on the window's size, pace.js)
+    this.prCap = 1;
+    this.governor = new Governor();
+    this.gpu = new GpuTimer(this.renderer.getContext());
+    // frame pacing (start()) and what the performance read-out shows
+    this.fps = fpsMode('std');
+    this.busyUntil = 0;
+    this.attendedUntil = 0;
+    this.pace = { T: 1000 / 60, gaps: [], lastTick: 0, lastFrame: 0, count: 0 };
+    this.perf = { fps: 0, hz: 60, gpuMs: null, gpu: [], cpuMs: 0, calls: 0, tris: 0, frames: 0, cpu: 0, since: 0 };
+    this.renderer.info.autoReset = false; // (counted per frame, over all its passes)
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
@@ -253,12 +351,12 @@ export class MapView {
     this.markers = null;
     this.glows = [];
     this.running = false;
-    this.frameTimes = [];
     this.onHexHover = null;
     this.onFrame = null;
     this.shadowDirty = 3;
     this.camera.onClick = (x, y, button, type) => this.handleClick(x, y, button, type);
     this.camera.onHover = (x, y) => this.handleHover(x, y);
+    this.camera.onActivity = () => this.attend();
     this.coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(container);
@@ -269,6 +367,9 @@ export class MapView {
     const r = this.container.getBoundingClientRect();
     const w = Math.max(1, r.width);
     const h = Math.max(1, r.height);
+    this.size = { w, h };
+    this.prCap = pixelRatioCap(w, h, window.devicePixelRatio || 1, this.quality);
+    this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.setSize(w, h, false);
     if (this.post) this.post.setSize(w, h, this.renderer.getPixelRatio());
     this.canvas.style.width = w + 'px';
@@ -276,7 +377,66 @@ export class MapView {
     this.camera.setAspect(w / h);
     this.camera.setRect(r);
     this.labels.resize(w, h);
-    this.size = { w, h };
+    this.shadowSig = null; // (the view changed shape: the shadows are fitted to it again)
+    this.governor.hold(performance.now(), 1500);
+    this.poke();
+  }
+
+  // the resolution in use: the ceiling for this window and quality, less what the governor took off
+  pixelRatio() {
+    return Math.max(0.5, this.prCap * this.governor.scale);
+  }
+  applyPixelRatio() {
+    const pr = this.pixelRatio();
+    if (Math.abs(pr - this.renderer.getPixelRatio()) < 1e-3) return;
+    this.renderer.setPixelRatio(pr);
+    if (this.post) this.post.setSize(this.size.w, this.size.h, pr);
+  }
+
+  // Something on the map is changing: frames at the full rate from the next screen refresh, for a
+  // moment. (Nothing depends on this being called: without it a change shows one idle frame later.)
+  poke(ms = 250) {
+    const t = performance.now() + ms;
+    if (t > this.busyUntil) this.busyUntil = t;
+  }
+  // the player is at the map (pointer, wheel, keys), whether or not the window has the focus
+  attend() {
+    this.attendedUntil = performance.now() + 3000;
+  }
+
+  // the player's choices: fps ('eco' | 'std' | 'max', pace.js), stats (the performance read-out)
+  setOptions({ fps, stats } = {}) {
+    if (fps !== undefined) this.fps = fpsMode(fps);
+    if (stats !== undefined && !!stats !== !!this.statsEl) {
+      if (stats) {
+        this.statsEl = document.createElement('div');
+        this.statsEl.className = 'perf-info';
+        this.container.appendChild(this.statsEl);
+        this.perf.since = 0;
+      } else {
+        this.statsEl.remove();
+        this.statsEl = null;
+      }
+    }
+    this.poke();
+  }
+
+  // Compile the shaders of objects before their first frame, off the main thread where the browser
+  // can. The map is drawn into the post-processing chain's buffers, and three.js builds a different
+  // program for those than for the canvas, so one of them is bound meanwhile: otherwise the wrong
+  // programs are built and the right ones still compile on the first frame they are needed, in the
+  // middle of play (a hitch of a good part of a second on Windows, the first time each shader is met).
+  async precompile(obj, scene = this.scene) {
+    const r = this.renderer;
+    const prev = r.getRenderTarget();
+    try {
+      r.setRenderTarget(scene === this.scene && this.post ? this.post.target() : null);
+      const done = r.compileAsync(obj, this.camera.cam, scene);
+      r.setRenderTarget(prev);
+      await done;
+    } catch {
+      r.setRenderTarget(prev); // compiled on first draw instead
+    }
   }
 
   build(state, players, quality = 'high') {
@@ -373,6 +533,9 @@ export class MapView {
     this.camera.h = 150;
     this.camera.goalH = 112;
     this.shadowDirty = 3;
+    // the shaders of what the campaign will put on the map, built ahead of the first settlement
+    this.precompile(this.pieces.prewarm(this.models, !!(GEO.def.rules && GEO.def.rules.seafarers)));
+    this.precompile(this.markers.prewarm(), this.overlay);
   }
 
   // realistic asset pack: load in the background, then swap the procedural scenery for it
@@ -416,12 +579,8 @@ export class MapView {
     if (!this.flora || this.flora.real || this.applying) return;
     this.applying = true;
     const flora = buildFlora(...this.floraArgs, pack, SUN);
-    try {
-      // compile the new materials off the main thread where the browser allows it
-      await this.renderer.compileAsync(flora.group, this.camera.cam, this.scene);
-    } catch {
-      /* compiled on first draw instead */
-    }
+    // compile the new materials off the main thread where the browser allows it
+    await this.precompile(flora.group);
     if (this.disposed) {
       this.applying = false;
       return;
@@ -439,11 +598,9 @@ export class MapView {
     if (pack.models && pack.models.houses) {
       this.models = pack.models;
       const harbors = buildHarbors(this.floraArgs[1], this.terrain, this.models);
-      try {
-        await this.renderer.compileAsync(harbors.group, this.camera.cam, this.scene);
-      } catch {
-        /* compiled on first draw instead */
-      }
+      await this.precompile(harbors.group);
+      // (and the settlements, cities and streets as the models draw them)
+      await this.precompile(this.pieces.prewarm(this.models, !!(GEO.def.rules && GEO.def.rules.seafarers)));
       if (this.disposed) {
         this.applying = false;
         return;
@@ -458,6 +615,8 @@ export class MapView {
     }
     this.applying = false;
     this.shadowDirty = 3;
+    this.governor.hold(performance.now(), 3000);
+    this.poke(600);
     if (this.onAssets) this.onAssets(pack);
   }
 
@@ -505,8 +664,8 @@ export class MapView {
     if (!this.harborLabels) return;
     const cam = this.camera.cam;
     const { w, h } = this.size;
-    const a = new THREE.Vector3();
-    const b = new THREE.Vector3();
+    const a = _fitA;
+    const b = _fitB;
     for (const hl of this.harborLabels) {
       if (!hl.it.visible) continue;
       a.copy(hl.it.pos).project(cam);
@@ -560,6 +719,7 @@ export class MapView {
 
   // ── interaction ──
   setInteraction(spec) {
+    this.poke();
     this.interaction = spec;
     this.hoverId = null;
     this.markers.clear();
@@ -623,6 +783,7 @@ export class MapView {
 
   setHover(id) {
     if (id === this.hoverId) return;
+    this.poke();
     this.hoverId = id;
     const spec = this.interaction;
     if (!spec) return;
@@ -742,6 +903,7 @@ export class MapView {
 
   // ── state sync ──
   sync(state, events = [], animate = true) {
+    this.poke();
     // (fog) the board changed under the map: build it again first
     if (this.fog) {
       if (fogKey(state.board) !== this.fogKey) this.rebuildBoard(state);
@@ -783,6 +945,7 @@ export class MapView {
 
   showRobber(hex, animate) {
     if (this.robberShown === hex) return;
+    this.poke();
     this.robberShown = hex;
     for (const t of this.tokenLabels) {
       const el = t.it.el;
@@ -820,6 +983,7 @@ export class MapView {
   // production glow on the provinces that paid out (called once the dice have landed)
   // the building at vertex v hops (delay in milliseconds)
   bumpBuilding(v, delay = 0) {
+    this.poke(delay + 500);
     if (this.pieces) this.pieces.bump(v, delay / 1000);
   }
 
@@ -827,6 +991,7 @@ export class MapView {
     const hexes = [...new Set(ev.paid.map((c) => c.hex))];
     const all = GEO.hexes.filter((h) => this.terrainNumber(h.id) === ev.sum).map((h) => h.id);
     this.glows = all.slice(0, 2).map((id) => ({ id, t: 0 }));
+    this.poke();
     return hexes;
   }
 
@@ -851,10 +1016,12 @@ export class MapView {
 
   setMapMode(mode) {
     this.mode = mode;
+    this.poke();
   }
 
   focus(x, z, h = null) {
     this.camera.flyTo(x, z, h);
+    this.poke();
   }
 
   // the opening view: the middle of the land from distance h, drawn back and moved over when part of
@@ -886,18 +1053,46 @@ export class MapView {
     if (!this.camera.isVisible(h.x, h.z, 0.15)) this.focus(h.x, h.z);
   }
 
+  // The frames a second wanted right now (pace.js): the full rate while something changes, a low one
+  // when only the scenery is alive, lower still when the player is elsewhere.
+  wantFps(now) {
+    if (now < this.busyUntil) return this.fps.active;
+    return now < this.attendedUntil || document.hasFocus() ? this.fps.idle : this.fps.away;
+  }
+
+  // The loop is called at every screen refresh and draws at only some of them: a frame is held for a
+  // whole number of refreshes, so the ones that are drawn stay evenly spaced.
   start() {
     if (this.running) return;
     this.running = true;
     this.clock.start();
-    let last = 0;
+    this.governor.hold(performance.now(), 5000);
+    const P = this.pace;
     const loop = (now) => {
       if (!this.running) return;
       this.raf = requestAnimationFrame(loop);
-      const cap = window.__mapFps; // test hook: throttle rendering on software GL
-      if (cap && now - last < 1000 / cap) return;
-      last = now;
-      this.frame();
+      if (now == null) now = performance.now();
+      // the screen's refresh interval, from the gaps between these calls
+      if (P.lastTick) {
+        P.gaps.push(now - P.lastTick);
+        if (P.gaps.length >= 48) {
+          P.T = refreshInterval(P.gaps, P.T);
+          P.gaps.length = 0;
+        }
+      }
+      P.lastTick = now;
+      const test = window.__mapFps; // test hook: a fixed, low rate on software GL
+      const since = now - P.lastFrame;
+      let want;
+      if (test) {
+        if (since < 1000 / test) return;
+        want = 0;
+      } else {
+        want = refreshesPerFrame(P.T, this.wantFps(performance.now())) * P.T;
+        if (since < want - P.T * 0.5) return;
+      }
+      P.lastFrame = now;
+      this.frame(since, want);
     };
     loop();
   }
@@ -907,8 +1102,10 @@ export class MapView {
     cancelAnimationFrame(this.raf);
   }
 
-  frame() {
-    const dt = Math.min(0.05, this.clock.getDelta());
+  // gap: ms since the frame before; want: the ms between frames asked for (0: not paced, a test)
+  frame(gap = 0, want = 0) {
+    const cpu0 = performance.now();
+    const dt = Math.min(0.1, this.clock.getDelta());
     this.time += dt;
     const t = this.time;
     const camMoved = this.camera.update(dt);
@@ -916,6 +1113,8 @@ export class MapView {
     // extras (AO, SMAA, shadow refits, road and yard rebuilds), which come back once it settles
     if (camMoved) this.lastMoveAt = this.time;
     const moving = this.time - (this.lastMoveAt == null ? -1 : this.lastMoveAt) < 0.2;
+    // (a camera on a slow cruise of its own — the title screen — is scenery, not something happening)
+    let lively = camMoved && !this.cruise;
     const H = this.camera.h;
     const EQ = this.camera.equivH();
     const MS = this.camera.scale;
@@ -926,6 +1125,7 @@ export class MapView {
     // map-mode transitions
     for (const k of Object.keys(this.modeT)) {
       const goal = this.mode === k ? 1 : 0;
+      if (Math.abs(goal - this.modeT[k]) > 0.003) lively = true;
       this.modeT[k] += (goal - this.modeT[k]) * Math.min(1, dt * 7);
     }
     const U = this.terrain.uniforms;
@@ -979,7 +1179,11 @@ export class MapView {
 
     // the shadow map is cached; re-render it only when pieces change or animate, or when the
     // camera moves enough that the shadow frustum is refitted to the visible area
-    if (!moving) this.fitShadow();
+    // (the fit is looked at again only once the camera has moved since)
+    if (!moving && this.camera.sig !== this.shadowSig) {
+      this.shadowSig = this.camera.sig;
+      this.fitShadow();
+    }
     if (busy) this.shadowDirty = Math.max(this.shadowDirty, 1);
     if (this.shadowDirty > 0) {
       this.renderer.shadowMap.needsUpdate = true;
@@ -987,6 +1191,12 @@ export class MapView {
     }
     this.labels.update(this.camera.cam, H, dt, paper);
     this.updateHarborTails(H);
+    if (busy || this.glows.length || this.labels.floats.length || this.applying) lively = true;
+    if (lively) this.poke();
+
+    const info = this.renderer.info;
+    info.reset();
+    this.gpu.begin();
     if (this.post) {
       this.post.setZoom(paper, zoom01);
       this.post.setMotion(moving, dt);
@@ -995,22 +1205,59 @@ export class MapView {
     this.renderer.autoClear = false;
     this.renderer.render(this.overlay, this.camera.cam);
     this.renderer.autoClear = true;
+    this.gpu.end(want);
     if (this.onFrame) this.onFrame(dt, camMoved);
 
-    // adaptive resolution
-    this.frameTimes.push(dt);
-    if (this.frameTimes.length > 45) {
-      const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
-      this.frameTimes = [];
-      const pr = this.renderer.getPixelRatio();
-      let np = pr;
-      if (avg > 1 / 38 && pr > 0.8) np = Math.max(0.75, pr - 0.25);
-      else if (avg < 1 / 57 && pr < this.dprCap) np = Math.min(this.dprCap, pr + 0.25);
-      if (np !== pr) {
-        this.renderer.setPixelRatio(np);
-        if (this.post) this.post.setSize(this.size.w, this.size.h, np);
-      }
+    // the resolution governor: a card that can't keep the pace gets a smaller picture (pace.js)
+    const got = this.gpu.poll();
+    const pf = this.perf;
+    if (got) {
+      pf.gpu.push(got.ms);
+      if (pf.gpu.length > 15) pf.gpu.shift();
     }
+    if (want > 0) {
+      if (this.governor.frame({ now: cpu0, gap, want, gpuMs: got ? got.ms : null, gpuWant: got ? got.tag : 0 }) != null) this.applyPixelRatio();
+    }
+    // what the performance read-out shows (setOptions({ stats: true }))
+    pf.frames++;
+    pf.cpu += performance.now() - cpu0;
+    pf.calls = info.render.calls;
+    pf.tris = info.render.triangles;
+    if (cpu0 - pf.since > 500) {
+      if (pf.since) {
+        pf.fps = (pf.frames * 1000) / (cpu0 - pf.since);
+        pf.cpuMs = pf.cpu / pf.frames;
+      }
+      pf.hz = 1000 / this.pace.T;
+      // (the middle one of the last measurements: a frame that compiled a shader is not the rule)
+      pf.gpuMs = pf.gpu.length >= 3 ? pf.gpu.slice().sort((a, b) => a - b)[pf.gpu.length >> 1] : null;
+      pf.frames = 0;
+      pf.cpu = 0;
+      pf.since = cpu0;
+      if (this.statsEl) this.showStats(moving);
+    }
+  }
+
+  showStats(moving) {
+    const pf = this.perf;
+    const r = this.renderer;
+    const w = Math.round(this.size.w * r.getPixelRatio());
+    const h = Math.round(this.size.h * r.getPixelRatio());
+    if (this.gpuName === undefined) {
+      const gl = r.getContext();
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      this.gpuName = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)).replace(/^ANGLE \((.*)\)$/, '$1').split(',').slice(0, 2).join(',').replace(/\s*\(0x[0-9A-Fa-f]+\)|Direct3D.*$/g, '').trim() : '';
+    }
+    const load = pf.gpuMs != null ? Math.min(100, Math.round((pf.gpuMs * pf.fps) / 10)) : null;
+    const rows = [
+      `每秒 ${pf.fps.toFixed(0)} 幀（螢幕 ${pf.hz.toFixed(0)} Hz）`,
+      pf.gpuMs != null ? `顯示卡每幀 ${pf.gpuMs.toFixed(1)} ms，負載約 ${load}%` : '顯示卡時間：這個瀏覽器不提供',
+      `程式每幀 ${pf.cpuMs.toFixed(1)} ms`,
+      `繪製 ${w}×${h}（${Math.round(this.governor.scale * 100)}%）・${{ low: '低', medium: '中', high: '高' }[this.quality] || this.quality}畫質${moving ? '・移動中' : ''}`,
+      `${pf.calls} 次繪製・${(pf.tris / 1000).toFixed(0)}k 三角形`,
+    ];
+    if (this.gpuName) rows.push(this.gpuName);
+    this.statsEl.textContent = rows.join('\n');
   }
 
   // keep the sun's shadow map focused on what the camera sees: crisp shadows when zoomed in,
@@ -1019,7 +1266,7 @@ export class MapView {
     const sc = this.sun.shadow.camera;
     const inv = sc.matrixWorldInverse;
     const r = this.camera.screenRect();
-    const v = new THREE.Vector3();
+    const v = _fitV;
     const FULL = this.shadowFull;
     let x0 = Infinity;
     let x1 = -Infinity;
@@ -1089,8 +1336,8 @@ export class MapView {
   // nation names follow their territory's long axis as it appears on screen (rotation & tilt)
   alignNationLabels() {
     if (!this.nationLabels) return;
-    const a = new THREE.Vector3();
-    const b = new THREE.Vector3();
+    const a = _fitA;
+    const b = _fitB;
     const W = this.size.w;
     const Hh = this.size.h;
     for (const it of this.nationLabels) {
@@ -1109,14 +1356,32 @@ export class MapView {
     }
   }
 
+  // The map is done with (another island is built): everything it holds on the graphics card goes
+  // now. Left to the garbage collector it stayed — the camera's key listeners and the scenery shared
+  // between maps kept every old map and its WebGL context alive — and a few islands' worth of
+  // textures, shadow maps and frame buffers is more than a graphics card has.
   dispose() {
+    if (this.disposed) return;
     this.disposed = true;
-    if (this.fog) this.fog.dispose();
-    if (this.assetChip) this.assetChip.remove();
-    if (this.post) this.post.dispose();
     this.stop();
     this.resizeObs.disconnect();
-    this.renderer.dispose();
+    this.camera.dispose();
+    this.onFrame = this.onHexHover = this.onAssets = null;
+    if (this.fog) this.fog.dispose();
+    if (this.assetChip) this.assetChip.remove();
+    if (this.statsEl) this.statsEl.remove();
+    try {
+      const seen = new Set();
+      disposeTree(this.scene, seen);
+      disposeTree(this.overlay, seen);
+      if (this.scene.environment) this.scene.environment.dispose();
+      disposeShared(assetStatus.pack, seen);
+      if (this.post) this.post.dispose();
+      this.renderer.dispose();
+    } catch (e) {
+      console.warn('map disposal', e);
+    }
+    this.renderer.forceContextLoss();
     this.canvas.remove();
     this.labels.root.remove();
   }

@@ -62,6 +62,9 @@ export function defaultSettings() {
     speed: 'normal',
     // the interface: 'classic' (bronze frames) or 'clean' (theme2.css)
     ui: 'classic',
+    // how often the map is drawn (render/pace.js): 'eco' | 'std' | 'max'; perfInfo: the read-out
+    fps: 'std',
+    perfInfo: false,
     sound: true,
     quality: mobile || tier === 'low' ? 'low' : weak || tier === 'medium' ? 'medium' : 'high',
   };
@@ -116,6 +119,8 @@ export function fitSettings(s) {
   if (!DICE.includes(s.dice)) s.dice = 'random';
   if (!MIX.includes(s.mix)) s.mix = 'standard';
   if (s.ui !== 'clean') s.ui = 'classic';
+  if (!['eco', 'std', 'max'].includes(s.fps)) s.fps = 'std';
+  s.perfInfo = s.perfInfo === true;
   if (!Array.isArray(s.seats)) s.seats = [];
   for (let i = s.seats.length; i < 5; i++) {
     const used = new Set([s.name, ...s.seats.map((x) => x.name)]);
