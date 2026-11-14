@@ -4,16 +4,17 @@ import { aiAct } from './ai/ai.js';
 import { makeRng } from './engine/rng.js';
 import { MapView } from './render/scene.js';
 import { GEO } from './engine/geometry.js';
+import { tx, N_ } from './i18n/index.js';
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get('seed') || 4242);
 const turns = Number(params.get('turns') || 30);
 const quality = params.get('q') || 'high';
 const players = [
-  { name: '赤焰王國', color: '#c8372d', kind: 'ai', ai: { level: 'normal' } },
-  { name: '蒼藍聯邦', color: '#2f6fd0', kind: 'ai', ai: { level: 'normal' } },
-  { name: '琥珀公國', color: '#e8892b', kind: 'ai', ai: { level: 'normal' } },
-  { name: '碧海共和國', color: '#17a9bd', kind: 'ai', ai: { level: 'normal' } },
+  { name: tx(N_('赤焰王國')), color: '#c8372d', kind: 'ai', ai: { level: 'normal' } },
+  { name: tx(N_('蒼藍聯邦')), color: '#2f6fd0', kind: 'ai', ai: { level: 'normal' } },
+  { name: tx(N_('琥珀公國')), color: '#e8892b', kind: 'ai', ai: { level: 'normal' } },
+  { name: tx(N_('碧海共和國')), color: '#17a9bd', kind: 'ai', ai: { level: 'normal' } },
 ];
 const st = createGame({ seed, players });
 const rnd = makeRng(seed);

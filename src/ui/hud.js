@@ -22,16 +22,18 @@ import { Fx } from './fx.js';
 import { sfx } from './sfx.js';
 import { flagURL } from './flags.js';
 import { esc, cardsText } from './text.js';
+import { t, N_, cap, isZh } from '../i18n/index.js';
 
 const RES = ['wood', 'brick', 'wool', 'grain', 'ore'];
 const RES_HEX = { wood: '#2f6b2f', brick: '#b5532c', wool: '#8fcf4f', grain: '#e8c547', ore: '#8d8d96' };
 // what the build buttons build; their cost shows over the button on hover (long press on touch)
+// (name, fx and left are keys: read through t() when shown)
 const BUILD = {
-  road: { name: '道路', en: 'Road', fx: '連接你的村莊與城市。連續最長、至少 5 條的道路得 2 分。', cost: COSTS.road, piece: 'roads', unit: '條' },
-  settlement: { name: '村莊', en: 'Settlement', fx: '+1 勝利分數。相鄰地形擲出點數時產出 1 張資源。', cost: COSTS.settlement, piece: 'settlements', unit: '座' },
-  city: { name: '城市', en: 'City', fx: '由村莊升級：再 +1 勝利分數，產出加倍。', cost: COSTS.city, piece: 'cities', unit: '座' },
-  dev: { name: '發展卡', en: 'Development', fx: '抽 1 張：騎士、道路建設、豐收之年、壟斷或分數卡。', cost: COSTS.dev },
-  ship: { name: '船', en: 'Ship', fx: '在海上或海岸邊，接在你的船或海邊的村莊、城市旁。船隊能把村莊送到別的島。', cost: COSTS.ship, piece: 'ships', unit: '艘' },
+  road: { name: N_('道路'), en: 'Road', fx: N_('連接你的村莊與城市。連續最長、至少 5 條的道路得 2 分。'), cost: COSTS.road, piece: 'roads', left: N_('還剩 {n} 條') },
+  settlement: { name: N_('村莊'), en: 'Settlement', fx: N_('+1 勝利分數。相鄰地形擲出點數時產出 1 張資源。'), cost: COSTS.settlement, piece: 'settlements', left: N_('還剩 {n} 座村莊') },
+  city: { name: N_('城市'), en: 'City', fx: N_('由村莊升級：再 +1 勝利分數，產出加倍。'), cost: COSTS.city, piece: 'cities', left: N_('還剩 {n} 座城市') },
+  dev: { name: N_('發展卡'), en: 'Development', fx: N_('抽 1 張：騎士、道路建設、豐收之年、壟斷或分數卡。'), cost: COSTS.dev },
+  ship: { name: N_('船'), en: 'Ship', fx: N_('在海上或海岸邊，接在你的船或海邊的村莊、城市旁。船隊能把村莊送到別的島。'), cost: COSTS.ship, piece: 'ships', left: N_('還剩 {n} 艘') },
 };
 const TERRAIN_HEX = { forest: '#2f6b2f', hills: '#b5532c', pasture: '#8fcf4f', fields: '#e8c547', mountains: '#8d8d96', desert: '#d9c48e', gold: '#f0b62a', fog: '#7d8790' };
 // (the map table: washes of colour on the parchment, which shows through as the sea)
@@ -113,12 +115,12 @@ export class Hud {
       c.querySelector('.cnt').textContent = n;
       c.classList.toggle('low', n <= 3);
       c.classList.toggle('zero', n === 0);
-      c.title = `銀行：${RES_NAMES[res]} 剩 ${n} 張`;
+      c.title = t('銀行：{res} 剩 {n} 張', { res: RES_NAMES[res], n });
     }
     const d = this.bankCards.dev;
     d.querySelector('.cnt').textContent = this.bankShown.dev;
     d.classList.toggle('zero', this.bankShown.dev === 0);
-    d.title = `發展卡堆：剩 ${this.bankShown.dev} 張`;
+    d.title = t('發展卡堆：剩 {n} 張', { n: this.bankShown.dev });
   }
   // where cards for another nation go: its row in the outliner, or off the top of the screen
   nationPoint(p) {
@@ -153,21 +155,21 @@ export class Hud {
       <div class="tb-nation"><img class="flag" alt=""><div><div class="tb-name"></div><div class="tb-sub"></div></div></div>
       <div class="tb-res"></div>
       <div class="tb-stats">
-        <div class="stat cards" title="手牌總數">${icon('cards', 18)}<span class="n num">0</span></div>
-        <div class="stat devs" title="發展卡">${icon('dev', 18)}<span class="n num">0</span></div>
-        <div class="stat knights" title="已打出的騎士">${icon('knight', 18)}<span class="n num">0</span></div>
-        <div class="stat vp" title="勝利分數">${icon('vp', 20)}<span class="n num">0</span><small>/10</small></div>
+        <div class="stat cards" title="${t('手牌總數')}">${icon('cards', 18)}<span class="n num">0</span></div>
+        <div class="stat devs" title="${t('發展卡')}">${icon('dev', 18)}<span class="n num">0</span></div>
+        <div class="stat knights" title="${t('已打出的騎士')}">${icon('knight', 18)}<span class="n num">0</span></div>
+        <div class="stat vp" title="${t('勝利分數')}">${icon('vp', 20)}<span class="n num">0</span><small>/10</small></div>
       </div>
       <div class="tb-spacer"></div>
       <div class="tb-right">
-        <div class="turn-clock" hidden role="timer" title="這一步剩下的時間">${icon('hourglass', 18)}<b class="num">0:00</b></div>
-        <div class="turn-box desk-only"><div class="t1">回合</div><div class="t2"></div></div>
-        <div class="dice" title="上一次擲骰"></div>
-        <button class="btn ghost icon-btn mobile-only" data-k="nations" title="諸國" aria-label="諸國">${icon('people', 20)}</button>
-        <button class="btn ghost icon-btn mobile-only" data-k="log" title="記錄" aria-label="記錄">${icon('log', 20)}</button>
-        <button class="btn ghost icon-btn" data-k="rules" title="規則" aria-label="規則">${icon('rules', 20)}</button>
-        <button class="btn ghost icon-btn" data-k="settings" title="設定" aria-label="設定">${icon('gear', 20)}</button>
-        <button class="btn ghost icon-btn" data-k="menu" title="主選單" aria-label="主選單">${icon('menu', 20)}</button>
+        <div class="turn-clock" hidden role="timer" title="${t('這一步剩下的時間')}">${icon('hourglass', 18)}<b class="num">0:00</b></div>
+        <div class="turn-box desk-only"><div class="t1">${t('回合')}</div><div class="t2"></div></div>
+        <div class="dice" title="${t('上一次擲骰')}"></div>
+        <button class="btn ghost icon-btn mobile-only" data-k="nations" title="${t('諸國')}" aria-label="${t('諸國')}">${icon('people', 20)}</button>
+        <button class="btn ghost icon-btn mobile-only" data-k="log" title="${t('記錄')}" aria-label="${t('記錄')}">${icon('log', 20)}</button>
+        <button class="btn ghost icon-btn" data-k="rules" title="${t('規則')}" aria-label="${t('規則')}">${icon('rules', 20)}</button>
+        <button class="btn ghost icon-btn" data-k="settings" title="${t('設定')}" aria-label="${t('設定')}">${icon('gear', 20)}</button>
+        <button class="btn ghost icon-btn" data-k="menu" title="${t('主選單')}" aria-label="${t('主選單')}">${icon('menu', 20)}</button>
       </div>`;
     r.appendChild(this.top);
     if (typeof ResizeObserver === 'function') {
@@ -209,7 +211,7 @@ export class Hud {
     if (window.innerWidth <= 900) this.outliner.classList.add('closed');
     // the bank on top: what is left of each resource and of the development deck
     this.bankEl = el('div', 'bank');
-    this.bankEl.innerHTML = `<div class="ol-head"><span>銀行</span><small>BANK</small></div><div class="bk-row"></div>`;
+    this.bankEl.innerHTML = `<div class="ol-head"><span>${t('銀行')}</span><small>BANK</small></div><div class="bk-row"></div>`;
     const bkRow = this.bankEl.querySelector('.bk-row');
     this.bankCards = {};
     for (const res of RES) {
@@ -229,11 +231,12 @@ export class Hud {
     // log
     // the battle log; in online games a second tab holds the room's chat
     this.logEl = el('section', 'log panel');
-    this.logEl.innerHTML = `<div class="log-head"><div class="log-tabs" role="tablist"><button type="button" role="tab" class="on" data-tab="log" aria-selected="true">戰報</button><button type="button" role="tab" data-tab="chat" aria-selected="false" hidden>聊天<i class="dot" hidden></i></button></div><button class="btn ghost icon-btn log-fold" type="button" aria-label="收合">−</button></div><div class="log-body" aria-live="polite"></div><div class="chat-body" hidden><div class="chat-list" aria-live="polite"></div><form class="chat-form" autocomplete="off"><input type="text" maxlength="80" placeholder="輸入訊息，按 Enter 送出" aria-label="聊天訊息" enterkeyhint="send"><button type="submit" class="btn primary">送出</button></form></div>`;
+    this.logEl.innerHTML = `<div class="log-head"><div class="log-tabs" role="tablist"><button type="button" role="tab" class="on" data-tab="log" aria-selected="true">${t('戰報')}</button><button type="button" role="tab" data-tab="chat" aria-selected="false" hidden>${t('聊天')}<i class="dot" hidden></i></button></div><button class="btn ghost icon-btn log-fold" type="button" aria-label="${t('收合')}">−</button></div><div class="log-body" aria-live="polite"></div><div class="chat-body" hidden><div class="chat-list" aria-live="polite"></div><form class="chat-form" autocomplete="off"><input type="text" maxlength="80" placeholder="${t('輸入訊息，按 Enter 送出')}" aria-label="${t('聊天訊息')}" enterkeyhint="send"><button type="submit" class="btn primary">${t('送出')}</button></form></div>`;
     if (window.innerWidth <= 900) this.logEl.classList.add('collapsed');
     this.logBody = this.logEl.querySelector('.log-body');
     this.chatBody = this.logEl.querySelector('.chat-body');
     this.chatList = this.logEl.querySelector('.chat-list');
+    this.chatList.dataset.empty = t('對所有玩家說話。訊息只會出現在這場戰役裡。');
     this.chatTab = this.logEl.querySelector('[data-tab="chat"]');
     this.logEl.querySelector('.log-fold').addEventListener('click', () => this.logEl.classList.toggle('collapsed'));
     this.logEl.querySelectorAll('.log-tabs [data-tab]').forEach((b) => b.addEventListener('click', () => this.showTab(b.dataset.tab)));
@@ -242,20 +245,20 @@ export class Hud {
     // action bar
     this.bar = el('nav', 'actionbar panel');
     const acts = [
-      ['roll', 'dice', '擲骰', 'R'],
+      ['roll', 'dice', t('擲骰'), 'R'],
       ['sep'],
-      ['road', 'road', '道路', '1', COSTS.road],
-      ['settlement', 'settlement', '村莊', '2', COSTS.settlement],
-      ['city', 'city', '城市', '3', COSTS.city],
-      ['dev', 'devbuy', '發展卡', '4', COSTS.dev],
+      ['road', 'road', t('道路'), '1', COSTS.road],
+      ['settlement', 'settlement', t('村莊'), '2', COSTS.settlement],
+      ['city', 'city', t('城市'), '3', COSTS.city],
+      ['dev', 'devbuy', t('發展卡§bar'), '4', COSTS.dev],
       // (Seafarers; shown only on maps with the sea)
-      ['ship', 'ship', '船', '5', COSTS.ship],
-      ['moveShip', 'moveShip', '移船', '6'],
+      ['ship', 'ship', t('船'), '5', COSTS.ship],
+      ['moveShip', 'moveShip', t('移船'), '6'],
       ['sep'],
-      ['trade', 'trade', '交易', 'T'],
-      ['cards', 'cards', '手中卡牌', 'C'],
+      ['trade', 'trade', t('交易'), 'T'],
+      ['cards', 'cards', t('手中卡牌'), 'C'],
       ['sep'],
-      ['end', 'end', '結束回合', '␣'],
+      ['end', 'end', t('結束回合'), '␣'],
     ];
     this.btns = {};
     for (const a of acts) {
@@ -266,11 +269,13 @@ export class Hud {
       const [k, ic, label, key, cost] = a;
       const b = el('button', 'act');
       b.type = 'button';
-      b.innerHTML = `<span class="key">${key}</span>${icon(ic, 28)}<span class="lbl">${label}</span>`;
-      if (cost) b.setAttribute('aria-label', `${label}（${Object.entries(cost).map(([res, n]) => RES_NAMES[res] + (n > 1 ? '×' + n : '')).join('＋')}）`);
+      // (a shorter name for a phone's narrow buttons: the same in Chinese; lang-en.css)
+      const short = { settlement: t('村莊§short'), dev: t('發展卡§short'), moveShip: t('移船§short'), end: t('結束回合§short') }[k] || label;
+      b.innerHTML = `<span class="key">${key}</span>${icon(ic, 28)}<span class="lbl"><span class="l">${label}</span><span class="s" aria-hidden="true">${short}</span></span>`;
+      if (cost) b.setAttribute('aria-label', t('{label}（{cost}）', { label, cost: Object.entries(cost).map(([res, n]) => RES_NAMES[res] + (n > 1 ? '×' + n : '')).join(t('＋')) }));
       // unavailable actions stay clickable so they can explain why they are unavailable
       b.addEventListener('click', () => {
-        if (b.classList.contains('off')) this.flashHint(b.dataset.why || '現在不能這樣做');
+        if (b.classList.contains('off')) this.flashHint(b.dataset.why || t('現在不能這樣做'));
         else this.h.button(k);
       });
       this.bar.appendChild(b);
@@ -285,7 +290,7 @@ export class Hud {
 
     // minimap + map modes (the camera turns and tilts with the mouse and keys: right-drag, Q/E, Z/X, Home)
     this.mini = el('div', 'minimap panel');
-    this.mini.innerHTML = `<canvas width="368" height="300" aria-label="小地圖"></canvas><div class="mapmodes"></div>`;
+    this.mini.innerHTML = `<canvas width="368" height="300" aria-label="${t('小地圖')}"></canvas><div class="mapmodes"></div>`;
     this.miniCanvas = this.mini.querySelector('canvas');
     // (whether the minimap is on screen, kept up to date by the browser: read from the layout in the
     // middle of a map frame, it made the page work out its styles and layout again there and then)
@@ -305,16 +310,16 @@ export class Hud {
     });
     const modes = this.mini.querySelector('.mapmodes');
     this.modeBtns = {};
-    for (const [k, ic, t] of [
-      ['terrain', 'terrain', '地形（M）'],
-      ['political', 'political', '政治：國家領土'],
-      ['production', 'production', '產量：擲出機率'],
-      ['resource', 'resources', '資源種類'],
+    for (const [k, ic, tip] of [
+      ['terrain', 'terrain', t('地形（M）')],
+      ['political', 'political', t('政治：國家領土')],
+      ['production', 'production', t('產量：擲出機率')],
+      ['resource', 'resources', t('資源種類')],
     ]) {
       const b = el('button', k === 'terrain' ? 'on' : '');
       b.type = 'button';
-      b.title = t;
-      b.setAttribute('aria-label', t);
+      b.title = tip;
+      b.setAttribute('aria-label', tip);
       b.innerHTML = icon(ic, 18);
       b.addEventListener('click', () => this.h.mapMode(k));
       modes.appendChild(b);
@@ -354,8 +359,8 @@ export class Hud {
       this.top.querySelector('.tb-right').prepend(this.netChip);
     }
     const n = net.peersOnline ? net.peersOnline() : null;
-    this.netChip.innerHTML = `<i></i><span class="tx">線上 · </span>${esc(String(net.code || '').toUpperCase())}<span class="tx">${n ? ` · ${n} 人` : ''}</span>`;
-    this.netChip.title = net.role === 'host' ? '你是主持人：規則判定與電腦玩家都在你的頁面上運行' : '已連線到主持人';
+    this.netChip.innerHTML = `<i></i><span class="tx">${t('線上 ·')} </span>${esc(String(net.code || '').toUpperCase())}<span class="tx">${n ? ' · ' + t('{n} 人', { n }) : ''}</span>`;
+    this.netChip.title = net.role === 'host' ? t('你是主持人：規則判定與電腦玩家都在你的頁面上運行') : t('已連線到主持人');
   }
 
   setHint(h) {
@@ -403,13 +408,13 @@ export class Hud {
     if (img.src !== url) img.src = url;
     this.top.querySelector('.tb-name').textContent = pl.name;
     const sub = this.top.querySelector('.tb-sub');
-    if (v.phase === 'setup') sub.innerHTML = '開局佈置';
-    else if (v.phase === 'over') sub.innerHTML = '戰役結束';
+    if (v.phase === 'setup') sub.innerHTML = t('開局佈置');
+    else if (v.phase === 'over') sub.innerHTML = t('戰役結束');
     else if (v.sub) {
       // 5–6 players: the part of the turn after the main player's
-      const who = v.current === me ? '<b>你</b>' : esc(players[v.current].name);
-      sub.innerHTML = v.sub.k === 'pair' ? `${who}（第二位）` : `特別建造：${who}`;
-    } else sub.innerHTML = v.current === me ? '<b>你的回合</b>' : `${esc(players[v.current].name)} 的回合`;
+      const who = v.current === me ? t('<b>你</b>') : esc(players[v.current].name);
+      sub.innerHTML = cap(v.sub.k === 'pair' ? t('{who}（第二位）', { who }) : t('特別建造：{who}', { who }));
+    } else sub.innerHTML = v.current === me ? t('<b>你的回合</b>') : t('{who} 的回合', { who: esc(players[v.current].name) });
 
     // resources
     if (viewer && viewer.res) {
@@ -421,8 +426,8 @@ export class Hud {
         const disp = Math.max(0, n - this.pending[res]);
         c.querySelector('.n').textContent = disp;
         c.classList.toggle('zero', disp === 0);
-        c.setAttribute('aria-label', `${RES_NAMES[res]} ${disp} 張`);
-        c.title = `${RES_NAMES[res]}：${n} 張 · 產量 ${rates[res]}/36（每次擲骰平均 ${(rates[res] / 36).toFixed(2)} 張）· 銀行剩 ${v.bank[res]}`;
+        c.setAttribute('aria-label', t('{res} {n} 張', { res: RES_NAMES[res], n: disp }));
+        c.title = t('{res}：{n} 張 · 產量 {rate}/36（每次擲骰平均 {avg} 張）· 銀行剩 {bank}', { res: RES_NAMES[res], n, rate: rates[res], avg: (rates[res] / 36).toFixed(2), bank: v.bank[res] });
         // gains arriving as flying cards bump on landing instead
         if (this.prevRes && this.prevRes[res] !== n && !(n > this.prevRes[res] && this.pending[res] > 0)) {
           c.classList.remove('flash', 'drain');
@@ -438,7 +443,7 @@ export class Hud {
       this.top.querySelector('.stat.vp .n').textContent = vp;
       this.top.querySelector('.stat.vp small').textContent = '/' + v.targetVP;
     }
-    this.top.querySelector('.turn-box .t2').textContent = v.phase === 'setup' ? '開局' : `第 ${v.turn} 回合`;
+    this.top.querySelector('.turn-box .t2').textContent = v.phase === 'setup' ? t('開局') : t('第 {n} 回合§box', { n: v.turn });
 
     // dice
     const dice = this.top.querySelector('.dice');
@@ -483,28 +488,28 @@ export class Hud {
         const P = players[p.id];
         const isMe = p.id === me;
         const vp = publicVP(v, p.id) + ((isMe || v.phase === 'over') && p.dev ? p.dev.filter((c) => c.type === 'victoryPoint').length : 0);
-        const kind = P.away ? '電腦代管' : P.kind === 'ai' ? `電腦·${{ easy: '簡單', normal: '普通', hard: '困難' }[P.ai.level] || '普通'}` : isMe ? '你' : P.kind === 'remote' ? '線上玩家' : ctx.online ? '主持人' : '玩家';
+        const kind = P.away ? t('電腦代管') : P.kind === 'ai' ? { easy: t('電腦·簡單§short'), normal: t('電腦·普通§short'), hard: t('電腦·困難§short') }[P.ai.level] || t('電腦·普通§short') : isMe ? t('你§label') : P.kind === 'remote' ? t('線上玩家') : ctx.online ? t('主持人') : t('玩家');
         const badges = [];
-        if (v.longestRoad === p.id) badges.push(v.ships ? `<span class="badge" title="最長貿易路線（道路與船）+2">${icon('road2', 12)}貿易路線</span>` : `<span class="badge" title="最長道路 +2">${icon('road2', 12)}最長道路</span>`);
-        if (p.chits) badges.push(`<span class="badge" title="新島嶼的第一座村莊 +${GEO.def.isleBonus || 2}">${icon('isle', 12)}島嶼 +${p.chits}</span>`);
-        if (v.largestArmy === p.id) badges.push(`<span class="badge" title="最大騎士團 +2">${icon('knight', 12)}騎士團</span>`);
-        const thinking = ctx.thinking === p.id ? `<span class="thinking"><span class="spinner"></span>思考中</span>` : '';
+        if (v.longestRoad === p.id) badges.push(v.ships ? `<span class="badge" title="${t('最長貿易路線（道路與船）+2')}">${icon('road2', 12)}${t('貿易路線')}</span>` : `<span class="badge" title="${t('最長道路 +2')}">${icon('road2', 12)}${t('最長道路')}</span>`);
+        if (p.chits) badges.push(`<span class="badge" title="${t('新島嶼的第一座村莊 +{n}', { n: GEO.def.isleBonus || 2 })}">${icon('isle', 12)}${t('島嶼 +{n}', { n: p.chits })}</span>`);
+        if (v.largestArmy === p.id) badges.push(`<span class="badge" title="${t('最大騎士團 +2')}">${icon('knight', 12)}${t('騎士團')}</span>`);
+        const thinking = ctx.thinking === p.id ? `<span class="thinking"><span class="spinner"></span>${t('思考中')}</span>` : '';
         const lead = v.sub && v.sub.lead === p.id && v.phase !== 'over';
         return `<div class="nation${v.current === p.id && v.phase !== 'over' ? ' current' : ''}${lead ? ' lead' : ''}" data-p="${p.id}" style="--pc:${P.color}">
           <img class="flag" alt="" src="${flagURL(P.color, p.id)}">
           <div class="nm" style="color:${P.color}">${esc(P.name)}<em>${kind}</em></div>
-          <div class="vp" title="${isMe ? '你的分數（含分數卡）' : '公開分數'}"><b class="num">${vp}</b><span>分</span></div>
+          <div class="vp" title="${isMe ? t('你的分數（含分數卡）') : t('公開分數')}"><b class="num">${vp}</b><span>${t('分')}</span></div>
           <div class="meta">
-            <span title="手牌">${icon('cards', 14)}<b>${p.resCount}</b></span>
-            <span title="發展卡">${icon('dev', 14)}<b>${p.devCount}</b></span>
-            <span title="打出的騎士">${icon('knight', 14)}<b>${p.knights}</b></span>
-            <span title="最長道路長度">${icon('road2', 14)}<b>${v.roadLen[p.id]}</b></span>
+            <span title="${t('手牌')}">${icon('cards', 14)}<b>${p.resCount}</b></span>
+            <span title="${t('發展卡')}">${icon('dev', 14)}<b>${p.devCount}</b></span>
+            <span title="${t('打出的騎士')}">${icon('knight', 14)}<b>${p.knights}</b></span>
+            <span title="${t('最長道路長度')}">${icon('road2', 14)}<b>${v.roadLen[p.id]}</b></span>
             ${badges.join('')}
           </div>${thinking}
         </div>`;
       })
       .join('');
-    this.olBody.innerHTML = `<div class="ol-head"><span>諸國</span></div>${rows}`;
+    this.olBody.innerHTML = `<div class="ol-head"><span>${t('諸國')}</span></div>${rows}`;
     // five or six nations: tighter rows (and the list scrolls when the screen is short)
     this.outliner.classList.toggle('many', v.players.length > 4);
     this.bankShown = { ...v.bank, dev: v.devDeckCount };
@@ -520,7 +525,7 @@ export class Hud {
       const b = this.btns[k];
       b.classList.toggle('off', !enabled);
       b.setAttribute('aria-disabled', enabled ? 'false' : 'true');
-      b.dataset.why = enabled ? '' : title || '現在不能這樣做';
+      b.dataset.why = enabled ? '' : title || t('現在不能這樣做');
       if (BUILD[k]) b.removeAttribute('title');
       else b.title = title || '';
       b.classList.toggle('on', !!extra.on);
@@ -535,22 +540,22 @@ export class Hud {
     const needRoll = myTurn && !v.rolled && !v.pending;
     const pendingWhy = () => {
       const pd = v.pending;
-      if (!pd) return v.trade && v.trade.from !== me ? '請先回覆交易提議' : '';
-      if (pd.type === 'discard') return pd.amounts[me] !== undefined ? `請先棄掉 ${pd.amounts[me]} 張牌` : '等待其他國家棄牌';
-      if (pd.type === 'robber') return v.current === me ? '請先移動強盜：點選地圖上有白色圓圈的地形' : '等待對手移動強盜';
-      if (pd.type === 'steal') return '請先選擇要搶奪的國家';
-      if (pd.type === 'roadBuilding') return '請先放置免費道路（或按上方的「不用了」）';
-      return '請先完成目前的動作';
+      if (!pd) return v.trade && v.trade.from !== me ? t('請先回覆交易提議') : '';
+      if (pd.type === 'discard') return pd.amounts[me] !== undefined ? t('請先棄掉 {n} 張牌', { n: pd.amounts[me] }) : t('等待其他國家棄牌');
+      if (pd.type === 'robber') return v.current === me ? t('請先移動強盜：點選地圖上有白色圓圈的地形') : t('等待對手移動強盜');
+      if (pd.type === 'steal') return t('請先選擇要搶奪的國家');
+      if (pd.type === 'roadBuilding') return t('請先放置免費道路（或按上方的「不用了」）');
+      return t('請先完成目前的動作');
     };
-    const turnWhy = () => (!pl ? '你正在觀戰' : v.phase === 'setup' ? '開局佈置中' : v.phase === 'over' ? '遊戲已結束' : ctx.locked ? '正在等待回應' : '還沒輪到你');
-    set('roll', free && !v.rolled, needRoll ? '擲骰（R）' : !myTurn ? turnWhy() : v.pending || v.trade ? pendingWhy() : '本回合已經擲過骰子', { primary: needRoll, glow: needRoll && !ctx.mode });
-    const why = (cost, legalCount, pieces, label) => {
+    const turnWhy = () => (!pl ? t('你正在觀戰') : v.phase === 'setup' ? t('開局佈置中') : v.phase === 'over' ? t('遊戲已結束') : ctx.locked ? t('正在等待回應') : t('還沒輪到你'));
+    set('roll', free && !v.rolled, needRoll ? t('擲骰（R）') : !myTurn ? turnWhy() : v.pending || v.trade ? pendingWhy() : t('本回合已經擲過骰子'), { primary: needRoll, glow: needRoll && !ctx.mode });
+    const why = (cost, legalCount, pieces, usedUp) => {
       if (!myTurn) return turnWhy();
-      if (v.pending || v.trade) return pendingWhy() || '請先完成目前的動作';
-      if (!v.rolled) return '請先擲骰';
-      if (pieces === 0) return `${label}已經用完了`;
-      if (!canAfford(pl.res, cost)) return '資源不足：還缺 ' + cardsText(missingFor(pl.res, cost).missing);
-      if (legalCount === 0) return '目前沒有可以建造的位置';
+      if (v.pending || v.trade) return pendingWhy() || t('請先完成目前的動作');
+      if (!v.rolled) return t('請先擲骰');
+      if (pieces === 0) return usedUp;
+      if (!canAfford(pl.res, cost)) return t('資源不足：還缺 ') + cardsText(missingFor(pl.res, cost).missing);
+      if (legalCount === 0) return t('目前沒有可以建造的位置');
       return '';
     };
     const roads = free && v.rolled ? legalRoadEdges(v, me).length : 0;
@@ -560,10 +565,10 @@ export class Hud {
     const okSet = free && v.rolled && pl.pieces.settlements > 0 && canAfford(pl.res, COSTS.settlement) && setts > 0;
     const okCity = free && v.rolled && pl.pieces.cities > 0 && canAfford(pl.res, COSTS.city) && cities > 0;
     const okDev = free && v.rolled && canAfford(pl.res, COSTS.dev) && v.devDeckCount > 0;
-    set('road', okRoad, okRoad ? '建造道路（1）：木材＋磚塊' : why(COSTS.road, roads, pl ? pl.pieces.roads : 1, '道路'), { on: ctx.mode === 'road' });
-    set('settlement', okSet, okSet ? '建造村莊（2）：木材＋磚塊＋羊毛＋小麥' : why(COSTS.settlement, setts, pl ? pl.pieces.settlements : 1, '村莊'), { on: ctx.mode === 'settlement' });
-    set('city', okCity, okCity ? '升級城市（3）：小麥×2＋礦石×3' : why(COSTS.city, cities, pl ? pl.pieces.cities : 1, '城市'), { on: ctx.mode === 'city' });
-    set('dev', okDev, okDev ? '購買發展卡（4）：羊毛＋小麥＋礦石' : v.devDeckCount === 0 ? '發展卡已賣完' : why(COSTS.dev, 1, 1, '發展卡'));
+    set('road', okRoad, okRoad ? t('建造道路（1）：木材＋磚塊') : why(COSTS.road, roads, pl ? pl.pieces.roads : 1, t('道路已經用完了')), { on: ctx.mode === 'road' });
+    set('settlement', okSet, okSet ? t('建造村莊（2）：木材＋磚塊＋羊毛＋小麥') : why(COSTS.settlement, setts, pl ? pl.pieces.settlements : 1, t('村莊已經用完了（可先升級城市）')), { on: ctx.mode === 'settlement' });
+    set('city', okCity, okCity ? t('升級城市（3）：小麥×2＋礦石×3') : why(COSTS.city, cities, pl ? pl.pieces.cities : 1, t('城市已經用完了')), { on: ctx.mode === 'city' });
+    set('dev', okDev, okDev ? t('購買發展卡（4）：羊毛＋小麥＋礦石') : v.devDeckCount === 0 ? t('發展卡已賣完') : why(COSTS.dev, 1, 1, ''));
     // (Seafarers) build a ship, move one
     const seafaring = !!v.ships;
     this.btns.ship.hidden = !seafaring;
@@ -571,19 +576,19 @@ export class Hud {
     if (seafaring) {
       const ships = free && v.rolled ? legalShips(v, me).length : 0;
       const okShip = free && v.rolled && pl.pieces.ships > 0 && canAfford(pl.res, COSTS.ship) && ships > 0;
-      set('ship', okShip, okShip ? '建造船（5）：木材＋羊毛' : why(COSTS.ship, ships, pl ? pl.pieces.ships : 1, '船'), { on: ctx.mode === 'ship' });
+      set('ship', okShip, okShip ? t('建造船（5）：木材＋羊毛') : why(COSTS.ship, ships, pl ? pl.pieces.ships : 1, t('船已經用完了')), { on: ctx.mode === 'ship' });
       const movable = free && v.rolled && !v.shipMoved && !(v.sub && v.sub.k === 'sbp') ? movableShips(v, me).filter((e) => shipTargets(v, me, e).length).length : 0;
-      set('moveShip', movable > 0, movable ? '移動一艘船（6）：航線末端、之前回合建造的船，每回合一次' : !myTurn ? turnWhy() : v.pending || v.trade ? pendingWhy() : !v.rolled ? '請先擲骰' : v.shipMoved ? '這回合已經移過船了' : '沒有可以移動的船（只能移動航線末端、之前回合建造、不在海盜旁的船）', { on: ctx.mode === 'moveShip' || ctx.mode === 'moveShipTo' });
+      set('moveShip', movable > 0, movable ? t('移動一艘船（6）：航線末端、之前回合建造的船，每回合一次') : !myTurn ? turnWhy() : v.pending || v.trade ? pendingWhy() : !v.rolled ? t('請先擲骰') : v.shipMoved ? t('這回合已經移過船了') : t('沒有可以移動的船（只能移動航線末端、之前回合建造、不在海盜旁的船）'), { on: ctx.mode === 'moveShip' || ctx.mode === 'moveShipTo' });
     }
     // 5–6 players: the special building phase allows no trading at all; the second player of a paired
     // turn trades with the bank only (the trade dialog shows just that)
     const sbp = !!v.sub && v.sub.k === 'sbp';
     const canTrade = myTurn && v.rolled && !v.pending && !sbp;
-    set('trade', canTrade, canTrade ? (v.sub ? '海上貿易（T）：第二位只能和銀行交易' : '交易（T）') : !myTurn ? turnWhy() : v.pending ? pendingWhy() : sbp ? '特別建造階段不能交易' : '擲骰後才能交易', { on: !!(v.trade && v.trade.from === me) });
+    set('trade', canTrade, canTrade ? (v.sub ? t('海上貿易（T）：第二位只能和銀行交易') : t('交易（T）')) : !myTurn ? turnWhy() : v.pending ? pendingWhy() : sbp ? t('特別建造階段不能交易') : t('擲骰後才能交易'), { on: !!(v.trade && v.trade.from === me) });
     const playable = pl ? playableDev(v, me).length : 0;
-    set('cards', !!pl, '手中的發展卡（C）', { count: pl && pl.dev && pl.dev.length ? pl.dev.length : null, on: playable > 0 && myTurn });
+    set('cards', !!pl, t('手中的發展卡（C）'), { count: pl && pl.dev && pl.dev.length ? pl.dev.length : null, on: playable > 0 && myTurn });
     const canEnd = myTurn && v.rolled && !v.pending;
-    set('end', canEnd, canEnd ? (v.sub ? '結束（Space）' : '結束回合（Space）') : !myTurn ? turnWhy() : v.pending ? pendingWhy() : '請先擲骰');
+    set('end', canEnd, canEnd ? (v.sub ? t('結束（Space）') : t('結束回合（Space）')) : !myTurn ? turnWhy() : v.pending ? pendingWhy() : t('請先擲骰'));
     this.bar.style.visibility = v.phase === 'over' ? 'hidden' : '';
     this.popCtx = { res: pl ? pl.res : null, pieces: pl ? pl.pieces : null, deck: v.devDeckCount };
     if (this.popFor) this.renderPop();
@@ -650,16 +655,17 @@ export class Hud {
       .map(([r, n]) => {
         const have = res ? res[r] : null;
         const short = have != null && have < n;
-        return `<div class="need${short ? ' short' : ''}">${resCard(r, { count: n > 1 ? '×' + n : null })}<small>${have != null ? `持有 ${have}` : ''}</small></div>`;
+        return `<div class="need${short ? ' short' : ''}">${resCard(r, { count: n > 1 ? '×' + n : null })}<small>${have != null ? t('持有 {n}', { n: have }) : ''}</small></div>`;
       })
       .join('');
     const b = this.btns[k];
     const why = b.dataset.why;
-    const left = info.piece && pieces ? `還剩 ${pieces[info.piece]} ${info.unit}` : k === 'dev' && deck != null ? `卡堆剩 ${deck} 張` : '';
-    const ok = `可以${k === 'dev' ? '購買' : k === 'city' ? '升級' : '建造'}${left ? '・' + left : ''}`;
+    const left = info.piece && pieces ? t(info.left, { n: pieces[info.piece] }) : k === 'dev' && deck != null ? t('卡堆剩 {n} 張', { n: deck }) : '';
+    const can = k === 'dev' ? t('可以購買') : k === 'city' ? t('可以升級') : t('可以建造');
+    const ok = left ? `${can}・${left}` : can;
     const pop = el('div', 'cost-pop');
     pop.setAttribute('role', 'tooltip');
-    pop.innerHTML = `<div class="hd"><b>${info.name}</b><i>${info.en}</i></div><div class="fx">${info.fx}</div><div class="row">${needs}</div><div class="st${why ? ' bad' : ''}">${why ? esc(why) : ok}</div>`;
+    pop.innerHTML = `<div class="hd"><b>${t(info.name)}</b>${isZh() ? `<i>${info.en}</i>` : ''}</div><div class="fx">${t(info.fx)}</div><div class="row">${needs}</div><div class="st${why ? ' bad' : ''}">${why ? esc(why) : ok}</div>`;
     this.bar.appendChild(pop);
     this.pop = pop;
     if (getComputedStyle(pop).position !== 'fixed') {
@@ -703,7 +709,7 @@ export class Hud {
       e.preventDefault();
       const why = this.chatSend ? this.chatSend(input.value) : 'off';
       if (!why) input.value = '';
-      else if (why === 'fast') this.flashHint('訊息送得太快了，請稍等一下');
+      else if (why === 'fast') this.flashHint(t('訊息送得太快了，請稍等一下'));
     });
     // typing never reaches the game's keyboard shortcuts
     input.addEventListener('keydown', (e) => e.stopPropagation());
@@ -744,11 +750,11 @@ export class Hud {
     if (m.note) p.textContent = m.text;
     else {
       const who = el('b', 'who');
-      who.textContent = m.mine ? '你' : m.name || '玩家';
+      who.textContent = m.mine ? t('你') : m.name || t('玩家');
       if (m.color) who.style.color = m.color;
-      const t = el('span', 'tx');
-      t.textContent = m.text;
-      p.append(who, t);
+      const tx = el('span', 'tx');
+      tx.textContent = m.text;
+      p.append(who, tx);
     }
     this.chatList.appendChild(p);
     while (this.chatList.childElementCount > 80) this.chatList.firstElementChild.remove();
@@ -756,7 +762,7 @@ export class Hud {
     if (!m.mine && !m.note && !this.chatShown()) {
       this.chatUnread = (this.chatUnread || 0) + 1;
       // on a phone the panel is folded away: show the line briefly
-      if (this.logEl.classList.contains('collapsed')) this.toast(m.name || '玩家', m.text, 'chat', 3200);
+      if (this.logEl.classList.contains('collapsed')) this.toast(m.name || t('玩家'), m.text, 'chat', 3200);
     }
     this.paintUnread();
   }
@@ -780,7 +786,7 @@ export class Hud {
     c.querySelector('b').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
     c.classList.toggle('mine', this.clockMine);
     c.classList.toggle('low', s <= 20);
-    c.title = this.clockMine ? '你這一步剩下的時間，時間到會自動完成這一步' : '這一步剩下的時間';
+    c.title = this.clockMine ? t('你這一步剩下的時間，時間到會自動完成這一步') : t('這一步剩下的時間');
   }
 
   // a new HUD for the same game (this page became the host, or stopped being it): keep what was said

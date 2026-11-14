@@ -4,6 +4,7 @@
 // device and are saved as they are drawn.
 import { CELL_KINDS, LIMITS, checkDraft, normalizeDraft } from '../engine/custom.js';
 import { esc } from './text.js';
+import { t, tx, N_, list } from '../i18n/index.js';
 
 const STORE = 'catan3d-drafts-v1';
 
@@ -48,30 +49,30 @@ const corners = (x, y, s = S * 0.97) =>
     return `${(x + s * Math.cos(a)).toFixed(2)},${(y + s * Math.sin(a)).toFixed(2)}`;
   }).join(' ');
 
-// what can be drawn, its colour and the mark on its hex
+// what can be drawn, its colour and the mark on its hex (the names and marks are keys: t())
 const TOOLS = [
-  ['x', '清除', null, ''],
-  ['s', '海', '#2f6f93', ''],
-  ['l', '隨機陸地', '#cbb88c', '?'],
-  ['f', '森林', '#2f6b2f', '林'],
-  ['h', '丘陵', '#b5532c', '丘'],
-  ['p', '牧場', '#8fcf4f', '牧'],
-  ['w', '農田', '#e8c547', '田'],
-  ['m', '山脈', '#8d8d96', '山'],
-  ['d', '沙漠', '#d9c48e', '漠'],
-  ['g', '金礦', '#f0b62a', '金'],
+  ['x', N_('清除'), null, ''],
+  ['s', N_('海'), '#2f6f93', ''],
+  ['l', N_('隨機陸地'), '#cbb88c', '?'],
+  ['f', N_('森林'), '#2f6b2f', N_('林§mark')],
+  ['h', N_('丘陵'), '#b5532c', N_('丘§mark')],
+  ['p', N_('牧場'), '#8fcf4f', N_('牧§mark')],
+  ['w', N_('農田'), '#e8c547', N_('田§mark')],
+  ['m', N_('山脈'), '#8d8d96', N_('山§mark')],
+  ['d', N_('沙漠'), '#d9c48e', N_('漠§mark')],
+  ['g', N_('金礦'), '#f0b62a', N_('金§mark')],
 ];
 const TOOL = Object.fromEntries(TOOLS.map((t) => [t[0], t]));
 
 // shapes to start from: rows of [first column, last column] of random land, from a starting row
 const rowsOf = (top, rows, k = 'l') => rows.flatMap(([c0, c1], i) => Array.from({ length: c1 - c0 + 1 }, (_, j) => [c0 + j, top + i, k]));
 const TEMPLATES = [
-  ['blank', '空白', () => ({ kit: 4, cells: [] })],
-  ['standard', '標準島嶼的形狀', () => ({ kit: 4, cells: rowsOf(3, [[5, 7], [4, 7], [4, 8], [4, 7], [5, 7]]) })],
-  ['large', '大島嶼的形狀（5–6 人）', () => ({ kit: 6, cells: rowsOf(2, [[5, 7], [4, 7], [4, 8], [3, 8], [4, 8], [4, 7], [5, 7]]) })],
+  ['blank', N_('空白'), () => ({ kit: 4, cells: [] })],
+  ['standard', N_('標準島嶼的形狀'), () => ({ kit: 4, cells: rowsOf(3, [[5, 7], [4, 7], [4, 8], [4, 7], [5, 7]]) })],
+  ['large', N_('大島嶼的形狀（5–6 人）'), () => ({ kit: 6, cells: rowsOf(2, [[5, 7], [4, 7], [4, 8], [3, 8], [4, 8], [4, 7], [5, 7]]) })],
   [
     'isles',
-    '主島與小島',
+    N_('主島與小島'),
     () => {
       const cells = [];
       for (let r = 1; r <= 9; r++) for (let c = 1; c <= 11; c++) cells.push([c, r, 's']);
@@ -110,13 +111,13 @@ export function showEditor(app, opts) {
   const scr = el('div', 'menu-screen editor');
   scr.innerHTML = `
     <section class="ed-board panel">
-      <div class="modal-head"><h3>地圖工坊</h3><div class="seg ed-modes"><button type="button" data-mode="edit" class="on">編輯</button><button type="button" data-mode="view">3D 預覽</button></div></div>
-      <div class="ed-tools" role="toolbar" aria-label="畫筆"></div>
-      <div class="ed-grid"><svg viewBox="0 0 ${VIEW_W.toFixed(1)} ${VIEW_H.toFixed(1)}" role="img" aria-label="地圖格子"></svg></div>
-      <p class="ed-hint">選一種畫筆，點格子或按住拖曳連續畫。地圖外圍會自動當作海；隨機陸地每局抽一次地形。</p>
+      <div class="modal-head"><h3>${t('地圖工坊')}</h3><div class="seg ed-modes"><button type="button" data-mode="edit" class="on">${t('編輯')}</button><button type="button" data-mode="view">${t('3D 預覽')}</button></div></div>
+      <div class="ed-tools" role="toolbar" aria-label="${t('畫筆')}"></div>
+      <div class="ed-grid"><svg viewBox="0 0 ${VIEW_W.toFixed(1)} ${VIEW_H.toFixed(1)}" role="img" aria-label="${t('地圖格子')}"></svg></div>
+      <p class="ed-hint">${t('選一種畫筆，點格子或按住拖曳連續畫。地圖外圍會自動當作海；隨機陸地每局抽一次地形。')}</p>
     </section>
     <section class="setup-card panel ed-side">
-      <div class="modal-head"><h3>地圖設定</h3></div>
+      <div class="modal-head"><h3>${t('地圖設定')}</h3></div>
       <div class="modal-body"></div>
       <div class="modal-foot"></div>
     </section>`;
@@ -131,7 +132,7 @@ export function showEditor(app, opts) {
   const persist = () => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      if (!saveDraft(key, draft) && opts.toast) opts.toast('無法儲存', '這台裝置不能儲存草稿（瀏覽器的儲存空間被關閉）', 'cross');
+      if (!saveDraft(key, draft) && opts.toast) opts.toast(t('無法儲存'), t('這台裝置不能儲存草稿（瀏覽器的儲存空間被關閉）'), 'cross');
     }, 400);
   };
   const changed = (redrawSide = true) => {
@@ -146,7 +147,7 @@ export function showEditor(app, opts) {
   const renderTools = () => {
     toolsEl.innerHTML = '';
     for (const [k, name, color] of TOOLS) {
-      const b = el('button', 'ed-tool' + (k === tool ? ' on' : ''), `<i style="${color ? `background:${color}` : ''}"></i><span>${name}</span>`);
+      const b = el('button', 'ed-tool' + (k === tool ? ' on' : ''), `<i style="${color ? `background:${color}` : ''}"></i><span>${t(name)}</span>`);
       b.type = 'button';
       b.dataset.tool = k;
       b.setAttribute('aria-pressed', String(k === tool));
@@ -175,7 +176,7 @@ export function showEditor(app, opts) {
         }
         const [, , color, mark] = TOOL[k];
         out.push(`<polygon class="ed-cell ${k === 's' ? 'sea' : 'land'}" data-c="${c}" data-r="${r}" points="${corners(x, y)}" fill="${color}"/>`);
-        if (mark) out.push(`<text x="${x.toFixed(2)}" y="${(y + 3.6).toFixed(2)}" class="ed-mark${k === 'l' ? ' q' : ''}">${mark}</text>`);
+        if (mark) out.push(`<text x="${x.toFixed(2)}" y="${(y + 3.6).toFixed(2)}" class="ed-mark${k === 'l' ? ' q' : ''}">${mark.includes('§') ? t(mark) : mark}</text>`);
       }
     }
     svg.innerHTML = out.join('');
@@ -255,23 +256,24 @@ export function showEditor(app, opts) {
     const st = check.stats;
     body.innerHTML = '';
     const g = el('div', 'form-grid');
-    g.appendChild(el('label', '', '名稱'));
+    g.appendChild(el('label', '', t('名稱')));
     const nm = el('input');
     nm.type = 'text';
     nm.maxLength = LIMITS.name;
-    nm.value = draft.name;
-    nm.setAttribute('aria-label', '地圖名稱');
+    // (a default name is a key: shown in the reader's language)
+    nm.value = tx(draft.name);
+    nm.setAttribute('aria-label', t('地圖名稱'));
     nm.addEventListener('change', () => {
       draft.name = nm.value;
       changed();
     });
     g.appendChild(nm);
-    g.appendChild(el('label', '', '人數'));
+    g.appendChild(el('label', '', t('人數')));
     g.appendChild(
       segOf(
         [
-          [4, '3–4 人'],
-          [6, '5–6 人'],
+          [4, t('3–4 人')],
+          [6, t('5–6 人')],
         ],
         draft.kit,
         (v) => {
@@ -280,11 +282,11 @@ export function showEditor(app, opts) {
         },
       ),
     );
-    g.appendChild(el('label', '', '勝利分數'));
+    g.appendChild(el('label', '', t('勝利分數')));
     const vp = el('select');
-    vp.setAttribute('aria-label', '勝利分數');
+    vp.setAttribute('aria-label', t('勝利分數'));
     for (let v = LIMITS.vp[0]; v <= LIMITS.vp[1]; v++) {
-      const o = el('option', '', `${v} 分`);
+      const o = el('option', '', t('{n} 分', { n: v }));
       o.value = String(v);
       if (v === draft.vp) o.selected = true;
       vp.appendChild(o);
@@ -294,21 +296,21 @@ export function showEditor(app, opts) {
       changed();
     });
     g.appendChild(vp);
-    g.appendChild(el('label', '', '航海家規則'));
+    g.appendChild(el('label', '', t('航海家規則')));
     const forced = st.islands > 1 || (check.draft.cells || []).some((x) => x[2] === 'g');
-    const sh = el('label', 'ed-check', `<input type="checkbox"${st.seafarers ? ' checked' : ''}${forced ? ' disabled' : ''}> 船、海盜${forced ? '（好幾座島或有金礦時一定要）' : ''}`);
+    const sh = el('label', 'ed-check', `<input type="checkbox"${st.seafarers ? ' checked' : ''}${forced ? ' disabled' : ''}> ${t('船、海盜')}${forced ? t('（好幾座島或有金礦時一定要）') : ''}`);
     sh.querySelector('input').addEventListener('change', (e) => {
       draft.ships = e.target.checked;
       changed();
     });
     g.appendChild(sh);
     if (st.seafarers) {
-      g.appendChild(el('label', '', '開局'));
+      g.appendChild(el('label', '', t('開局')));
       g.appendChild(
         segOf(
           [
-            ['any', '任何島'],
-            ['main', '只在最大的島'],
+            ['any', t('任何島')],
+            ['main', t('只在最大的島')],
           ],
           draft.start,
           (v) => {
@@ -317,13 +319,13 @@ export function showEditor(app, opts) {
           },
         ),
       );
-      g.appendChild(el('label', '', '外島加分'));
+      g.appendChild(el('label', '', t('外島加分')));
       g.appendChild(
         segOf(
           [
-            [0, '沒有'],
-            [1, '+1 分'],
-            [2, '+2 分'],
+            [0, t('沒有')],
+            [1, t('+1 分')],
+            [2, t('+2 分')],
           ],
           draft.bonus,
           (v) => {
@@ -333,8 +335,8 @@ export function showEditor(app, opts) {
         ),
       );
     }
-    g.appendChild(el('label', '', '隨機陸地'));
-    const ds = el('label', 'ed-check', `<input type="checkbox"${draft.desert ? ' checked' : ''}> 也抽沙漠（約 19 格 1 塊）`);
+    g.appendChild(el('label', '', t('隨機陸地')));
+    const ds = el('label', 'ed-check', `<input type="checkbox"${draft.desert ? ' checked' : ''}> ${t('也抽沙漠（約 19 格 1 塊）')}`);
     ds.querySelector('input').addEventListener('change', (e) => {
       draft.desert = e.target.checked;
       changed();
@@ -344,55 +346,56 @@ export function showEditor(app, opts) {
 
     // the map in numbers
     const pool = Object.entries(st.pool)
-      .map(([t, n]) => `${TOOL[Object.keys(CELL_KINDS).find((k) => CELL_KINDS[k] === t)][1]} ${n}`)
-      .join('、');
+      .map(([kind, n]) => `${t(TOOL[Object.keys(CELL_KINDS).find((k) => CELL_KINDS[k] === kind)][1])} ${n}`);
+    const poolText = list(pool);
     const facts = el(
       'div',
       'ed-facts',
-      `<div><b>${st.tiles}</b><span>/ ${LIMITS.tiles} 格</span></div><div><b>${st.land}</b><span>陸地</span></div><div><b>${st.islands}</b><span>座島</span></div><div><b>${st.numbered}</b><span>數字牌</span></div><div><b>${st.harbors}</b><span>港口</span></div>` +
-        (pool ? `<p>隨機陸地抽：${esc(pool)}</p>` : ''),
+      `<div><b>${st.tiles}</b><span>${t('/ {n} 格', { n: LIMITS.tiles })}</span></div><div><b>${st.land}</b><span>${t('陸地')}</span></div><div><b>${st.islands}</b><span>${t('座島')}</span></div><div><b>${st.numbered}</b><span>${t('數字牌')}</span></div><div><b>${st.harbors}</b><span>${t('港口')}</span></div>` +
+        (pool.length ? `<p>${t('隨機陸地抽：{list}', { list: esc(poolText) })}</p>` : ''),
     );
     body.appendChild(facts);
     const msgs = el('ul', 'ed-msgs');
-    for (const m of check.errors) msgs.appendChild(el('li', 'err', esc(m)));
-    for (const m of check.warnings) msgs.appendChild(el('li', 'warn', esc(m)));
-    for (const m of check.notes) msgs.appendChild(el('li', 'note', esc(m)));
-    if (!check.errors.length && !check.warnings.length) msgs.appendChild(el('li', 'ok', `可以玩了：${check.def.players[0]}–${check.def.players[1]} 人，${draft.vp} 分勝利`));
+    // (the checks' words in the reader's language: check.keys)
+    for (const m of check.keys.errors) msgs.appendChild(el('li', 'err', esc(t(m.key, m.params || undefined))));
+    for (const m of check.keys.warnings) msgs.appendChild(el('li', 'warn', esc(t(m.key, m.params || undefined))));
+    for (const m of check.keys.notes) msgs.appendChild(el('li', 'note', esc(t(m.key, m.params || undefined))));
+    if (!check.errors.length && !check.warnings.length) msgs.appendChild(el('li', 'ok', t('可以玩了：{lo}–{hi} 人，{vp} 分勝利', { lo: check.def.players[0], hi: check.def.players[1], vp: draft.vp })));
     body.appendChild(msgs);
 
     // start again from a shape
     const tg = el('div', 'form-grid');
-    tg.appendChild(el('label', '', '重新開始'));
+    tg.appendChild(el('label', '', t('重新開始')));
     const sel = el('select');
-    sel.setAttribute('aria-label', '從範本重新開始');
-    sel.appendChild(el('option', '', '選一個範本…'));
+    sel.setAttribute('aria-label', t('從範本重新開始'));
+    sel.appendChild(el('option', '', t('選一個範本…')));
     for (const [id, label] of TEMPLATES) {
-      const o = el('option', '', label);
+      const o = el('option', '', t(label));
       o.value = id;
       sel.appendChild(o);
     }
     sel.addEventListener('change', () => {
-      const t = TEMPLATES.find((x) => x[0] === sel.value);
-      if (!t) return;
+      const tpl = TEMPLATES.find((x) => x[0] === sel.value);
+      if (!tpl) return;
       // a new draft: the one being drawn stays in 我的地圖
       key = newKey();
-      draft = normalizeDraft({ name: '新的島嶼', ...t[2]() });
+      draft = normalizeDraft({ name: t('新的島嶼'), ...tpl[2]() });
       changed();
     });
     tg.appendChild(sel);
     body.appendChild(tg);
 
     foot.innerHTML = '';
-    const back = el('button', 'btn', '返回');
+    const back = el('button', 'btn', t('返回'));
     back.type = 'button';
     back.addEventListener('click', () => close(true));
-    const mine = el('button', 'btn', '我的地圖');
+    const mine = el('button', 'btn', t('我的地圖'));
     mine.type = 'button';
     mine.addEventListener('click', () => showMine());
-    const play = el('button', 'btn primary', '試玩');
+    const play = el('button', 'btn primary', t('試玩'));
     play.type = 'button';
     play.disabled = !check.def;
-    play.title = check.def ? '用這張地圖開一局單人遊戲' : check.errors[0] || '';
+    play.title = check.def ? t('用這張地圖開一局單人遊戲') : check.errors[0] || '';
     play.addEventListener('click', () => {
       if (!check.def) return;
       clearTimeout(saveTimer);
@@ -402,10 +405,10 @@ export function showEditor(app, opts) {
     foot.append(back, mine);
     // publishing (the self-hosted site): the map gets a code others can open it by
     if (opts.onPublish) {
-      const pub = el('button', 'btn', '發布');
+      const pub = el('button', 'btn', t('發布'));
       pub.type = 'button';
       pub.disabled = !check.def;
-      pub.title = check.def ? '發布到公開地圖列表，拿到一個代號' : check.errors[0] || '';
+      pub.title = check.def ? t('發布到公開地圖列表，拿到一個代號') : check.errors[0] || '';
       pub.addEventListener('click', () => check.def && opts.onPublish(check.draft));
       foot.appendChild(pub);
     }
@@ -416,12 +419,12 @@ export function showEditor(app, opts) {
   const showMine = () => {
     const list = loadDrafts();
     const box = el('div', 'ed-mine');
-    if (!list.length) box.appendChild(el('p', 'lead', '還沒有儲存的地圖。'));
+    if (!list.length) box.appendChild(el('p', 'lead', t('還沒有儲存的地圖。')));
     for (const it of list) {
       const c = checkDraft(it.draft);
       const row = el('div', 'ed-mine-row' + (it.key === key ? ' on' : ''));
-      row.innerHTML = `<div class="nm"><b>${esc(it.draft.name)}</b><span>${it.draft.kit === 6 ? '5–6' : '3–4'} 人・${c.stats.tiles} 格・${c.errors.length ? '還不能玩' : `${it.draft.vp} 分`}</span></div>`;
-      const open = el('button', 'btn', it.key === key ? '編輯中' : '開啟');
+      row.innerHTML = `<div class="nm"><b>${esc(tx(it.draft.name))}</b><span>${t('{p} 人・{n} 格・', { p: it.draft.kit === 6 ? '5–6' : '3–4', n: c.stats.tiles })}${c.errors.length ? t('還不能玩') : t('{n} 分', { n: it.draft.vp })}</span></div>`;
+      const open = el('button', 'btn', it.key === key ? t('編輯中') : t('開啟'));
       open.type = 'button';
       open.disabled = it.key === key;
       open.addEventListener('click', () => {
@@ -430,14 +433,14 @@ export function showEditor(app, opts) {
         changed();
         opts.dialogs.close(true);
       });
-      const del = el('button', 'btn ghost', '刪除');
+      const del = el('button', 'btn ghost', t('刪除'));
       del.type = 'button';
       del.addEventListener('click', () => {
         deleteDraft(it.key);
         if (it.key === key) {
           const rest = loadDrafts();
           key = rest[0] ? rest[0].key : newKey();
-          draft = rest[0] ? rest[0].draft : normalizeDraft({ name: '新的島嶼', ...TEMPLATES[1][2]() });
+          draft = rest[0] ? rest[0].draft : normalizeDraft({ name: t('新的島嶼'), ...TEMPLATES[1][2]() });
           changed();
         }
         showMine();
@@ -447,19 +450,19 @@ export function showEditor(app, opts) {
     }
     // the maps this player has published (on the site's server)
     if (opts.published) {
-      const pubBox = el('div', 'ed-mine ed-pubs', '<div class="row-label">已發布</div><p class="lead">載入中…</p>');
+      const pubBox = el('div', 'ed-mine ed-pubs', t('<div class="row-label">已發布</div><p class="lead">載入中…</p>'));
       box.appendChild(pubBox);
       opts
         .published()
         .then((maps) => {
           if (!box.isConnected) return;
           pubBox.querySelector('p').remove();
-          if (!maps) pubBox.appendChild(el('p', 'lead', '登入後可以發布地圖，發布的地圖會列在這裡。'));
-          else if (!maps.length) pubBox.appendChild(el('p', 'lead', '還沒有發布過地圖。'));
+          if (!maps) pubBox.appendChild(el('p', 'lead', t('登入後可以發布地圖，發布的地圖會列在這裡。')));
+          else if (!maps.length) pubBox.appendChild(el('p', 'lead', t('還沒有發布過地圖。')));
           for (const m of maps || []) {
             const row = el('div', 'ed-mine-row');
-            row.innerHTML = `<div class="nm"><b>${esc(m.name)}</b><span>代號 ${esc(m.code)}・${m.plays} 局・${m.votes ? `★ ${m.rating.toFixed(1)}（${m.votes}）` : '還沒有評分'}</span></div>`;
-            const hide = el('button', 'btn ghost', '從列表移除');
+            row.innerHTML = `<div class="nm"><b>${esc(tx(m.name))}</b><span>${t('代號 {code}・{n} 局・', { code: esc(m.code), n: m.plays })}${m.votes ? `★ ${m.rating.toFixed(1)} (${m.votes})` : t('還沒有評分')}</span></div>`;
+            const hide = el('button', 'btn ghost', t('從列表移除'));
             hide.type = 'button';
             hide.addEventListener('click', async () => {
               hide.disabled = true;
@@ -472,25 +475,25 @@ export function showEditor(app, opts) {
         })
         .catch(() => {
           const p = pubBox.querySelector('p');
-          if (p) p.textContent = '無法載入已發布的地圖';
+          if (p) p.textContent = t('無法載入已發布的地圖');
         });
     }
-    const fresh = el('button', 'btn', '新地圖');
+    const fresh = el('button', 'btn', t('新地圖'));
     fresh.type = 'button';
     fresh.addEventListener('click', () => {
       key = newKey();
-      draft = normalizeDraft({ name: '新的島嶼', ...TEMPLATES[1][2]() });
+      draft = normalizeDraft({ name: t('新的島嶼'), ...TEMPLATES[1][2]() });
       changed();
       opts.dialogs.close(true);
     });
-    opts.dialogs.open({ kind: 'mine', title: '我的地圖', body: box, foot: [fresh], cls: 'ed-mine-dlg' });
+    opts.dialogs.open({ kind: 'mine', title: t('我的地圖'), body: box, foot: [fresh], cls: 'ed-mine-dlg' });
   };
 
   // ── 3D preview ──
   const setMode = async (m) => {
     if (m === mode) return;
     if (m === 'view' && !check.def) {
-      if (opts.toast) opts.toast('還不能預覽', check.errors[0] || '', 'cross');
+      if (opts.toast) opts.toast(t('還不能預覽'), check.errors[0] || '', 'cross');
       return;
     }
     mode = m;

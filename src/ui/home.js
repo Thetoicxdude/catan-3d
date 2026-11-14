@@ -6,11 +6,12 @@ import { HEX_SIZE, geometryOf, withMap } from '../engine/geometry.js';
 import { DEFAULT_MAP } from '../engine/maps.js';
 import { generateBoard } from '../engine/board.js';
 import { seedState } from '../engine/rng.js';
-import { PALETTE } from './menu.js';
+import { PALETTE, NAME_MAX } from './menu.js';
 import { flagURL } from './flags.js';
 import { esc } from './text.js';
 import { emblemSvg, seatShield } from './emblems.js';
 import { mountAccount } from './account-ui.js';
+import { t } from '../i18n/index.js';
 
 const APP = 'catan3d';
 // the paper map's terrain colours
@@ -359,46 +360,52 @@ export function showHome(app, opts) {
   const { settings, hasSave, onChange, version } = opts;
   const total = Math.max(1, opts.seconds || 60) * 1000;
   const scr = el('div', 'menu-screen home');
-  const card = (k, metal, name, em = k) =>
-    `<button class="hm-card m-${metal}" type="button" data-k="${k}"${k === 'continue' && !hasSave ? ' hidden' : ''}><span class="hm-em">${emblemSvg(em, 96)}</span><span class="hm-lbl">${name}</span></button>`;
+  // (a card's name, and a shorter one for the small cards of a phone: the same in Chinese)
+  const card = (k, metal, name, em = k, short = name) =>
+    `<button class="hm-card m-${metal}" type="button" data-k="${k}" aria-label="${name}"${k === 'continue' && !hasSave ? ' hidden' : ''}><span class="hm-em">${emblemSvg(em, 96)}</span><span class="hm-lbl"><span class="l">${name}</span><span class="s" aria-hidden="true">${short}</span></span></button>`;
   scr.innerHTML = `
     <header class="hm-top">
       <div class="hm-brand">
-        <div class="hm-logo"><span class="hm-crest">${crest()}</span><h1><span class="hm-title">卡坦島</span><span class="hm-sub">3D 戰略版</span></h1></div>
+        <div class="hm-logo"><span class="hm-crest">${crest()}</span><h1><span class="hm-title">${t('卡坦島')}</span><span class="hm-sub">${t('3D 戰略版')}</span></h1></div>
         <div class="hm-live" role="status" hidden><i></i><span></span></div>
       </div>
       <div class="hm-who">
         <div class="hm-nation">
           <span class="hm-flag"><img alt=""></span>
-          <label class="hm-name"><span class="sr-only">你的國家名稱</span><input id="menu-name" type="text" maxlength="8" autocomplete="off" spellcheck="false"></label>
-          <div class="hm-gems" role="group" aria-label="國家顏色"></div>
+          <label class="hm-name"><span class="sr-only">${t('你的國家名稱')}</span><input id="menu-name" type="text" maxlength="${NAME_MAX}" autocomplete="off" spellcheck="false"></label>
+          <div class="hm-gems" role="group" aria-label="${t('國家顏色')}"></div>
         </div>
       </div>
     </header>
     <main class="hm-main">
-      <section class="ho-board" data-k="match" role="button" tabindex="0" aria-label="官方房間：點擊加入配對，再點一次退出">
+      <section class="ho-board" data-k="match" role="button" tabindex="0" aria-label="${t('官方房間：點擊加入配對，再點一次退出')}">
         <i class="ho-glow" aria-hidden="true"></i>
         <div class="ho-pic"><div class="ho-mapwrap"><canvas class="ho-map" aria-hidden="true"></canvas></div></div>
         <div class="ho-side">
-          <div class="ho-title"><span class="pl-main">官方房間</span><span class="pl-alt">加入配對</span></div>
-          <div class="ho-tags"><span>4 人對戰</span><span>10 分勝利</span><span>標準規則</span></div>
+          <div class="ho-title"><span class="pl-main">${t('官方房間')}</span><span class="pl-alt">${t('加入配對')}</span></div>
+          <div class="ho-tags"><span>${t('4 人對戰')}</span><span>${t('10 分勝利')}</span><span>${t('標準規則')}</span></div>
           <div class="ho-seats"><span class="ho-shields"></span><b class="ho-n">0/4</b></div>
           <div class="ho-timer">
             <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45" class="rim"/><circle cx="50" cy="50" r="38" class="track"/><circle cx="50" cy="50" r="38" class="arc"/></svg>
-            <div><b class="ho-sec">60</b><span>秒</span></div>
+            <div><b class="ho-sec">60</b><span>${t('秒')}</span></div>
           </div>
           <p class="ho-hint" hidden></p>
         </div>
       </section>
-      <nav class="hm-hand" aria-label="遊戲方式">
-        ${card('single', 'gold', '單人遊戲')}${card('create', 'bronze', '建立房間')}${card('join', 'verdigris', '加入房間')}${card('workshop', 'bronze', '地圖工坊')}${card('continue', 'silver', '繼續上一局', 'resume')}
+      <nav class="hm-hand" aria-label="${t('遊戲方式')}">
+        ${card('single', 'gold', t('單人遊戲'), 'single', t('單人遊戲§short'))}${card('create', 'bronze', t('建立房間'), 'create', t('建立房間§short'))}${card('join', 'verdigris', t('加入房間'), 'join', t('加入房間§short'))}${card('workshop', 'bronze', t('地圖工坊'), 'workshop', t('地圖工坊§short'))}${card('continue', 'silver', t('繼續上一局'), 'resume', t('繼續上一局§short'))}
       </nav>
     </main>
     <div class="hm-medals">
-      <button class="hm-medal" type="button" data-k="rules" title="規則說明" aria-label="規則說明">${emblemSvg('rules', 40)}<span>規則</span></button>
-      <button class="hm-medal" type="button" data-k="settings" title="設定" aria-label="設定">${emblemSvg('settings', 40)}<span>設定</span></button>
+      <button class="hm-medal" type="button" data-k="rules" title="${t('規則說明')}" aria-label="${t('規則說明')}">${emblemSvg('rules', 40)}<span>${t('規則')}</span></button>
+      <button class="hm-medal" type="button" data-k="settings" title="${t('設定')}" aria-label="${t('設定')}">${emblemSvg('settings', 40)}<span>${t('設定')}</span></button>
     </div>
-    <p class="hm-credits">寫實素材來自 <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>、Blend Swap 的 Daniel74 與 <a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a>（皆為 CC0）；圖示來自 <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>（Lorc、Delapouite 等，<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>）${version ? `<span class="ver">${esc(version)}</span>` : ''}</p>`;
+    <p class="hm-credits">${t('寫實素材來自 {polyhaven}、Blend Swap 的 Daniel74 與 {quaternius}（皆為 CC0）；圖示來自 {gameicons}（Lorc、Delapouite 等，{ccby}）', {
+      polyhaven: '<a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>',
+      quaternius: '<a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a>',
+      gameicons: '<a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>',
+      ccby: '<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>',
+    })}${version ? `<span class="ver">${esc(version)}</span>` : ''}</p>`;
   app.appendChild(scr);
   // without the art pack (the claude.ai page) the frames fall back to plain bronze and parchment
   const probe = new Image();
@@ -425,8 +432,8 @@ export function showHome(app, opts) {
       const b = el('button', 'gem' + (settings.color === p.hex ? ' on' : ''));
       b.type = 'button';
       b.style.setProperty('--c', p.hex);
-      b.title = p.name;
-      b.setAttribute('aria-label', p.name + '色');
+      b.title = t(p.name);
+      b.setAttribute('aria-label', t('{c}色', { c: t(p.name) }));
       b.setAttribute('aria-pressed', String(settings.color === p.hex));
       b.addEventListener('click', () => {
         settings.color = p.hex;
@@ -537,8 +544,8 @@ export function showHome(app, opts) {
     boardEl.classList.toggle('joined', joined);
     boardEl.classList.toggle('live', !!room || joined);
     boardEl.dataset.match = joined ? match.phase || 'searching' : '';
-    plMain.textContent = joined ? '配對中' : '官方房間';
-    plAlt.textContent = joined ? '退出配對' : '加入配對';
+    plMain.textContent = joined ? t('配對中') : t('官方房間');
+    plAlt.textContent = joined ? t('退出配對') : t('加入配對');
     // seats: from my own room when I am in one, otherwise from the lobby's listing
     let n = 4;
     let have = 0;
@@ -557,8 +564,8 @@ export function showHome(app, opts) {
     for (let i = 0; i < n; i++) html += seatShield(i >= have ? 'open' : joined && i === (match.seat >= 0 ? match.seat : 0) ? 'me' : 'taken', settings.color);
     shields.innerHTML = html;
     nEl.textContent = `${have}/${n}`;
-    const hints = { offline: '暫時連不上線上大廳' };
-    const h = joined ? (match.phase === 'searching' && !match.seats ? '正在尋找房間…　再點一次退出' : '再點一次退出') : hints[link] || '';
+    const hints = { offline: t('暫時連不上線上大廳') };
+    const h = joined ? (match.phase === 'searching' && !match.seats ? t('正在尋找房間…　再點一次退出') : t('再點一次退出')) : hints[link] || '';
     hint.textContent = h;
     hint.hidden = !h;
     tick();
@@ -569,8 +576,8 @@ export function showHome(app, opts) {
     live.classList.toggle('off', link === 'offline');
     if (link === 'online') {
       const playing = peers.filter((p) => p.presence && p.presence.app === APP && p.presence.host && p.presence.host.st === 'play').length;
-      liveText.innerHTML = `線上 <b>${peers.length}</b> 人${playing ? ` · <b>${playing}</b> 局進行中` : ''}`;
-    } else liveText.textContent = link === 'offline' ? '離線' : '連線中…';
+      liveText.innerHTML = t('線上 <b>{n}</b> 人', { n: peers.length }) + (playing ? ' · ' + t('<b>{n}</b> 局進行中', { n: playing }) : '');
+    } else liveText.textContent = link === 'offline' ? t('離線') : t('連線中…');
   };
   const update = (peers) => {
     const mine = peers.filter((p) => p.presence && p.presence.app === APP);

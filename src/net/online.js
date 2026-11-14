@@ -12,10 +12,11 @@ import { randomState } from '../engine/rng.js';
 import { flagURL } from '../ui/flags.js';
 import { esc } from '../ui/text.js';
 import { icon } from '../ui/icons.js';
-import { PALETTE, AI_NAMES, fitSettings, gameSetup, mapTable, targetFor, officialSettings, houseRuleRows, houseRulesText } from '../ui/menu.js';
+import { PALETTE, AI_NAMES, clipName, localName, fitSettings, gameSetup, mapTable, targetFor, officialSettings, houseRuleRows, houseRulesText } from '../ui/menu.js';
 import { mapDef, MAP_LIST, DEFAULT_MAP, isBuiltIn, knownMap } from '../engine/maps.js';
 import { mapsAvailable, publishedCode, loadPublished, cleanCode, CODE_RE } from './maps.js';
 import { openMapBrowser } from '../ui/maps-ui.js';
+import { t, tx, msg, list, terr } from '../i18n/index.js';
 
 const APP = 'catan3d';
 const V = 1;
@@ -33,9 +34,9 @@ export async function onlineSupport() {
 }
 
 function supportError(why) {
-  if (why === 'server') return '連不上連線伺服器，請稍後再試';
-  if (why === 'crypto') return '瀏覽器不支援加密';
-  return '這個頁面目前無法連線';
+  if (why === 'server') return t('連不上連線伺服器，請稍後再試');
+  if (why === 'crypto') return t('瀏覽器不支援加密');
+  return t('這個頁面目前無法連線');
 }
 
 // link that opens the site straight into room `code`
@@ -80,7 +81,8 @@ export function normCode(s) {
     .slice(0, 12);
 }
 const BAD_CHARS = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff]', 'g');
-const cleanName = (s, fallback) => String(s || '').replace(BAD_CHARS, '').trim().slice(0, 8) || fallback;
+// (a name is at most 18 letters wide: 18 Latin letters or 9 Chinese characters, menu.js)
+const cleanName = (s, fallback) => clipName(String(s || '').replace(BAD_CHARS, '').trim()) || fallback;
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -99,18 +101,18 @@ function btn(label, cls, fn) {
 // a map's name for the room's terms and the list of rooms (a published map not fetched yet: its code)
 function mapName(mp) {
   const code = publishedCode(mp);
-  if (code && !knownMap(mp)) return `玩家地圖 ${code}`;
+  if (code && !knownMap(mp)) return t('玩家地圖 {code}', { code });
   const def = mapDef(mp || DEFAULT_MAP);
-  return code ? `${def.name}（玩家地圖 ${code}）` : def.name;
+  return code ? t('{name}（玩家地圖 {code}）', { name: tx(def.name), code }) : tx(def.name);
 }
 
 // the room's terms in one line: island, seats, turn rule, victory points
 function roomTerms(mp, ru, n, tv, hr) {
-  const parts = [`${esc(mapName(mp))}`, `${n} 席`];
-  if (ru) parts.push(ru === 's' ? '特別建造階段' : '配對回合');
-  if (tv) parts.push(`${tv} 分勝利`);
+  const parts = [`${esc(mapName(mp))}`, t('{n} 席', { n })];
+  if (ru) parts.push(ru === 's' ? t('特別建造階段') : t('配對回合'));
+  if (tv) parts.push(t('{n} 分勝利', { n: tv }));
   parts.push(...houseRulesText(houseRules(hr)).map(esc));
-  return parts.join('・');
+  return parts.join(t('・'));
 }
 
 // The house rules a custom room changed, as its lobby presence says them: 'd<n>' the hand limit for a
@@ -132,12 +134,12 @@ function seatRows(seats, me, opts = {}) {
     .map((s, i) => {
       const label =
         s.kind === 'host'
-          ? `${esc(s.name)} <em>主持人${s.peer === me ? '·你' : ''}</em>`
+          ? `${esc(localName(s.name))} <em>${t('主持人')}${s.peer === me ? t('·你') : ''}</em>`
           : s.kind === 'remote'
-            ? `${esc(s.name)} <em>線上玩家${s.peer === me ? '·你' : ''}${s.away ? '·離線' : ''}</em>`
+            ? `${esc(localName(s.name))} <em>${t('線上玩家')}${s.peer === me ? t('·你') : ''}${s.away ? t('·離線') : ''}</em>`
             : s.kind === 'ai'
-              ? `${esc(s.name || '電腦')} <em>電腦·${{ easy: '簡單', normal: '普通', hard: '困難' }[s.level] || '普通'}</em>`
-              : `<span style="color:var(--ink-faint)">等待玩家加入…</span>`;
+              ? `${esc(localName(s.name) || t('電腦'))} <em>${{ easy: t('電腦·簡單'), normal: t('電腦·普通'), hard: t('電腦·困難') }[s.level] || t('電腦·普通')}</em>`
+              : `<span style="color:var(--ink-faint)">${t('等待玩家加入…')}</span>`;
       const color = s.color || '#6b6457';
       return `<div class="seat" data-i="${i}"><img class="flag sm" alt="" src="${flagURL(color, i)}"><div class="nm">${label}</div><div class="ctl">${opts.controls ? opts.controls(s, i) : ''}</div></div>`;
     })
@@ -232,7 +234,7 @@ export class HostSession {
         s.map = DEFAULT_MAP;
         fitSettings(s);
       }
-      this.seats = [{ kind: 'host', name: cleanName(s.name, '曙光王國'), color: s.color }];
+      this.seats = [{ kind: 'host', name: cleanName(s.name, t('曙光王國')), color: s.color }];
       const n = this.official ? 3 : s.opponents;
       for (let i = 0; i < n; i++) this.seats.push({ kind: 'open', level: 'normal' });
     }
@@ -310,7 +312,7 @@ export class HostSession {
   whoIs(peer, pr) {
     const s = this.seats && this.seats.find((x) => x.peer === peer && x.kind !== 'open');
     if (s) return { name: s.name, color: s.color };
-    return { name: `${cleanName(pr && pr.name, '觀戰者')}（觀戰）`, color: null };
+    return { name: t('{name}（觀戰）', { name: cleanName(pr && pr.name, t('觀戰者')) }), color: null };
   }
 
   usedColors(except = -1) {
@@ -325,7 +327,7 @@ export class HostSession {
   onPeers(ch) {
     if (this.demoted || this.phase === 'closed') return;
     if (ch.error) {
-      this.toast('連線中斷', '房間連線已結束，請重新建立房間。', 'cross');
+      this.toast(t('連線中斷'), t('房間連線已結束，請重新建立房間。'), 'cross');
       return;
     }
     this.chat.receive(ch.peers);
@@ -358,7 +360,7 @@ export class HostSession {
         if (!s.managed) {
           s.managed = true;
           if (this.game) this.game.setSeatAway(i, true);
-          this.toast('玩家離開', `${s.name} 離開了戰役，改由電腦接手。`, 'people');
+          this.toast(t('玩家離開'), t('{name} 離開了戰役，改由電腦接手。', { name: localName(s.name) }), 'people');
         }
       }
       changed = true;
@@ -374,7 +376,7 @@ export class HostSession {
           s.away = true;
           s.awaySince = now;
           s.peer = null;
-          if (!s.quiet) this.toast('玩家離線', `${s.name} 離開了房間，${AWAY_MS / 1000} 秒後由電腦代管。`, 'people');
+          if (!s.quiet) this.toast(t('玩家離線'), t('{name} 離開了房間，{s} 秒後由電腦代管。', { name: localName(s.name), s: AWAY_MS / 1000 }), 'people');
         }
         changed = true;
       }
@@ -391,7 +393,7 @@ export class HostSession {
           const wasManaged = s.managed;
           Object.assign(s, { peer: p.peer, away: false, awaySince: 0, managed: false, lastN: same ? s.lastN || 0 : 0, sid: pr.sid || null });
           if (this.game && wasManaged) this.game.setSeatAway(i, false);
-          if (!s.quiet) this.toast('玩家回來了', `${s.name} 重新連線`, 'people');
+          if (!s.quiet) this.toast(t('玩家回來了'), t('{name} 重新連線', { name: localName(s.name) }), 'people');
           s.quiet = false;
           changed = true;
         }
@@ -399,7 +401,7 @@ export class HostSession {
       if (i < 0 && this.phase === 'lobby' && typeof pr.k === 'string' && pr.k.length < 200) {
         const open = this.seats.findIndex((s) => s.kind === 'open');
         if (open >= 0) {
-          const name = cleanName(pr.name, '玩家 ' + (open + 1));
+          const name = cleanName(pr.name, t('玩家 {n}', { n: open + 1 }));
           Object.assign(this.seats[open], { kind: 'remote', peer: p.peer, name, color: this.freeColor(pr.color, open), key: pr.k, lastN: 0, away: false, sid: pr.sid || null });
           i = open;
           changed = true;
@@ -425,7 +427,7 @@ export class HostSession {
       }
       if (i >= 0 && this.phase === 'play' && this.game && !this.handing) this.takeIntents(i, p);
     }
-    this.waiting = peers.filter((p) => !this.seats.some((s) => s.peer === p.peer)).map((p) => cleanName(p.presence.name, '玩家'));
+    this.waiting = peers.filter((p) => !this.seats.some((s) => s.peer === p.peer)).map((p) => cleanName(p.presence.name, t('玩家')));
     // the backup goes to whoever is now best placed to take over
     if (this.phase === 'play' && this.state) {
       const next = this.successor();
@@ -449,8 +451,8 @@ export class HostSession {
       s.lastN = n;
       acted = true;
       const action = C.sanitizeAction(a, i, ACTION_TYPES);
-      const msg = action ? this.game.dispatchFrom(action) : '無效的動作';
-      if (msg) this.err = [p.peer, n, String(msg).slice(0, 120)];
+      const m = action ? this.game.dispatchFrom(action) : msg('無效的動作');
+      if (m) this.err = m.params ? [p.peer, n, m.text.slice(0, 120), m.key, m.params] : [p.peer, n, m.key.slice(0, 120)];
     }
     if (acted) this.publish();
   }
@@ -491,7 +493,7 @@ export class HostSession {
     count = Math.min(def.players[1], Math.max(lo, count));
     const people = this.seats.filter((s) => s.kind === 'host' || s.kind === 'remote').length;
     if (people > count) {
-      this.toast('席位不夠', `房間裡已經有 ${people} 位玩家，請先移除玩家再減少席位`, 'people');
+      this.toast(t('席位不夠'), t('房間裡已經有 {n} 位玩家，請先移除玩家再減少席位', { n: people }), 'people');
       return;
     }
     while (this.seats.length > count) {
@@ -704,7 +706,7 @@ export class HostSession {
     const to = this.successor(reason !== 'leave', reason !== 'leave') || (reason === 'leave' ? this.successor() : null);
     if (!to) return false;
     this.handing = { to: to.peer, at: this.ep + 1, bye: reason === 'leave', reason };
-    if (this.game && !this.game.destroyed) this.game.freeze(true, '主持人交接中…');
+    if (this.game && !this.game.destroyed) this.game.freeze(true, t('主持人交接中…'));
     this.publish();
     clearTimeout(this.handTimer);
     this.handTimer = setTimeout(() => this.cancelHandover(), HANDOVER_MS);
@@ -813,14 +815,14 @@ export class HostSession {
 
   showLobby() {
     const scr = el('div', 'menu-screen online-screen');
-    scr.innerHTML = `<div class="title-block"><div class="eyebrow">Online Room</div><h1>線上房間<span>等待其他國家加入</span></h1><p>${selfHosted() ? '把邀請連結傳給朋友，打開就會進到這個房間；也可以在「線上對戰」輸入下方的房間代碼，或從房間列表加入。' : '請朋友開啟這個頁面，選「線上對戰」後輸入下方的房間代碼，或直接從房間列表加入。'}空著的席位會由電腦補上。</p></div>
-      <div class="setup-card panel"><div class="modal-head"><h3>房間 <span class="code"></span></h3></div><div class="modal-body"></div><div class="modal-foot"></div></div>`;
+    scr.innerHTML = `<div class="title-block"><div class="eyebrow">Online Room</div><h1>${t('線上房間')}<span>${t('等待其他國家加入')}</span></h1><p>${selfHosted() ? t('把邀請連結傳給朋友，打開就會進到這個房間；也可以在「線上對戰」輸入下方的房間代碼，或從房間列表加入。') : t('請朋友開啟這個頁面，選「線上對戰」後輸入下方的房間代碼，或直接從房間列表加入。')}${t('空著的席位會由電腦補上。')}</p></div>
+      <div class="setup-card panel"><div class="modal-head"><h3>${t('房間')} <span class="code"></span></h3></div><div class="modal-body"></div><div class="modal-foot"></div></div>`;
     scr.querySelector('.code').textContent = this.code.toUpperCase();
     const body = scr.querySelector('.modal-body');
     const foot = scr.querySelector('.modal-foot');
     const render = () => {
       const me = this.me();
-      body.innerHTML = `<div class="code-box"><span class="lbl">房間代碼</span><b class="num">${this.code.toUpperCase()}</b></div><div class="room-layout"></div><div class="row-label">席位</div><div class="seat-list"></div><div class="waiting"></div>`;
+      body.innerHTML = `<div class="code-box"><span class="lbl">${t('房間代碼')}</span><b class="num">${this.code.toUpperCase()}</b></div><div class="room-layout"></div><div class="row-label">${t('席位')}</div><div class="seat-list"></div><div class="waiting"></div>`;
       // the island and how many play (and on the large island, how the turn is shared)
       const lay = body.querySelector('.room-layout');
       const cur = mapDef(this.settings.map);
@@ -838,49 +840,49 @@ export class HostSession {
         lay.appendChild(row);
       };
       const mapRow = el('div', 'layout-row');
-      mapRow.appendChild(el('span', 'row-label', '地圖'));
+      mapRow.appendChild(el('span', 'row-label', t('地圖')));
       const pickMap = (id) => this.setLayout(id, mapDef(id).players[1], this.settings.turns);
       mapRow.appendChild(mapTable(cur.id, pickMap, publishedCode(cur.id) ? [cur] : []));
       lay.appendChild(mapRow);
       // a map players published (the self-hosted site): by its code, or from the public list
       if (mapsAvailable()) {
         const row = el('div', 'layout-row');
-        row.appendChild(el('span', 'row-label', '玩家地圖'));
+        row.appendChild(el('span', 'row-label', t('玩家地圖')));
         const box = el('div', 'mb-code');
         const inp = el('input');
         inp.type = 'text';
-        inp.placeholder = '地圖代號';
+        inp.placeholder = t('地圖代號');
         inp.maxLength = 8;
-        inp.setAttribute('aria-label', '玩家地圖代號');
+        inp.setAttribute('aria-label', t('玩家地圖代號'));
         const open = async (c) => {
           try {
             const def = await loadPublished(c);
             pickMap(def.id);
           } catch (e) {
-            this.toast('打不開這張地圖', e.message, 'cross');
+            this.toast(t('打不開這張地圖'), terr(e), 'cross');
           }
         };
-        const go = btn('使用', '', () => {
+        const go = btn(t('使用'), '', () => {
           const c = cleanCode(inp.value);
           if (CODE_RE.test(c)) open(c);
-          else this.toast('代號不對', '地圖代號是 6 個英文字母或數字', 'cross');
+          else this.toast(t('代號不對'), t('地圖代號是 6 個英文字母或數字'), 'cross');
         });
         inp.addEventListener('keydown', (e) => e.key === 'Enter' && go.click());
         box.append(inp, go);
-        if (this.dialogs) box.appendChild(btn('公開地圖…', 'ghost', () => openMapBrowser(this.dialogs(), { toast: this.toast, onPick: (def) => pickMap(def.id) })));
+        if (this.dialogs) box.appendChild(btn(t('公開地圖…'), 'ghost', () => openMapBrowser(this.dialogs(), { toast: this.toast, onPick: (def) => pickMap(def.id) })));
         row.appendChild(box);
         lay.appendChild(row);
       }
       const lo = Math.max(3, cur.players[0]);
       const counts = [];
-      for (let n = lo; n <= cur.players[1]; n++) counts.push([n, `${n} 席`]);
-      segRow('人數', counts, this.seats.length, (n) => this.setLayout(cur.id, n, this.settings.turns));
+      for (let n = lo; n <= cur.players[1]; n++) counts.push([n, t('{n} 席', { n })]);
+      segRow(t('人數'), counts, this.seats.length, (n) => this.setLayout(cur.id, n, this.settings.turns));
       if (cur.rules && cur.rules.turns)
         segRow(
-          '回合規則',
+          t('回合規則'),
           [
-            ['paired', '配對回合'],
-            ['sbp', '特別建造階段'],
+            ['paired', t('配對回合')],
+            ['sbp', t('特別建造階段')],
           ],
           this.settings.turns === 'sbp' ? 'sbp' : 'paired',
           (t) => this.setLayout(cur.id, this.seats.length, t),
@@ -893,22 +895,22 @@ export class HostSession {
       );
       const box = body.querySelector('.code-box');
       const link = selfHosted();
-      const copy = btn(link ? '複製邀請連結' : '複製代碼', 'ghost', () => {
-        const t = link ? inviteLink(this.code) : this.code.toUpperCase();
+      const copy = btn(link ? t('複製邀請連結') : t('複製代碼'), 'ghost', () => {
+        const text = link ? inviteLink(this.code) : this.code.toUpperCase();
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(t).then(
-            () => this.toast('已複製', link ? '邀請連結已複製，傳給朋友就能加入' : '房間代碼 ' + t, 'check'),
-            () => this.toast('無法複製', link ? t : '請手動抄下房間代碼', 'cards'),
+          navigator.clipboard.writeText(text).then(
+            () => this.toast(t('已複製'), link ? t('邀請連結已複製，傳給朋友就能加入') : t('房間代碼 {code}', { code: text }), 'check'),
+            () => this.toast(t('無法複製'), link ? text : t('請手動抄下房間代碼'), 'cards'),
           );
-        } else if (link) this.toast('邀請連結', t, 'cards');
+        } else if (link) this.toast(t('邀請連結'), text, 'cards');
       });
       box.appendChild(copy);
       const list = body.querySelector('.seat-list');
       list.innerHTML = seatRows(this.seats, me, {
         controls: (s, i) => {
           if (s.kind === 'host') return '';
-          if (s.kind === 'remote') return `<button class="btn ghost" data-act="kick" data-i="${i}" type="button">移除</button>`;
-          return `<select data-i="${i}" aria-label="席位 ${i + 1}"><option value="open"${s.kind === 'open' ? ' selected' : ''}>開放給玩家</option><option value="ai:easy"${s.kind === 'ai' && s.level === 'easy' ? ' selected' : ''}>電腦·簡單</option><option value="ai:normal"${s.kind === 'ai' && s.level === 'normal' ? ' selected' : ''}>電腦·普通</option><option value="ai:hard"${s.kind === 'ai' && s.level === 'hard' ? ' selected' : ''}>電腦·困難</option></select>`;
+          if (s.kind === 'remote') return `<button class="btn ghost" data-act="kick" data-i="${i}" type="button">${t('移除')}</button>`;
+          return `<select data-i="${i}" aria-label="${t('席位 {n}', { n: i + 1 })}"><option value="open"${s.kind === 'open' ? ' selected' : ''}>${t('開放給玩家')}</option><option value="ai:easy"${s.kind === 'ai' && s.level === 'easy' ? ' selected' : ''}>${t('電腦·簡單')}</option><option value="ai:normal"${s.kind === 'ai' && s.level === 'normal' ? ' selected' : ''}>${t('電腦·普通')}</option><option value="ai:hard"${s.kind === 'ai' && s.level === 'hard' ? ' selected' : ''}>${t('電腦·困難')}</option></select>`;
         },
       });
       list.querySelectorAll('select').forEach((sel) =>
@@ -920,15 +922,15 @@ export class HostSession {
       );
       list.querySelectorAll('[data-act="kick"]').forEach((b) => b.addEventListener('click', () => this.setSeat(Number(b.dataset.i), 'open')));
       const w = body.querySelector('.waiting');
-      if (this.waiting && this.waiting.length) w.innerHTML = `<p class="lead" style="margin-top:10px">已滿座，觀望中：${this.waiting.map(esc).join('、')}</p>`;
+      if (this.waiting && this.waiting.length) w.innerHTML = `<p class="lead" style="margin-top:10px">${t('已滿座，觀望中：{list}', { list: list(this.waiting.map(esc)) })}</p>`;
       const humans = this.seats.filter((s) => s.kind === 'remote').length;
-      startBtn.textContent = humans ? `開始戰役（${humans + 1} 位玩家）` : '開始戰役（只有你和電腦）';
+      startBtn.textContent = humans ? t('開始戰役（{n} 位玩家）', { n: humans + 1 }) : t('開始戰役（只有你和電腦）');
     };
-    const leave = btn('離開房間', '', async () => {
+    const leave = btn(t('離開房間'), '', async () => {
       await this.leave();
       this.onLeave && this.onLeave();
     });
-    const startBtn = btn('開始戰役', 'primary', () => this.start());
+    const startBtn = btn(t('開始戰役'), 'primary', () => this.start());
     foot.append(leave, startBtn);
     this.app.appendChild(scr);
     this.ui = { render, close: () => scr.remove() };
@@ -990,7 +992,7 @@ export class ClientSession {
     }
     this.sid = makeCode() + makeCode();
     this.perf = perfScore();
-    const pres = { app: APP, v: V, role: 'player', name: cleanName(this.settings.name, '玩家'), color: this.settings.color, k: this.keys.pubB64, sid: this.sid, out: [], perf: this.perf, vis: pageVisible() ? 1 : 0 };
+    const pres = { app: APP, v: V, role: 'player', name: cleanName(this.settings.name, t('玩家')), color: this.settings.color, k: this.keys.pubB64, sid: this.sid, out: [], perf: this.perf, vis: pageVisible() ? 1 : 0 };
     if (this.attach) for (const k of HOST_KEYS) pres[k] = null; // this page hosted until now
     await this.ch.presence(pres);
     rememberRoom(this.code, 'client');
@@ -1002,7 +1004,7 @@ export class ClientSession {
     if (this.attach) this.onPeers({ peers: this.ch.peers(), joined: [], left: [], updated: [] });
     this.hostTimer = setTimeout(() => {
       if (this.hostSeen) return;
-      if (this.ui) this.ui.status('找不到這個房間的主持人。請確認代碼，或請主持人重新開房。');
+      if (this.ui) this.ui.status(t('找不到這個房間的主持人。請確認代碼，或請主持人重新開房。'));
       if (this.onHostLost) this.onHostLost();
     }, 8000);
   }
@@ -1014,7 +1016,7 @@ export class ClientSession {
   whoIs(peer, pr) {
     const s = this.lob.find((x) => x.peer === peer && x.kind !== 'open');
     if (s) return { name: s.name, color: s.color };
-    return { name: `${cleanName(pr && pr.name, '觀戰者')}（觀戰）`, color: null };
+    return { name: t('{name}（觀戰）', { name: cleanName(pr && pr.name, t('觀戰者')) }), color: null };
   }
 
   // the host hands the campaign to a page in front: say when this page goes to the background
@@ -1048,13 +1050,13 @@ export class ClientSession {
   onPeers(ch) {
     if (this.closed) return;
     if (ch.error) {
-      this.toast('連線中斷', '房間連線已結束。', 'cross');
+      this.toast(t('連線中斷'), t('房間連線已結束。'), 'cross');
       return;
     }
     this.chat.receive(ch.peers);
     const host = this.findHost(ch.peers);
     if (!host) {
-      if (this.hostSeen && this.game) this.game.setNetStatus(this.backup ? '主持人離線，準備由你接手…' : '主持人離線，等待重新連線或由其他玩家接手…');
+      if (this.hostSeen && this.game) this.game.setNetStatus(this.backup ? t('主持人離線，準備由你接手…') : t('主持人離線，等待重新連線或由其他玩家接手…'));
       if (this.hostSeen && !this.game && this.onHostLost && !this.lostTimer) {
         // the room closed before the campaign started
         this.lostTimer = setTimeout(() => {
@@ -1090,7 +1092,7 @@ export class ClientSession {
       } catch (e) {
         if (!this.mapErr) {
           this.mapErr = true;
-          this.toast('打不開這張地圖', e.message, 'cross');
+          this.toast(t('打不開這張地圖'), terr(e), 'cross');
         }
         if (pr.st === 'play') return;
       }
@@ -1126,7 +1128,7 @@ export class ClientSession {
         }
       }
       if (!priv) return;
-    } else if (!this.game && this.ui) this.ui.status('戰役已經開始而且沒有空位，以觀戰模式進入…');
+    } else if (!this.game && this.ui) this.ui.status(t('戰役已經開始而且沒有空位，以觀戰模式進入…'));
     const seatInfo = C.decodeSeats(pr.ps);
     let view;
     try {
@@ -1136,12 +1138,13 @@ export class ClientSession {
       if (!(e instanceof C.BoardMismatch)) throw e;
       if (!this.mismatch) {
         this.mismatch = true;
-        this.toast('版本不同', e.message, 'cross');
-        if (this.ui) this.ui.status(e.message);
+        this.toast(t('版本不同'), terr(e), 'cross');
+        if (this.ui) this.ui.status(terr(e));
       }
       return;
     }
-    const players = seatInfo.map((s, i) => ({ ...s, away: seats[i] && seats[i].away }));
+    // (a default nation's name in this reader's language)
+    const players = seatInfo.map((s, i) => ({ ...s, name: localName(s.name), away: seats[i] && seats[i].away }));
     const evs = [];
     if (this.game) {
       for (const [s, list] of pr.ev || []) {
@@ -1162,10 +1165,10 @@ export class ClientSession {
     }
     if (pr.err && pr.err[0] === me && pr.err[1] !== this.lastErr) {
       this.lastErr = pr.err[1];
-      this.toast('無法執行', pr.err[2], 'cross');
+      this.toast(t('無法執行'), pr.err[3] ? t(pr.err[3], pr.err[4]) : tx(pr.err[2]), 'cross');
     }
     const ep = Number(pr.ep) || 1;
-    const hostName = cleanName(pr.hn, '另一位玩家');
+    const hostName = cleanName(pr.hn, t('另一位玩家'));
     if (!this.game) {
       this.hostEp = ep;
       if (this.ui) this.ui.close();
@@ -1176,11 +1179,11 @@ export class ClientSession {
       if (seat >= 0) this.ch.presence({ gm: 1 }).catch(() => {});
       if (this.game && this.game.setRemoteClock) this.game.setRemoteClock(pr.dl, pr.pn);
       // this page hosted until now: say who runs the campaign
-      if (this.attach && this.game) this.game.hud.log(`主持改由 <b>${esc(hostName)}</b> 的電腦負責`, { hl: true });
+      if (this.attach && this.game) this.game.hud.log(t('主持改由 <b>{name}</b> 的電腦負責', { name: esc(localName(hostName)) }), { hl: true });
     } else {
       if (ep !== this.hostEp) {
         this.hostEp = ep;
-        this.game.hud.log(`主持改由 <b>${esc(hostName)}</b> 的電腦負責`, { hl: true });
+        this.game.hud.log(t('主持改由 <b>{name}</b> 的電腦負責', { name: esc(localName(hostName)) }), { hl: true });
       }
       this.game.setNetStatus(null);
       if (this.game.setRemoteClock) this.game.setRemoteClock(pr.dl, pr.pn);
@@ -1293,7 +1296,7 @@ export class ClientSession {
     this.claimLeft -= Math.min(now - this.claimAt, 1000);
     this.claimAt = now;
     if (this.claimLeft <= 0) return false;
-    if (this.ui) this.ui.status('正在取回你的席位…');
+    if (this.ui) this.ui.status(t('正在取回你的席位…'));
     clearTimeout(this.claimTimer);
     this.claimTimer = setTimeout(() => {
       if (this.game || this.closed || !this.lastPres) return;
@@ -1326,7 +1329,7 @@ export class ClientSession {
     this.out.push([this.n, a, Date.now()]);
     while (this.out.length > 6) this.out.shift();
     this.ch.presence({ out: this.out.map((o) => [o[0], o[1]]) }).catch((e) => {
-      this.toast('傳送失敗', '動作沒有送出，請再試一次。', 'cross');
+      this.toast(t('傳送失敗'), t('動作沒有送出，請再試一次。'), 'cross');
       console.warn(e);
     });
     return true;
@@ -1368,11 +1371,11 @@ export class ClientSession {
   }
   showWaiting() {
     const scr = el('div', 'menu-screen online-screen');
-    scr.innerHTML = `<div class="title-block"><div class="eyebrow">Online Room</div><h1>線上房間<span>${esc(this.code.toUpperCase())}</span></h1><p>已進入房間。主持人按下「開始戰役」後，地圖會自動出現。</p></div>
-      <div class="setup-card panel"><div class="modal-head"><h3>房間 ${esc(this.code.toUpperCase())}</h3></div><div class="modal-body"><p class="lead status">正在尋找主持人…</p><div class="seat-list"></div></div><div class="modal-foot"></div></div>`;
+    scr.innerHTML = `<div class="title-block"><div class="eyebrow">Online Room</div><h1>${t('線上房間')}<span>${esc(this.code.toUpperCase())}</span></h1><p>${t('已進入房間。主持人按下「開始戰役」後，地圖會自動出現。')}</p></div>
+      <div class="setup-card panel"><div class="modal-head"><h3>${t('房間 {code}', { code: esc(this.code.toUpperCase()) })}</h3></div><div class="modal-body"><p class="lead status">${t('正在尋找主持人…')}</p><div class="seat-list"></div></div><div class="modal-foot"></div></div>`;
     const foot = scr.querySelector('.modal-foot');
     foot.appendChild(
-      btn('離開房間', '', async () => {
+      btn(t('離開房間'), '', async () => {
         await this.leave();
         this.onLeave && this.onLeave();
       }),
@@ -1386,7 +1389,7 @@ export class ClientSession {
       render: (seats, seat, lay = {}) => {
         // before the host has seen us arrive there may still be open seats: we are about to get one
         const open = seats.some((s) => s.kind === 'open');
-        statusEl.textContent = seat >= 0 ? `你坐在第 ${seat + 1} 席，等待主持人開始戰役…` : open ? '正在取得席位…' : '席位已滿，目前在旁觀望。';
+        statusEl.textContent = seat >= 0 ? t('你坐在第 {n} 席，等待主持人開始戰役…', { n: seat + 1 }) : open ? t('正在取得席位…') : t('席位已滿，目前在旁觀望。');
         termsEl.innerHTML = roomTerms(lay.mp, lay.ru, seats.length, lay.tv, lay.hr);
         list.innerHTML = seatRows(seats, this.me());
       },
@@ -1431,7 +1434,7 @@ export class MatchSession {
     if (!sup.ok) throw new Error(supportError(sup.why));
     this.room = sup.room;
     this.lobby = wrap(this.room);
-    this.name = cleanName(this.settings.name, '玩家');
+    this.name = cleanName(this.settings.name, t('玩家'));
     this.qt = Date.now();
     if (!this.onState) this.showUI();
     await this.lobby.presence({ app: APP, v: V, mm: { t: this.qt, nm: this.name } });
@@ -1639,11 +1642,11 @@ export class MatchSession {
 
   showUI() {
     const scr = el('div', 'menu-screen online-screen match-screen');
-    scr.innerHTML = `<div class="title-block"><div class="eyebrow">Official Match</div><h1>官方房間<span>自動配對</span></h1><p>系統會把你放進開放中的官方房間。滿 4 位玩家立即開戰；${this.seconds} 秒內沒坐滿，空位由電腦補上後開戰。</p></div>
-      <div class="setup-card panel"><div class="modal-head"><h3>官方配對</h3><span class="mm-code num"></span></div><div class="modal-body"></div><div class="modal-foot"></div></div>`;
+    scr.innerHTML = `<div class="title-block"><div class="eyebrow">Official Match</div><h1>${t('官方房間')}<span>${t('自動配對')}</span></h1><p>${t('系統會把你放進開放中的官方房間。滿 4 位玩家立即開戰；{s} 秒內沒坐滿，空位由電腦補上後開戰。', { s: this.seconds })}</p></div>
+      <div class="setup-card panel"><div class="modal-head"><h3>${t('官方配對')}</h3><span class="mm-code num"></span></div><div class="modal-body"></div><div class="modal-foot"></div></div>`;
     this.ui = { el: scr, body: scr.querySelector('.modal-body'), code: scr.querySelector('.mm-code') };
     scr.querySelector('.modal-foot').appendChild(
-      btn('取消配對', '', async () => {
+      btn(t('取消配對'), '', async () => {
         await this.leave();
         this.onLeave && this.onLeave();
       }),
@@ -1661,12 +1664,12 @@ export class MatchSession {
     if (this.closed) return;
     let seats = null;
     let rem = null;
-    let status = '正在尋找開放中的官方房間…';
+    let status = t('正在尋找開放中的官方房間…');
     let code = '';
     if (this.state === 'hosting' && this.host && this.host.seats) {
       seats = this.host.seats.map((s) => ({ ...s, peer: s.kind === 'host' ? 'me' : s.peer }));
       rem = this.host.remaining();
-      status = '已開啟新的官方房間，等待其他玩家加入';
+      status = t('已開啟新的官方房間，等待其他玩家加入');
       code = this.host.code;
     } else if (this.state === 'joined' && this.client) {
       code = this.client.code;
@@ -1674,8 +1677,8 @@ export class MatchSession {
         seats = this.lobbyView.seats;
         if (this.lobbyView.rem != null) rem = Math.max(0, this.lobbyView.rem - (Date.now() - this.lobbyView.at));
         // the host seats a newcomer within a moment; only after that is "no seat" a full room
-        status = this.lobbyView.seat >= 0 ? '已加入官方房間' : Date.now() - this.joinedAt < 8000 ? '正在取得席位…' : '這個房間已滿，正在找下一個房間…';
-      } else status = '正在加入官方房間…';
+        status = this.lobbyView.seat >= 0 ? t('已加入官方房間') : Date.now() - this.joinedAt < 8000 ? t('正在取得席位…') : t('這個房間已滿，正在找下一個房間…');
+      } else status = t('正在加入官方房間…');
     }
     const searching = this.peers().filter((p) => p.presence.mm && !p.presence.mm.in).length;
     if (this.onState) {
@@ -1689,9 +1692,9 @@ export class MatchSession {
     const me = this.state === 'hosting' ? 'me' : this.client ? this.client.me() : null;
     this.ui.body.innerHTML = `
       <div class="mm-status">${seats ? '' : '<span class="spinner"></span>'}<span>${esc(status)}</span></div>
-      <div class="mm-count"><b class="num">${secs == null ? '—' : secs}</b><span>${secs == null ? '等待房間' : full ? '人已到齊，即將開戰' : '秒後開戰'}</span></div>
+      <div class="mm-count"><b class="num">${secs == null ? '—' : secs}</b><span>${secs == null ? t('等待房間') : full ? t('人已到齊，即將開戰') : t('秒後開戰')}</span></div>
       <div class="seat-list">${seats ? seatRows(seats, me) : ''}</div>
-      <p class="lead mm-foot">${searching > 0 ? `大廳中有 ${searching} 位玩家正在配對。` : ''}${selfHosted() ? '所有打開這個網站、按下快速配對的玩家都會配對在一起。' : '只有能開啟這個頁面的人（你分享過的對象）會出現在配對中。'}</p>`;
+      <p class="lead mm-foot">${searching > 0 ? t('大廳中有 {n} 位玩家正在配對。', { n: searching }) : ''}${selfHosted() ? t('所有打開這個網站、按下快速配對的玩家都會配對在一起。') : t('只有能開啟這個頁面的人（你分享過的對象）會出現在配對中。')}</p>`;
   }
 }
 
@@ -1701,14 +1704,14 @@ export class MatchSession {
 export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack, joinOnly = false }) {
   const scr = el('div', 'menu-screen online-screen');
   scr.innerHTML = joinOnly
-    ? `<div class="title-block"><div class="eyebrow">Join a Room</div><h1>加入房間<span>與朋友爭奪卡坦島</span></h1><p>輸入朋友給你的房間代碼，或從下方挑一個開放中的房間。每個人只看得到自己的手牌，空位由電腦補上。</p></div>
-    <div class="setup-card panel"><div class="modal-head"><h3>加入房間</h3></div><div class="modal-body"></div><div class="modal-foot"></div></div>`
-    : `<div class="title-block"><div class="eyebrow">Online Campaign</div><h1>線上對戰<span>與朋友爭奪卡坦島</span></h1><p>一位玩家建立房間當主持人，其他人輸入房間代碼加入。每個人只看得到自己的手牌，空位由電腦補上。</p></div>
-    <div class="setup-card panel"><div class="modal-head"><h3>線上對戰</h3></div><div class="modal-body"></div><div class="modal-foot"></div></div>`;
+    ? `<div class="title-block"><div class="eyebrow">Join a Room</div><h1>${t('加入房間')}<span>${t('與朋友爭奪卡坦島')}</span></h1><p>${t('輸入朋友給你的房間代碼，或從下方挑一個開放中的房間。每個人只看得到自己的手牌，空位由電腦補上。')}</p></div>
+    <div class="setup-card panel"><div class="modal-head"><h3>${t('加入房間')}</h3></div><div class="modal-body"></div><div class="modal-foot"></div></div>`
+    : `<div class="title-block"><div class="eyebrow">Online Campaign</div><h1>${t('線上對戰')}<span>${t('與朋友爭奪卡坦島')}</span></h1><p>${t('一位玩家建立房間當主持人，其他人輸入房間代碼加入。每個人只看得到自己的手牌，空位由電腦補上。')}</p></div>
+    <div class="setup-card panel"><div class="modal-head"><h3>${t('線上對戰')}</h3></div><div class="modal-body"></div><div class="modal-foot"></div></div>`;
   const body = scr.querySelector('.modal-body');
   const foot = scr.querySelector('.modal-foot');
-  body.innerHTML = `<p class="lead status">正在連線…</p>`;
-  foot.appendChild(btn('返回', '', () => {
+  body.innerHTML = `<p class="lead status">${t('正在連線…')}</p>`;
+  foot.appendChild(btn(t('返回'), '', () => {
     cleanup();
     onBack();
   }));
@@ -1722,19 +1725,19 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
     const sup = await onlineSupport();
     if (!sup.ok) {
       const why = {
-        room: '線上對戰需要在 claude.ai 裡以登入身分開啟這個頁面（公開連結或下載的檔案無法連線）。每位玩家都要能開啟這個頁面，請主持人從頁面的「分享」把它分享給朋友。',
-        server: '連不上連線伺服器。請確認網路連線，稍後再試一次。',
-        crypto: '這個瀏覽器不支援加密功能，無法進行線上對戰。',
-      }[sup.why] || '這個頁面目前無法連線。';
-      body.innerHTML = `<p class="lead">${why}</p><p class="lead">你仍然可以和電腦或同一台裝置上的朋友對戰。</p>`;
+        room: t('線上對戰需要在 claude.ai 裡以登入身分開啟這個頁面（公開連結或下載的檔案無法連線）。每位玩家都要能開啟這個頁面，請主持人從頁面的「分享」把它分享給朋友。'),
+        server: t('連不上連線伺服器。請確認網路連線，稍後再試一次。'),
+        crypto: t('這個瀏覽器不支援加密功能，無法進行線上對戰。'),
+      }[sup.why] || t('這個頁面目前無法連線。');
+      body.innerHTML = `<p class="lead">${why}</p><p class="lead">${t('你仍然可以和電腦或同一台裝置上的朋友對戰。')}</p>`;
       return;
     }
     const lobby = wrap(sup.room);
     body.innerHTML = '';
     if (onMatch && !joinOnly) {
       const quick = el('div', 'online-card quick');
-      quick.innerHTML = `<div class="row-label">官方房間</div><p class="lead">自動配對到開放中的官方房間。滿 4 人立即開戰，或 60 秒後由電腦補滿空位。</p><p class="lead mm-online"></p>`;
-      quick.appendChild(btn(`${icon('people', 16)} 快速配對`, 'primary', () => {
+      quick.innerHTML = `<div class="row-label">${t('官方房間')}</div><p class="lead">${t('自動配對到開放中的官方房間。滿 4 人立即開戰，或 60 秒後由電腦補滿空位。')}</p><p class="lead mm-online"></p>`;
+      quick.appendChild(btn(`${icon('people', 16)} ${t('快速配對')}`, 'primary', () => {
         cleanup();
         onMatch();
       }));
@@ -1742,17 +1745,17 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
     }
     if (!joinOnly) {
       const host = el('div', 'online-card');
-      host.innerHTML = `<div class="row-label">建立房間</div><p class="lead">以「${esc(settings.name)}」的身分開房，使用目前的對手數量與勝利分數設定。</p>`;
-      host.appendChild(btn(`${icon('people', 16)} 建立房間`, 'primary', () => {
+      host.innerHTML = `<div class="row-label">${t('建立房間')}</div><p class="lead">${t('以「{name}」的身分開房，使用目前的對手數量與勝利分數設定。', { name: esc(settings.name) })}</p>`;
+      host.appendChild(btn(`${icon('people', 16)} ${t('建立房間')}`, 'primary', () => {
         cleanup();
         onHost();
       }));
       body.appendChild(host);
     }
     const join = el('div', 'online-card');
-    join.innerHTML = `<div class="row-label">${joinOnly ? '房間代碼' : '加入房間'}</div><div class="join-row"><input type="text" id="join-code" maxlength="12" placeholder="輸入房間代碼" autocomplete="off" spellcheck="false" aria-label="房間代碼"></div>`;
+    join.innerHTML = `<div class="row-label">${joinOnly ? t('房間代碼') : t('加入房間')}</div><div class="join-row"><input type="text" id="join-code" maxlength="12" placeholder="${t('輸入房間代碼')}" autocomplete="off" spellcheck="false" aria-label="${t('房間代碼')}"></div>`;
     const input = join.querySelector('input');
-    const go = btn('加入', 'primary', () => {
+    const go = btn(t('加入'), 'primary', () => {
       const c = normCode(input.value);
       if (c.length < 3) {
         input.focus();
@@ -1766,7 +1769,7 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
     body.appendChild(join);
     if (joinOnly && window.innerWidth > 760) input.focus({ preventScroll: true });
     const listBox = el('div', 'online-card');
-    listBox.innerHTML = `<div class="row-label">開放中的房間</div><div class="room-list"><p class="lead">目前沒有開放中的房間。</p></div>`;
+    listBox.innerHTML = `<div class="row-label">${t('開放中的房間')}</div><div class="room-list"><p class="lead">${t('目前沒有開放中的房間。')}</p></div>`;
     body.appendChild(listBox);
     const roomList = listBox.querySelector('.room-list');
     const render = (peers) => {
@@ -1774,11 +1777,11 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
       if (mmEl) {
         const n = peers.filter((p) => !p.sameTab && p.presence && p.presence.app === APP && p.presence.mm && !p.presence.mm.in).length;
         const offi = peers.filter((p) => !p.sameTab && p.presence && p.presence.app === APP && p.presence.host && p.presence.host.off === 1 && p.presence.host.st === 'lobby').length;
-        mmEl.textContent = n || offi ? `目前 ${offi} 個官方房間開放中、${n} 位玩家正在配對。` : '';
+        mmEl.textContent = n || offi ? t('目前 {rooms} 個官方房間開放中、{n} 位玩家正在配對。', { rooms: offi, n }) : '';
       }
       const rooms = peers.filter((p) => !p.sameTab && p.presence && p.presence.app === APP && p.presence.host && p.presence.host.code && p.presence.host.off !== 1);
       if (!rooms.length) {
-        roomList.innerHTML = '<p class="lead">目前沒有開放中的房間。</p>';
+        roomList.innerHTML = t('<p class="lead">目前沒有開放中的房間。</p>');
         return;
       }
       roomList.innerHTML = '';
@@ -1786,9 +1789,9 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
         const h = r.presence.host;
         const row = el('div', 'resp');
         const playing = h.st === 'play';
-        const isle = (h.mp && (MAP_LIST.some((d) => d.id === h.mp) || publishedCode(h.mp)) ? `・${mapName(h.mp)}` : '') + houseRulesText(houseRules(typeof h.hr === 'string' ? h.hr : null)).map((t) => '・' + t).join('');
-        row.innerHTML = `<b class="num" style="letter-spacing:.12em">${esc(String(h.code).toUpperCase())}</b><span>${esc(cleanName(h.nm, '主持人'))} 的房間${esc(isle)}</span><span class="st">${playing ? '戰役進行中' : `空位 ${Number(h.f) || 0}/${Math.max(0, (Number(h.n) || 1) - 1)}`}</span>`;
-        const b = btn(playing ? '重新加入／觀戰' : '加入', playing ? '' : 'primary', () => {
+        const isle = (h.mp && (MAP_LIST.some((d) => d.id === h.mp) || publishedCode(h.mp)) ? t('・') + mapName(h.mp) : '') + houseRulesText(houseRules(typeof h.hr === 'string' ? h.hr : null)).map((x) => t('・') + x).join('');
+        row.innerHTML = `<b class="num" style="letter-spacing:.12em">${esc(String(h.code).toUpperCase())}</b><span>${t('{name} 的房間', { name: esc(localName(cleanName(h.nm, t('主持人')))) })}${esc(isle)}</span><span class="st">${playing ? t('戰役進行中') : t('空位 {n}/{of}', { n: Number(h.f) || 0, of: Math.max(0, (Number(h.n) || 1) - 1) })}</span>`;
+        const b = btn(playing ? t('重新加入／觀戰') : t('加入'), playing ? '' : 'primary', () => {
           cleanup();
           onJoin(normCode(h.code));
         });

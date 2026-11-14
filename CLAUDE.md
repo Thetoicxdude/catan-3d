@@ -1,13 +1,14 @@
 # 卡坦島 3D 戰略版：給 Claude 的工作說明
 
-線上可玩的卡坦島（基本版規則＋5–6 人擴充＋航海家），three.js 3D 戰略地圖。介面文字一律用繁體中文。
+線上可玩的卡坦島（基本版規則＋5–6 人擴充＋航海家），three.js 3D 戰略地圖。玩家主要是外國人：介面有英文（預設）與繁體中文兩種語言，設定的第一列切換。**畫面上的每一個字都要經過翻譯**（見下面「兩種語言」），新加的字要同時寫好英文。
 
 ## 指令
 - `npm run build`：打包。輸出 `site/`（部署用：頁面＋`assets/`）與 `dist/`（claude.ai artifact 版頁面與 `dist/index.test.html` 測試頁）。
 - `npm run dev`：打包後用 wrangler 在 http://127.0.0.1:8787 跑整個網站與房間伺服器。
-- `npm test`：規則單元測試、地圖繪圖的步調與解析度調整（`test/pace.mjs`）、標準地圖回歸（`test/golden.mjs`）、網路序列化、時間限制、帳號、模擬（標準 300 局、大島嶼配對回合 120 局與特別建造 40 局、航海家劇本 1 與 2 各 60 局、劇本 3 與 9 各 40 局、5–6 人航海家四張各 30 局、房規 40＋20 局；`node test/sim.mjs N --map=base-6 --turns=sbp`（加 `--house` 用房規）、`--map=sea-1`、`sea-2`、`sea-3`、`sea-9`、`sea-1-6`…`sea-9-6` 可單獨跑）。
+- `npm test`：翻譯檢查（`test/i18n.mjs`，見「兩種語言」）、規則單元測試、地圖繪圖的步調與解析度調整（`test/pace.mjs`）、標準地圖回歸（`test/golden.mjs`）、網路序列化、時間限制、帳號、模擬（標準 300 局、大島嶼配對回合 120 局與特別建造 40 局、航海家劇本 1 與 2 各 60 局、劇本 3 與 9 各 40 局、5–6 人航海家四張各 30 局、房規 40＋20 局；`node test/sim.mjs N --map=base-6 --turns=sbp`（加 `--house` 用房規）、`--map=sea-1`、`sea-2`、`sea-3`、`sea-9`、`sea-1-6`…`sea-9-6` 可單獨跑）。
 - `node test/rooms.mjs`：房間伺服器協定（需先 `npm run dev`）；`python3 test/lobby.py`：主畫面官方房間在連線無聲斷掉後自己接上（需先 `npm run dev`）。
 - 瀏覽器測試（Playwright，SwiftShader 很慢）：`python3 test/ui1.py`…`ui4.py`、`ui5.py`（大島嶼 6 人單機，`TURNS=sbp` 測特別建造）、`online.py`、`online2.py`（斷線重連、主持人重新整理時交接）、`online3.py`（觀戰）、`online4.py`（主持人交接與接手、回合時間、聊天、退出由電腦代替）、`online5.py`（6 席大島嶼房間）、`ui6.py`（航海家單機：開局放船、造船、移船、金礦、重新整理後繼續；`MAP=sea-2` 跑四座島嶼、`MAP=sea-3` 跑霧島、`MAP=sea-9` 跑新世界，`MAP=sea-1-6`…`sea-9-6` 跑 5–6 人版；`online6.py` 也接受 `MAP`）、`online6.py`（航海家線上房間）、`match.py`（快速配對）。加 `ROOMS=ws` 會改走真正的房間伺服器（需先 `npm run dev`）。截圖存到 `SHOTS` 指定的資料夾。
+- 英文介面（瀏覽器）：`python3 test/english.py`：不存語言（＝英文）走主畫面、設定、規則、單人設定、電腦代打的一整局與一局航海家、地圖工坊、加入與建立房間，畫面上（文字、title、aria-label、placeholder、輸入框）出現中文或主控台有 `[i18n] no English for` 就失敗。其他瀏覽器測試都固定用中文（設定 `lang:'zh'`），因為它們用中文字找按鈕。
 - 效能（瀏覽器，一次只跑一個）：`python3 test/pace.py`（幀率：操作 60、靜止 30、視窗在背景 15、設定的省電／不限與效能資訊）、`python3 test/mapleak.py`（換 5 次島嶼再開戰役，只能剩 1 份地圖與 WebGL；`ART=1 QUALITY=high` 帶素材包）、`python3 test/shaders.py`（開局後與地圖原地重建時不能再編譯著色器；`QUALITY=high ART=1`、`MAP=sea-1`、`MAP=sea-3 TURNS=16`）。SwiftShader 量不到真實顯示卡的時間：要看真實數字，在設定開「效能資訊」。
 - 帳號：`node test/accounts.mjs`（token 驗證）；完整流程見 `docs/catan-3d-status.md` 的「帳號與戰績」。
 - 地圖工坊：`node test/custom.mjs`（草稿轉地圖定義、檢查、在畫出來的地圖上打完整局；範例草稿在 `test/drafts.mjs`，`node test/sim.mjs N --map=draft:twin` 可單獨模擬）；`python3 test/editor.py`（瀏覽器：畫地圖、3D 預覽、試玩、重新整理後繼續、手機）。
@@ -17,6 +18,15 @@
 - 推送到 `main` 由 Cloudflare Workers Builds 自動部署（Build `npm run build`、Deploy `npx wrangler deploy`）。其他分支的建置會失敗、沒有預覽網址（實作 Durable Object 的 Worker 不產生預覽網址），要試新版用本機 `npm run dev`。
 - `wrangler.jsonc` 的 `name` 要和 Cloudflare 上的 Worker 名稱一致（`catan-3d`）。
 - 免費方案：Durable Objects 每天 10 萬次請求、寫入 10 萬列；不要加會大量寫入或常駐喚醒房間的功能。
+
+## 兩種語言
+- `src/i18n/`：程式裡的中文字串就是翻譯鍵。`t('{who} 擲出 <b>{sum}</b>', { who, sum })` 在中文時填入參數，在英文時查 `src/i18n/en.js`（`EN[鍵]` 是字串，或參數的函式：英文的單複數）。同一個中文在不同地方要不同英文時，鍵後面加 `§情境`（`t('發展卡§bar')`、`t('單人遊戲§short')`），中文顯示 `§` 前面的字。
+- 語言只在讀設定時決定一次（`main.js` 的 `useLanguage`，`<html lang>` 與頁面標題跟著設），換語言會存檔後重新載入頁面（`relaunch`：單機戰役存檔並用 sessionStorage 的 `catan3d-resume` 接著玩，線上房間靠 `rememberedRoom` 重新加入）。所以**模組載入時不能翻譯**：模組層級的表用 `N_('…')` 標記、用的時候再 `t()`，或用 `names({ wood: '木材' })`（每次讀都翻）。
+- 可能是鍵也可能是玩家自己取的字（地圖名、預設國名、作者名、伺服器存的字）用 `tx()`；預設國名存成哪種語言都換成目前語言用 `menu.js` 的 `localName()`（設定、存檔、線上別人的頁面傳來的名字都要過）。國名寬度上限 18（中文字算 2，`clipName`、`NAME_MAX`）。
+- 錯誤：規則引擎丟 `RuleError(鍵, 參數)`（`err.key`、`err.params`）；主持人把拒絕的原因放進 presence 的 `err`（有參數時 `[peer, n, 中文全文, 鍵, 參數]`，沒有時第 3 格就是鍵），每個玩家用自己的語言顯示；伺服器回的訊息是 `en.js` 裡的鍵。畫面顯示任何錯誤一律用 `terr(e)`。地圖工坊的檢查（`checkDraft`）的 `errors`、`warnings`、`notes` 保持中文（伺服器與測試用），畫面用 `keys`（`msg(鍵, 參數)`）。
+- 地塊名稱是對局狀態的一部分，存中文（`board.js` 的 `NAMES`），顯示時用 `i18n/places.js` 的 `placeName(hex)` 換成英文（同位置的英文字首字尾）。
+- `test/i18n.mjs`（`npm test` 第一項）：`src/` 裡每個中文字串都必須在放鍵的位置（`t`、`N_`、`msg`、`names`、`need` 的第 2 個參數、`new RuleError`、`checkDraft` 的 `add`），故意留中文的（地塊名稱、規則說明的中文版、語言名稱「中文」）在前一行寫 `// i18n-keep`；`server/` 的中文字串必須是鍵；每個鍵都要有英文、佔位符要一致；用 `t()` 的地方不能有叫 `t` 的區域變數（會蓋掉翻譯函式）。
+- 英文的版面在 `src/ui/lang-en.css`（最後載入）：拿掉為中文字設的字距、隱藏英文版會重複標題的英文副標（`.eyebrow`、銀行的 BANK）、主畫面卡片在手機上用短名（`.hm-lbl .s`）、國名的布條較寬。規則說明（`text.js` 的 `rulesZh`／`rulesEn`）兩種語言各寫一份。語言那一列的「中文」「語言」標 `lang="zh-Hant"`。
 
 ## 架構重點
 - 規則引擎 `src/engine/` 是純函式、seed 可重播；電腦對手在 `src/ai/`。
@@ -51,5 +61,5 @@
 - `room.js` 的 WebSocket 傳輸會在頁面回到前景、網路恢復或切換時送 ping，沒回應就重連（`probe`）；不要拿掉，手機上主畫面的即時更新靠它。
 
 ## 驗證時要注意
-- 測試頁用和 claude.ai 完全相同的外框（`build.mjs` 的 `HOST_SKELETON`）；看畫面時要用真實字型與實際尺寸，並檢查數字牌是否在自己的地塊上（`test/ui1.py` 有自動檢查）。
+- 測試頁用和 claude.ai 完全相同的外框（`build.mjs` 的 `HOST_SKELETON`）；看畫面時要用真實字型與實際尺寸，並檢查數字牌是否在自己的地塊上（`test/ui1.py` 有自動檢查）。兩種語言都要看：英文的字比較長，按鈕、卡片、布條、諸國列表最容易擠出去。
 - 素材包 `assets/`（約 22 MB）由 `tools/pack-assets.mjs` 產生；製作腳本在 `tools/art/`（參考用）。

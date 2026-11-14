@@ -13,7 +13,7 @@ async def main():
         ctx = await b.new_context(viewport={'width': W, 'height': H})
         page = await ctx.new_page()
         if not os.environ.get('ASSETS'): await page.add_init_script('window.__noAssets = true;')  # UI-flow test: skip the asset pack
-        await page.add_init_script(f"window.__mapFps = {os.environ.get('FPS','0.4')}; localStorage.setItem('catan3d-settings-v1', JSON.stringify({{speed:'turbo', follow:false, quality:'low'}}));")
+        await page.add_init_script(f"window.__mapFps = {os.environ.get('FPS','0.4')}; localStorage.setItem('catan3d-settings-v1', JSON.stringify({{lang:'zh', speed:'turbo', follow:false, quality:'low'}}));")
         logs = []
         page.on('console', lambda m: logs.append(f'[{m.type}] {m.text}') if m.type in ('error','warning') else None)
         page.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))

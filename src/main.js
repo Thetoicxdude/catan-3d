@@ -4,7 +4,7 @@ import { GEO } from './engine/geometry.js';
 import { randomSeed } from './engine/rng.js';
 import { MapView } from './render/scene.js';
 import { Game, loadSave, clearSave } from './game/game.js';
-import { showMenu, defaultSettings, playersFromSettings, PALETTE, buildInfo, fitSettings, gameSetup, officialSettings } from './ui/menu.js';
+import { showMenu, defaultSettings, playersFromSettings, PALETTE, buildInfo, fitSettings, gameSetup, officialSettings, localName } from './ui/menu.js';
 import { showHome } from './ui/home.js';
 import { Dialogs } from './ui/dialogs.js';
 import { HostSession, ClientSession, MatchSession, showOnlineEntry, rememberedRoom, forgetRoom } from './net/online.js';
@@ -20,6 +20,7 @@ import { mapsAvailable, publishMap, myPublished, hideMap, loadPublished, publish
 import { openMapBrowser, showPublished, ratingStars } from './ui/maps-ui.js';
 import { currentUser, loadUser } from './net/account.js';
 import { openSignIn } from './ui/account-ui.js';
+import { setLang, isZh, t, tx, terr } from './i18n/index.js';
 
 const SETTINGS_KEY = 'catan3d-settings-v1';
 const app = document.getElementById('app');
@@ -32,13 +33,33 @@ const app = document.getElementById('app');
 app.innerHTML = '<div id="map"></div><div class="vignette"></div>';
 const mapEl = app.querySelector('#map');
 
-function loadSettings() {
-  const d = defaultSettings();
+function readSettings() {
   try {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+    return s && typeof s === 'object' ? s : null;
+  } catch {
+    return null; // storage unavailable
+  }
+}
+// the page's language, from the settings (English unless Chinese was chosen): set before anything is
+// written on the page, and changed only by reloading it (onSettingsChange)
+function useLanguage(s) {
+  setLang(s && s.lang === 'zh' ? 'zh' : 'en');
+  document.documentElement.lang = isZh() ? 'zh-Hant' : 'en';
+  document.title = t('卡坦島 3D 戰略版');
+}
+// i18n-keep: a default name of old saves, and the one that replaced it
+const RENAMED = { 白楊共和國: '碧海共和國' };
+function loadSettings() {
+  const raw = readSettings();
+  useLanguage(raw);
+  const d = defaultSettings();
+  try {
+    const s = raw;
     // quality follows the device unless the player has picked one in the settings
     if (s && typeof s === 'object') {
-      const seats = Array.isArray(s.seats) && s.seats.length >= 3 ? s.seats.map((x) => (x && x.name === '白楊共和國' ? { ...x, name: '碧海共和國' } : x)) : d.seats;
+      // (the default names in the language of the page, whichever one they were saved in)
+      const seats = Array.isArray(s.seats) && s.seats.length >= 3 ? s.seats.map((x) => (x && x.name ? { ...x, name: localName(RENAMED[x.name] || x.name) } : x)) : d.seats;
       const color = PALETTE.some((p) => p.hex === s.color) ? s.color : d.color;
       const merged = { ...d, ...s, color, quality: s.qualityPicked ? s.quality || d.quality : d.quality, seats };
       // the interface follows the default (the map table since round 17) unless the player has picked
@@ -46,6 +67,7 @@ function loadSettings() {
       if (!s.uiPicked && (!s.ui || s.ui === 'classic')) merged.ui = d.ui;
       // (settings saved before the house rules: their points to win become the offset)
       if (s.vpAdj === undefined) delete merged.vpAdj;
+      if (typeof merged.name === 'string') merged.name = localName(merged.name);
       return fitSettings(merged);
     }
   } catch {
@@ -144,7 +166,7 @@ function toast(title, text, ic = 'vp') {
   }, 3800);
 }
 
-function loading(on, text = '測繪島嶼地形') {
+function loading(on, text = t('測繪島嶼地形')) {
   let el = app.querySelector('.loading');
   if (on) {
     if (!el) {
@@ -248,10 +270,26 @@ async function homeLobby() {
   return lobbyView;
 }
 
-function onSettingsChange(s) {
+function onSettingsChange(s, key) {
   settings = s;
   saveSettings(s);
+  if (key === 'lang') return relaunch();
   applyLook(s);
+}
+
+// A new language: the page starts again in it (every word on it, the default names, the map's labels),
+// back where it was: the campaign on this device saved and resumed, an online room joined again.
+const RESUME_KEY = 'catan3d-resume';
+function relaunch() {
+  try {
+    if (game && !game.destroyed && !session) {
+      if (game.save) game.save();
+      sessionStorage.setItem(RESUME_KEY, '1');
+    }
+  } catch {
+    /* storage unavailable: the main menu instead */
+  }
+  location.reload();
 }
 
 // the interface's look: the map table (theme3.css), the clean one (theme2.css) or the classic bronze; and
@@ -298,6 +336,7 @@ function openMenu() {
         // in place: the home screen keeps editing this same object (name, colour)
         Object.assign(settings, s);
         saveSettings(settings);
+        if (key === 'lang') return relaunch();
         setSfx(settings.sound !== false);
         applyLook(settings);
         // the preview island is redrawn in the new quality straight away (same quality: kept as is)
@@ -350,7 +389,7 @@ async function publishFlow(draft) {
     rememberMap(def);
     showPublished(menuDialogs(), r.code, r.again, toast);
   } catch (e) {
-    toast('無法發布', e.message || String(e), 'cross');
+    toast(t('無法發布'), terr(e), 'cross');
   }
 }
 
@@ -387,10 +426,10 @@ function openEditor() {
           unpublish: async (code) => {
             try {
               await hideMap(code);
-              toast('已從列表移除', `地圖 ${code} 不再出現在公開列表（代號還能用）`, 'check');
+              toast(t('已從列表移除'), t('地圖 {code} 不再出現在公開列表（代號還能用）', { code }), 'check');
               return true;
             } catch (e) {
-              toast('無法移除', e.message || String(e), 'cross');
+              toast(t('無法移除'), terr(e), 'cross');
               return false;
             }
           },
@@ -410,7 +449,7 @@ async function editorPreview(def, area) {
     buildMap(st, players, settings.quality);
   } catch (e) {
     loading(false);
-    toast('無法預覽', e.message || String(e), 'cross');
+    toast(t('無法預覽'), terr(e), 'cross');
     return;
   }
   loading(false);
@@ -458,7 +497,7 @@ async function hostRoom(save) {
   try {
     await session.open(save ? save.net : null);
   } catch (e) {
-    toast('無法建立房間', e.message || String(e), 'cross');
+    toast(t('無法建立房間'), terr(e), 'cross');
     session = null;
     if (save) startGame(save);
     else openMenu();
@@ -467,7 +506,7 @@ async function hostRoom(save) {
   if (save) {
     // reopen the same room and resume; returning players reclaim their seats automatically
     setDrift(null);
-    loading(true, '重新開放房間');
+    loading(true, t('重新開放房間'));
     await nextFrame();
     const players = save.state.players.map((p) => ({ name: p.name, color: p.color, kind: p.kind, ai: p.ai }));
     buildMap(save.state, players, settings.quality);
@@ -483,7 +522,7 @@ async function hostRoom(save) {
 
 async function startOnlineHost(players, net, official = false) {
   setDrift(null);
-  loading(true, '佈置戰場');
+  loading(true, t('佈置戰場'));
   await nextFrame();
   // official rooms play the standard game (10 points, balanced numbers) on the island they listed
   const gs = official ? officialSettings(settings) : settings;
@@ -503,7 +542,7 @@ async function startOnlineHost(players, net, official = false) {
 async function startClientGame(view, players, net, { adopt = null, switched = false } = {}) {
   setDrift(null);
   if (!switched) {
-    loading(true, '進入戰場');
+    loading(true, t('進入戰場'));
     await nextFrame();
   }
   buildMap(view, players, settings.quality);
@@ -519,18 +558,18 @@ async function startClientGame(view, players, net, { adopt = null, switched = fa
 
 // The campaign moves to this page: the page best able to run it hosts, and when the host's page goes
 // away the next one takes over from the last state it was sent. The map and the battle log stay.
-function becomeHost(t, from) {
+function becomeHost(info, from) {
   if (from && from.retire) from.retire();
   if (matching && matching === from) matching = null;
   const old = game;
   const oldHud = old ? old.hud : null;
-  const gs = { ...settings, target: t.target };
+  const gs = { ...settings, target: info.target };
   const hs = new HostSession({
     app,
     settings: gs,
     toast,
-    official: t.official,
-    chat: t.chat,
+    official: info.official,
+    chat: info.chat,
     onLeave: () => {
       session = null;
       openMenu();
@@ -538,24 +577,24 @@ function becomeHost(t, from) {
     onDemoted: (d) => becomeClient(d),
   });
   session = hs;
-  hs.takeover(t);
+  hs.takeover(info);
   if (old) {
     old.destroy();
     if (game === old) game = null;
   }
   closeMenus();
   setDrift(null);
-  const players = t.state.players.map((p) => ({ name: p.name, color: p.color, kind: p.kind, ai: p.ai }));
-  buildMap(t.state, players, settings.quality);
+  const players = info.state.players.map((p) => ({ name: p.name, color: p.color, kind: p.kind, ai: p.ai }));
+  buildMap(info.state, players, settings.quality);
   map.onFrame = null;
   map.holdAssets(false);
-  game = new Game({ app, map, settings: gs, players, saved: { state: t.state }, net: hs.netApi(), onExit: () => exitOnline() });
+  game = new Game({ app, map, settings: gs, players, saved: { state: info.state }, net: hs.netApi(), onExit: () => exitOnline() });
   game.hud.adopt(oldHud);
   hookGame();
-  game.start({ switched: !!old, clockLeft: t.dl == null ? null : Math.max(t.dl, 15000) });
+  game.start({ switched: !!old, clockLeft: info.dl == null ? null : Math.max(info.dl, 15000) });
   hs.resume(game);
-  game.hud.log(t.planned ? '你的電腦接手主持這場戰役：規則判定與電腦玩家改在你的頁面上運行' : `${esc(t.oldHostName || '主持人')} 斷線了，你的電腦接手主持這場戰役`, { hl: true });
-  toast('你現在是主持人', '這場戰役改在你的頁面上運行，請保持這個分頁開著。', 'people');
+  game.hud.log(info.planned ? t('你的電腦接手主持這場戰役：規則判定與電腦玩家改在你的頁面上運行') : t('{name} 斷線了，你的電腦接手主持這場戰役', { name: esc(localName(info.oldHostName || t('主持人'))) }), { hl: true });
+  toast(t('你現在是主持人'), t('這場戰役改在你的頁面上運行，請保持這個分頁開著。'), 'people');
 }
 
 // Another page runs the campaign now: this page plays on as a player. The game stays on screen,
@@ -564,7 +603,7 @@ function becomeClient(d, from) {
   if (from && from.retire) from.retire();
   if (matching && matching === from) matching = null;
   const old = game;
-  if (old) old.freeze(true, '主持人交接中…');
+  if (old) old.freeze(true, t('主持人交接中…'));
   clearSave();
   const cs = new ClientSession({
     app,
@@ -591,7 +630,7 @@ function becomeClient(d, from) {
   session = cs;
   cs.open().catch((e) => {
     console.warn(e);
-    toast('連線中斷', '無法繼續這場戰役。', 'cross');
+    toast(t('連線中斷'), t('無法繼續這場戰役。'), 'cross');
     exitOnline();
   });
 }
@@ -642,7 +681,7 @@ async function toggleMatch() {
     await m.open();
     if (matching === m && menu && menu.attachLobby) menu.attachLobby(m.lobby);
   } catch (e) {
-    toast('無法配對', e.message || String(e), 'cross');
+    toast(t('無法配對'), terr(e), 'cross');
     if (matching === m) {
       matching = null;
       if (session === m) session = null;
@@ -678,7 +717,7 @@ async function joinRoom(code) {
   try {
     await session.open();
   } catch (e) {
-    toast('無法加入房間', e.message || String(e), 'cross');
+    toast(t('無法加入房間'), terr(e), 'cross');
     session = null;
     openMenu();
   }
@@ -705,7 +744,7 @@ function hookGame() {
   g.onGameOver = (r) => {
     if (!r) return;
     reportResult(r).then((d) => {
-      if (d && d.recorded && d.user && !g.destroyed) g.hud.toast('已記入戰績', `${d.user.name}：${d.user.games} 場 · ${d.user.wins} 勝`, 'vp', 4200);
+      if (d && d.recorded && d.user && !g.destroyed) g.hud.toast(t('已記入戰績'), t('{name}：{games} 場 · {wins} 勝', { name: tx(d.user.name), games: d.user.games, wins: d.user.wins }), 'vp', 4200);
     });
   };
   // (a map players published) rating it when the campaign is over
@@ -713,11 +752,12 @@ function hookGame() {
     const code = publishedCode(g.state && g.state.map);
     return code && mapsAvailable() ? ratingStars(code, toast) : null;
   };
-  game.onSettings = (s) => {
+  game.onSettings = (s, key) => {
     // in-game settings never carry a game's own rules back to the menus (an official game plays to 10)
     const { target, numbers, opponents, seats, vpAdj, discard, dice, mix, ...rest } = s;
     settings = { ...settings, ...rest };
     saveSettings(settings);
+    if (key === 'lang') return relaunch();
     applyLook(settings);
   };
   window.__game = game;
@@ -729,7 +769,7 @@ async function startGame(saved) {
     menu.close();
     menu = null;
   }
-  loading(true, saved ? '載入戰役' : '佈置戰場');
+  loading(true, saved ? t('載入戰役') : t('佈置戰場'));
   await nextFrame();
   let players;
   let state;
@@ -737,7 +777,8 @@ async function startGame(saved) {
     state = saved.state;
     // (a campaign on a map drawn in the workshop carries the map: known again whatever became of the draft)
     if (state.mapDef) registerMap(state.mapDef);
-    players = state.players.map((p) => ({ name: p.name, color: p.color, kind: p.kind, ai: p.ai }));
+    // (a default name in the language of the page, whichever one it was saved in)
+    players = state.players.map((p) => ({ name: localName(p.name), color: p.color, kind: p.kind, ai: p.ai }));
     settings = { ...settings, ...(saved.settings || {}), quality: settings.quality };
   } else {
     players = playersFromSettings(settings);
@@ -781,7 +822,7 @@ function showFatal(e) {
   console.error(e);
   const el = document.createElement('div');
   el.className = 'loading';
-  el.innerHTML = `<div style="letter-spacing:0.1em;max-width:32em;text-align:center;line-height:1.7">無法啟動 3D 地圖。<br><span style="font-family:var(--font-body);font-size:13px;color:var(--ink-faint)">這個裝置或瀏覽器可能不支援 WebGL 2，或已停用硬體加速。請改用最新版 Chrome、Edge、Safari 或 Firefox。<br>（${String(e && e.message ? e.message : e)}）</span></div>`;
+  el.innerHTML = `<div style="letter-spacing:0.1em;max-width:32em;text-align:center;line-height:1.7">${t('無法啟動 3D 地圖。')}<br><span style="font-family:var(--font-body);font-size:13px;color:var(--ink-faint)">${t('這個裝置或瀏覽器可能不支援 WebGL 2，或已停用硬體加速。請改用最新版 Chrome、Edge、Safari 或 Firefox。')}<br>(${esc(String(e && e.message ? e.message : e))})</span></div>`;
   app.appendChild(el);
 }
 
@@ -845,12 +886,25 @@ function boot(data) {
     startGame(data.save);
     return;
   }
+  // the page was reloaded in a new language in the middle of a campaign on this device: back to it
+  let resume = false;
+  try {
+    resume = sessionStorage.getItem(RESUME_KEY) === '1';
+    sessionStorage.removeItem(RESUME_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+  const kept = resume ? loadSave() : null;
+  if (kept && !kept.net && kept.state && kept.state.phase !== 'over') {
+    startGame(kept);
+    return;
+  }
   const linked = mapsAvailable() ? mapLinkCode() : null;
   if (linked) {
     loadPublished(linked).then(
       (def) => useMapForCampaign(def),
       (e) => {
-        toast('打不開這張地圖', e.message || String(e), 'cross');
+        toast(t('打不開這張地圖'), terr(e), 'cross');
         openMenu();
         showPreview(false);
       },

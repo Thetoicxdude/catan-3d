@@ -31,6 +31,8 @@ import { sfx, setSfx } from '../ui/sfx.js';
 import { TERRAIN_RES } from '../engine/board.js';
 import { turnKey, turnLimit, timeoutAction } from './clock.js';
 import { gameSetup } from '../ui/menu.js';
+import { t, terr, cap, list, low, msg } from '../i18n/index.js';
+import { placeName } from '../i18n/places.js';
 
 const SAVE_KEY = 'catan3d-save-v1';
 const SPEED = { slow: 1.7, normal: 1, fast: 0.45, turbo: 0.12 };
@@ -164,8 +166,8 @@ export class Game {
       // the whole land in view, clear of the panels, north up (a wide map on an upright phone turned a
       // quarter); a player with buildings is then taken to the first of them: focusHome, below
       this.map.frameLand(this.hud.freeRect(), this.map.camera.fitIsland(1.12));
-      this.hud.log(`戰役開始：${this.players.map((p, i) => `<span class="who" style="color:${p.color}">${i === this.viewer ? '你' : esc(p.name)}</span>`).join('、')}`, { hl: true });
-      if (this.state.phase === 'setup') this.hud.log('開局：依序放置村莊與道路（第二輪順序相反）。', {});
+      this.hud.log(t('戰役開始：{list}', { list: list(this.players.map((p, i) => `<span class="who" style="color:${p.color}">${i === this.viewer ? t('你') : esc(p.name)}</span>`)) }), { hl: true });
+      if (this.state.phase === 'setup') this.hud.log(t('開局：依序放置村莊與道路（第二輪順序相反）。'), {});
     }
     // hot seat: when another player at this device moves first, hand the device over before anything else
     this.pickViewer();
@@ -227,15 +229,16 @@ export class Game {
     return { state: this.state, mem: this.mem, settings: this.settings, net: this.net && this.net.serialize ? this.net.serialize() : null };
   }
 
-  // host: apply a remote player's move; returns an error message or null
+  // host: apply a remote player's move; returns null, or why not: msg(key, params), read in each
+  // player's own language
   dispatchFrom(action) {
-    if (this.destroyed) return '遊戲已結束';
-    if (this.frozen) return '主持人交接中，請稍候再試';
+    if (this.destroyed) return msg('遊戲已結束');
+    if (this.frozen) return msg('主持人交接中，請稍候再試');
     let events;
     try {
       events = applyAction(this.state, action);
     } catch (e) {
-      if (e instanceof RuleError) return e.message;
+      if (e instanceof RuleError) return msg(e.key, e.params);
       throw e;
     }
     this.afterEvents(action, events);
@@ -253,7 +256,7 @@ export class Game {
       sp.ai = null;
     }
     this.players[i] = { ...this.players[i], kind: sp.kind, ai: sp.ai, away };
-    this.hud.log(`${esc(this.players[i].name)} ${away ? '離線，改由電腦代管' : '重新連線，接回自己的國家'}`, { hl: true });
+    this.hud.log(away ? t('{name} 離線，改由電腦代管', { name: esc(this.players[i].name) }) : t('{name} 重新連線，接回自己的國家', { name: esc(this.players[i].name) }), { hl: true });
     this.refresh();
     this.schedule();
     if (this.net && this.net.role === 'host') this.net.onChange(this.state, []);
@@ -266,7 +269,7 @@ export class Game {
   }
 
   // host: hold everything while the campaign moves to another page (on: nothing moves here)
-  freeze(on, note = '主持人交接中…') {
+  freeze(on, note = t('主持人交接中…')) {
     this.frozen = !!on;
     if (on) {
       clearTimeout(this.timer);
@@ -321,8 +324,8 @@ export class Game {
     if (this.toldOut === key) return;
     this.toldOut = key;
     const who = actorsNow(v).filter((p) => this.players[p] && this.players[p].kind !== 'ai');
-    if (who.includes(this.viewer)) this.hud.toast('時間到了', '系統會替你完成這一步：擲骰、結束回合，或由電腦代為選擇。', 'hourglass', 4200);
-    if (this.client && who.length) this.hud.log(`${who.map((p) => (p === this.viewer ? '你' : esc(this.players[p].name))).join('、')}的時間到了，由系統代為完成`, {});
+    if (who.includes(this.viewer)) this.hud.toast(t('時間到了'), t('系統會替你完成這一步：擲骰、結束回合，或由電腦代為選擇。'), 'hourglass', 4200);
+    if (this.client && who.length) this.hud.log(cap(t('{who}的時間到了，由系統代為完成', { who: list(who.map((p) => (p === this.viewer ? t('你') : esc(this.players[p].name)))) })), {});
   }
 
   // host: someone's time is up — make the smallest move that gets the game going again (one a tick)
@@ -338,7 +341,7 @@ export class Game {
       const k = this.clockKey + ':' + p;
       if (this.timedOut !== k) {
         this.timedOut = k;
-        this.hud.log(`${p === this.viewer ? '你' : esc(this.players[p].name)}的時間到了，由系統代為完成`, { hl: true });
+        this.hud.log(cap(t('{who}的時間到了，由系統代為完成', { who: p === this.viewer ? t('你') : esc(this.players[p].name) })), { hl: true });
       }
       if (!this.dispatch(a, { quiet: true })) this.aiFallback(p);
       return;
@@ -359,7 +362,7 @@ export class Game {
   dispatch(action, { quiet = false } = {}) {
     if (this.destroyed) return false;
     if (this.frozen) {
-      if (!quiet) this.hud.toast('請稍候', '主持人正在交接，馬上就好。', 'wait', 2200);
+      if (!quiet) this.hud.toast(t('請稍候'), t('主持人正在交接，馬上就好。'), 'wait', 2200);
       return false;
     }
     if (this.client) {
@@ -377,7 +380,7 @@ export class Game {
       events = applyAction(this.state, action);
     } catch (e) {
       if (e instanceof RuleError) {
-        if (!quiet) this.hud.toast('無法執行', e.message, 'cross', 2600);
+        if (!quiet) this.hud.toast(t('無法執行'), terr(e), 'cross', 2600);
         return false;
       }
       throw e;
@@ -470,11 +473,11 @@ export class Game {
       } else if (e.type === 'longestRoad' || e.type === 'largestArmy') {
         if (e.to < 0) continue;
         const road = e.type === 'longestRoad';
-        fx.announce(road ? '最長道路' : '最大騎士團', `${e.to === me ? '你' : name(e.to)} ${road ? `以 ${e.length} 段道路` : `以 ${e.size} 位騎士`}取得，+2 分`, road ? 'road' : 'knight');
+        fx.announce(road ? t('最長道路') : t('最大騎士團'), cap(road ? t('{who} 以 {n} 段道路取得，+2 分', { who: e.to === me ? t('你') : name(e.to), n: e.length }) : t('{who} 以 {n} 位騎士取得，+2 分', { who: e.to === me ? t('你') : name(e.to), n: e.size })), road ? 'road' : 'knight');
         sfx.fanfare(true);
         setTimeout(() => fx.medal(this.hud.vpTarget(e.to, me), '+2', true), 300);
       } else if (e.type === 'robber') {
-        if (e.p !== me) this.hud.toast('強盜移動', `${name(e.p)} 把強盜移到 ${view.board.hexes[e.to].name}，那裡暫停產出`, 'robber');
+        if (e.p !== me) this.hud.toast(t('強盜移動'), t('{who} 把強盜移到 {hex}，那裡暫停產出', { who: name(e.p), hex: placeName(view.board.hexes[e.to]) }), 'robber');
         if (e.reason !== 'seven') sfx.robber();
       } else if (e.type === 'steal') {
         if (e.p !== me && e.from !== me) continue;
@@ -498,7 +501,7 @@ export class Game {
         this.payBank(e.p, COSTS.dev, me);
         if (e.p !== me || !e.card || !DEV_INFO[e.card]) continue;
         const info = DEV_INFO[e.card];
-        const note = e.card === 'victoryPoint' ? '已秘密計入你的分數' : '下回合起可以使用（可在擲骰前打出）';
+        const note = e.card === 'victoryPoint' ? t('已秘密計入你的分數') : t('下回合起可以使用（可在擲骰前打出）');
         fx.devReveal({ type: e.card, name: info.name, desc: info.desc, note }, this.hud.top.querySelector('.stat.devs'));
       } else if (e.type === 'turnStart' && e.p === me && e.sub !== 'sbp') sfx.turn();
       else if (e.type === 'gameOver') sfx.fanfare(true);
@@ -594,7 +597,7 @@ export class Game {
     const P = this.players[p];
     const el = document.createElement('div');
     el.className = 'pass-screen';
-    el.innerHTML = `<div class="panel"><h2>輪到 ${esc(P.name)}</h2><p style="margin:0;color:var(--ink-dim)">請把裝置交給這位玩家。其他人的手牌會保持隱藏。</p><button class="btn primary" type="button">我是 ${esc(P.name)}，繼續</button></div>`;
+    el.innerHTML = `<div class="panel"><h2>${t('輪到 {name}', { name: esc(P.name) })}</h2><p style="margin:0;color:var(--ink-dim)">${t('請把裝置交給這位玩家。其他人的手牌會保持隱藏。')}</p><button class="btn primary" type="button">${t('我是 {name}，繼續', { name: esc(P.name) })}</button></div>`;
     el.querySelector('button').addEventListener('click', () => {
       this.viewer = p;
       this.passTo = null;
@@ -680,14 +683,14 @@ export class Game {
     if (card === 'yearOfPlenty') {
       const bankTotal = RES.reduce((s, r) => s + v.bank[r], 0);
       const n = Math.min(2, bankTotal);
-      this.dialogs.pickResources(this.ctx(), n, '豐收之年', `從銀行選擇 ${n} 張資源（可以相同）。`, (res) => {
+      this.dialogs.pickResources(this.ctx(), n, t('豐收之年'), t('從銀行選擇 {n} 張資源（可以相同）。', { n }), (res) => {
         this.dialogs.close(true);
         this.dispatch({ type: 'playDev', p: me, card, res });
       });
       return;
     }
     if (card === 'monopoly') {
-      this.dialogs.pickResources(this.ctx(), 1, '壟斷', '選擇一種資源，其他國家必須交出手上所有的這種資源。', (res) => {
+      this.dialogs.pickResources(this.ctx(), 1, t('壟斷'), t('選擇一種資源，其他國家必須交出手上所有的這種資源。'), (res) => {
         this.dialogs.close(true);
         this.dispatch({ type: 'playDev', p: me, card, res: res[0] });
       });
@@ -701,37 +704,37 @@ export class Game {
   onUi(k) {
     if (k === 'rules') this.dialogs.rules();
     else if (k === 'settings')
-      this.dialogs.settings(this.settings, (s) => {
+      this.dialogs.settings(this.settings, (s, key) => {
         this.settings = s;
         setSfx(s.sound !== false);
         this.save();
-        if (this.onSettings) this.onSettings(s);
+        if (this.onSettings) this.onSettings(s, key);
       });
     else if (k === 'menu') {
       const body = document.createElement('div');
       body.innerHTML = this.net
-        ? `<p class="lead">${this.client ? '離開後你的國家立刻改由電腦接手；之後可以用同一個房間代碼重新加入，取回你的國家。' : '你是主持人：離開後由另一位線上玩家的電腦接手主持，你的國家改由電腦接手。沒有其他線上玩家時房間會關閉。'}</p>`
-        : '<p class="lead">遊戲會自動儲存，之後可從主選單「繼續上一局」接著玩。</p>';
+        ? `<p class="lead">${this.client ? t('離開後你的國家立刻改由電腦接手；之後可以用同一個房間代碼重新加入，取回你的國家。') : t('你是主持人：離開後由另一位線上玩家的電腦接手主持，你的國家改由電腦接手。沒有其他線上玩家時房間會關閉。')}</p>`
+        : t('<p class="lead">遊戲會自動儲存，之後可從主選單「繼續上一局」接著玩。</p>');
       const back = document.createElement('button');
       back.className = 'btn';
       back.type = 'button';
-      back.textContent = '繼續遊戲';
+      back.textContent = t('繼續遊戲');
       back.onclick = () => this.dialogs.close();
       // on a narrow phone in an online game the rules button gives its place in the top bar to the clock
       const rules = document.createElement('button');
       rules.className = 'btn ghost';
       rules.type = 'button';
-      rules.textContent = '規則';
+      rules.textContent = t('規則');
       rules.onclick = () => this.dialogs.rules();
       const exit = document.createElement('button');
       exit.className = 'btn primary';
       exit.type = 'button';
-      exit.textContent = this.net ? '離開房間' : '回到主選單';
+      exit.textContent = this.net ? t('離開房間') : t('回到主選單');
       exit.onclick = () => {
         this.dialogs.close(true);
         this.onExit && this.onExit();
       };
-      this.dialogs.open({ kind: 'menu', title: '主選單', body, foot: [rules, back, exit], cls: 'narrow' });
+      this.dialogs.open({ kind: 'menu', title: t('主選單'), body, foot: [rules, back, exit], cls: 'narrow' });
     }
   }
 
@@ -777,7 +780,7 @@ export class Game {
     const btn = this.hud.btns[b];
     if (!btn) return;
     e.preventDefault();
-    if (btn.classList.contains('off')) this.hud.flashHint(btn.dataset.why || '現在不能這樣做');
+    if (btn.classList.contains('off')) this.hud.flashHint(btn.dataset.why || t('現在不能這樣做'));
     else this.onButton(b);
   }
 
@@ -786,7 +789,7 @@ export class Game {
     if (this.destroyed) return;
     const v = this.view();
     const me = this.viewer;
-    const P = (p) => `<span style="color:${this.players[p].color};font-weight:700">${p === me ? '你' : esc(this.players[p].name)}</span>`;
+    const P = (p) => `<span style="color:${this.players[p].color};font-weight:700">${p === me ? t('你') : esc(this.players[p].name)}</span>`;
     let banner = null;
     let inter = null;
     let hint = null;
@@ -804,7 +807,7 @@ export class Game {
     // a 7 was just rolled: let the dice finish before asking anyone to discard or move the robber
     const diceLeft = (this.diceUntil || 0) - performance.now();
     if (diceLeft > 30 && v.pending && ['discard', 'robber', 'steal'].includes(v.pending.type)) {
-      this.hud.render(this.ctx({ banner: { html: '擲出 <b>7</b>：強盜出動…', wait: true }, hint: null }));
+      this.hud.render(this.ctx({ banner: { html: t('擲出 <b>7</b>：強盜出動…'), wait: true }, hint: null }));
       clearTimeout(this.diceRefresh);
       this.diceRefresh = setTimeout(() => this.refresh(), diceLeft + 20);
       return;
@@ -825,15 +828,15 @@ export class Game {
           900,
         );
       }
-      banner = { html: `${P(v.winner)} 贏得了卡坦島！`, buttons: [{ label: '戰役結果', onClick: () => this.dialogs.gameOver(this.ctx({ overExtra: this.overExtra ? this.overExtra() : null }), () => this.onExit && this.onExit(true), () => this.dialogs.close()) }] };
+      banner = { html: cap(t('{who} 贏得了卡坦島！', { who: P(v.winner) })), buttons: [{ label: t('戰役結果'), onClick: () => this.dialogs.gameOver(this.ctx({ overExtra: this.overExtra ? this.overExtra() : null }), () => this.onExit && this.onExit(true), () => this.dialogs.close()) }] };
     } else if (v.pending && v.pending.type === 'gold') {
       // (Seafarers) a gold field paid out, or gold was found in the fog (even in the opening): the
       // owners pick their resources
       if (v.pending.amounts[me] !== undefined) {
         wantDialog.kind = 'gold';
-        banner = { html: `金礦：選擇 <b>${v.pending.amounts[me]}</b> 張任意資源`, urgent: true };
-        hint = { text: `選擇 ${v.pending.amounts[me]} 張資源` };
-      } else banner = { html: '等待其他國家選擇金礦資源…', wait: true };
+        banner = { html: t('金礦：選擇 <b>{n}</b> 張任意資源', { n: v.pending.amounts[me] }), urgent: true };
+        hint = { text: t('選擇 {n} 張資源', { n: v.pending.amounts[me] }) };
+      } else banner = { html: t('等待其他國家選擇金礦資源…'), wait: true };
     } else if (v.phase === 'setup') {
       const p = v.setup.order[v.setup.i];
       const round = v.setup.i < v.players.length ? 1 : 2;
@@ -842,8 +845,8 @@ export class Game {
           inter = { kind: 'vertex', ids: legalSettlementSpots(v, me, true), ghost: 'settlement', player: me, onPick: (id) => this.dispatch({ type: 'settlement', p: me, vertex: id }) };
           // (Seafarers without a fixed home island: any island; the islands chosen become the home islands)
           const anyIsle = v.ships && GEO.def.isleBonus && !(GEO.def.setup && GEO.def.setup.group);
-          banner = { html: `開局第 ${round} 輪：選擇<b>村莊</b>的位置${round === 2 ? '（此村莊旁的地形會給你開局資源）' : anyIsle ? '（任何一座島都可以，開局所在的島就是你的本島）' : ''}` };
-          hint = { text: '點選白色圓點放置村莊' };
+          banner = { html: `${t('開局第 {n} 輪：選擇<b>村莊</b>的位置', { n: round })}${round === 2 ? t('（此村莊旁的地形會給你開局資源）') : anyIsle ? t('（任何一座島都可以，開局所在的島就是你的本島）') : ''}` };
+          hint = { text: t('點選白色圓點放置村莊') };
         } else if (v.ships) {
           // (Seafarers) a road, or a ship from a settlement on the coast
           const roads = legalRoadEdges(v, me);
@@ -853,73 +856,73 @@ export class Game {
           inter = { kind: 'edge', ids, ghost: asShip ? 'ship' : 'road', player: me, onPick: (id) => this.dispatch({ type: asShip ? 'ship' : 'road', p: me, edge: id }) };
           const other = asShip ? roads.length : ships.length;
           banner = {
-            html: asShip ? '放置一艘與剛才村莊相連的<b>船</b>' : '放置一條與剛才村莊相連的<b>道路</b>',
-            buttons: other ? [{ label: asShip ? '改放道路' : '改放船', onClick: () => ((this.setupShip = !asShip), this.refresh()) }] : [],
+            html: asShip ? t('放置一艘與剛才村莊相連的<b>船</b>') : t('放置一條與剛才村莊相連的<b>道路</b>'),
+            buttons: other ? [{ label: asShip ? t('改放道路') : t('改放船'), onClick: () => ((this.setupShip = !asShip), this.refresh()) }] : [],
           };
-          hint = { text: asShip ? '點選白色條紋放置船' : '點選白色條紋放置道路' };
+          hint = { text: asShip ? t('點選白色條紋放置船') : t('點選白色條紋放置道路') };
         } else {
           inter = { kind: 'edge', ids: legalRoadEdges(v, me), ghost: 'road', player: me, onPick: (id) => this.dispatch({ type: 'road', p: me, edge: id }) };
-          banner = { html: '放置一條與剛才村莊相連的<b>道路</b>' };
-          hint = { text: '點選白色條紋放置道路' };
+          banner = { html: t('放置一條與剛才村莊相連的<b>道路</b>') };
+          hint = { text: t('點選白色條紋放置道路') };
         }
-      } else banner = { html: `${P(p)} 正在選擇開局位置…`, wait: true };
+      } else banner = { html: cap(t('{who} 正在選擇開局位置…', { who: P(p) })), wait: true };
     } else if (v.pending && v.pending.type === 'discard') {
       if (v.pending.amounts[me] !== undefined) {
         wantDialog.kind = 'discard';
-        banner = { html: `擲出 7：你必須棄掉 <b>${v.pending.amounts[me]}</b> 張牌`, urgent: true };
-        hint = { text: `棄掉 ${v.pending.amounts[me]} 張牌`, urgent: true };
-      } else banner = { html: '等待其他國家棄牌…', wait: true };
+        banner = { html: t('擲出 7：你必須棄掉 <b>{n}</b> 張牌', { n: v.pending.amounts[me] }), urgent: true };
+        hint = { text: t('棄掉 {n} 張牌', { n: v.pending.amounts[me] }), urgent: true };
+      } else banner = { html: t('等待其他國家棄牌…'), wait: true };
     } else if (v.pending && v.pending.type === 'robber') {
       if (v.current === me) {
         // (Seafarers: a sea hex moves the pirate instead)
         const land = v.ships ? seaInfo(v.board).land : null;
         const ids = GEO.hexes.map((h) => h.id).filter((h) => v.board.hexes[h].terrain !== 'fog' && (land && !land[h] ? h !== v.board.pirate : h !== v.board.robber));
         inter = { kind: 'hex', ids, player: me, onPick: (id) => this.dispatch({ type: 'robber', p: me, hex: id }) };
-        const why = v.pending.reason === 'knight' ? '騎士出征' : '擲出 7，強盜出沒';
-        banner = { html: land ? `${why}：點選<b>有白色圓圈的地形</b>安置強盜，或點選<b>海域</b>移動海盜（搶奪旁邊有船的國家）` : `${why}：點選一塊<b>有白色圓圈的地形</b>安置強盜，並搶奪旁邊國家的一張牌`, urgent: true };
-        hint = { text: land ? '移動強盜或海盜：點選有圓圈的格子' : '移動強盜：點選有圓圈的地形', urgent: true };
+        const why = v.pending.reason === 'knight' ? t('騎士出征') : t('擲出 7，強盜出沒');
+        banner = { html: land ? t('{why}：點選<b>有白色圓圈的地形</b>安置強盜，或點選<b>海域</b>移動海盜（搶奪旁邊有船的國家）', { why }) : t('{why}：點選一塊<b>有白色圓圈的地形</b>安置強盜，並搶奪旁邊國家的一張牌', { why }), urgent: true };
+        hint = { text: land ? t('移動強盜或海盜：點選有圓圈的格子') : t('移動強盜：點選有圓圈的地形'), urgent: true };
         // make sure this is noticed (once per robber move); the camera is left alone
         const key = 'robber:' + v.turn + ':' + v.pending.reason;
         if (this.robberNotice !== key) {
           this.robberNotice = key;
-          this.hud.toast(why, land ? '點選有白色圓圈的地形安置強盜，或點選海域移動海盜。完成之前不能結束回合。' : '點選地圖上有白色圓圈的地形安置強盜。完成之前不能結束回合。', 'robber', 5200);
+          this.hud.toast(why, land ? t('點選有白色圓圈的地形安置強盜，或點選海域移動海盜。完成之前不能結束回合。') : t('點選地圖上有白色圓圈的地形安置強盜。完成之前不能結束回合。'), 'robber', 5200);
         }
-      } else banner = { html: `${P(v.current)} 正在移動強盜${v.ships ? '或海盜' : ''}…`, wait: true };
+      } else banner = { html: cap(v.ships ? t('{who} 正在移動強盜或海盜…', { who: P(v.current) }) : t('{who} 正在移動強盜…', { who: P(v.current) })), wait: true };
     } else if (v.pending && v.pending.type === 'steal') {
       if (v.current === me) {
         wantDialog.kind = 'steal';
-        hint = { text: '選擇要搶奪的國家', urgent: true };
-      } else banner = { html: `${P(v.current)} 正在選擇搶奪對象…`, wait: true };
+        hint = { text: t('選擇要搶奪的國家'), urgent: true };
+      } else banner = { html: cap(t('{who} 正在選擇搶奪對象…', { who: P(v.current) })), wait: true };
     } else if (v.pending && v.pending.type === 'roadBuilding') {
       if (v.current === me) {
         inter = { kind: 'edge', ids: legalRoadEdges(v, me), ghost: 'road', player: me, onPick: (id) => this.dispatch({ type: 'road', p: me, edge: id }) };
-        banner = { html: `道路建設：還可以免費建造 <b>${v.pending.left}</b> 條道路`, buttons: [{ label: '不用了', onClick: () => this.dispatch({ type: 'endRoadBuilding', p: me }) }] };
-        hint = { text: `免費道路：再放 ${v.pending.left} 條` };
-      } else banner = { html: `${P(v.current)} 正在建造道路…`, wait: true };
+        banner = { html: t('道路建設：還可以免費建造 <b>{n}</b> 條道路', { n: v.pending.left }), buttons: [{ label: t('不用了'), onClick: () => this.dispatch({ type: 'endRoadBuilding', p: me }) }] };
+        hint = { text: t('免費道路：再放 {n} 條', { n: v.pending.left }) };
+      } else banner = { html: cap(t('{who} 正在建造道路…', { who: P(v.current) })), wait: true };
     } else if (v.trade) {
-      const t = v.trade;
-      if (t.from === me) {
-        banner = { html: '你的交易提議等待回覆中', buttons: [{ label: '查看', onClick: () => this.dialogs.trade(this.ctx(), (a) => this.dispatch(a), 'players') }] };
+      const tr = v.trade;
+      if (tr.from === me) {
+        banner = { html: t('你的交易提議等待回覆中'), buttons: [{ label: t('查看'), onClick: () => this.dialogs.trade(this.ctx(), (a) => this.dispatch(a), 'players') }] };
         if (this.dialogs.kind !== 'trade') wantDialog.kind = 'trade-open';
-      } else if (t.resp[me] === null) {
+      } else if (tr.resp[me] === null) {
         wantDialog.kind = 'incoming';
-        hint = { text: '回覆交易提議' };
+        hint = { text: t('回覆交易提議') };
       }
-      else banner = { html: `${P(t.from)} 正在考慮交易對象…`, wait: true };
+      else banner = { html: cap(t('{who} 正在考慮交易對象…', { who: P(tr.from) })), wait: true };
     } else if (v.current === me && v.sub && !this.mode) {
       // 5–6 players: the part of the turn after the main player's (with ships: the second player may
       // move one, nobody may in the special building phase)
       const ships = !!v.ships;
       banner =
         v.sub.k === 'pair'
-          ? { html: `${P(v.sub.lead)} 的回合由你接著行動（<b>第二位</b>）：可以建造、和銀行交易、使用一張發展卡${ships ? '、移動一艘船' : ''}；不能擲骰或和其他國家交易` }
-          : { html: `<b>特別建造</b>（${P(v.sub.lead)} 的回合之後）：可以建造或購買發展卡；不能交易${ships ? '、移船' : ''}或使用發展卡` };
-      hint = { text: '完成後按「結束」' };
+          ? { html: cap(ships ? t('{who} 的回合由你接著行動（<b>第二位</b>）：可以建造、和銀行交易、使用一張發展卡、移動一艘船；不能擲骰或和其他國家交易', { who: P(v.sub.lead) }) : t('{who} 的回合由你接著行動（<b>第二位</b>）：可以建造、和銀行交易、使用一張發展卡；不能擲骰或和其他國家交易', { who: P(v.sub.lead) })) }
+          : { html: ships ? t('<b>特別建造</b>（{who} 的回合之後）：可以建造或購買發展卡；不能交易、移船或使用發展卡', { who: P(v.sub.lead) }) : t('<b>特別建造</b>（{who} 的回合之後）：可以建造或購買發展卡；不能交易或使用發展卡', { who: P(v.sub.lead) }) };
+      hint = { text: t('完成後按「結束」') };
     } else if (v.current === me) {
       if (!v.rolled) {
         const dev = playableDev(v, me);
-        banner = { html: `你的回合：<b>擲骰</b>${dev.length ? '（也可以先使用發展卡）' : ''}` };
-        hint = { text: '擲骰開始你的回合' };
+        banner = { html: dev.length ? t('你的回合：<b>擲骰</b>（也可以先使用發展卡）') : t('你的回合：<b>擲骰</b>') };
+        hint = { text: t('擲骰開始你的回合') };
       } else if (this.mode === 'moveShip' || this.mode === 'moveShipTo') {
         // (Seafarers) pick the ship, then where it sails
         const picking = this.mode === 'moveShip';
@@ -947,11 +950,11 @@ export class Game {
             this.refresh();
           },
         };
-        banner = { html: picking ? '選擇要移動的<b>船</b>（航線末端的船）' : '選擇船要開往的<b>航道</b>', buttons: [{ label: '取消', onClick: () => inter.onCancel() }] };
-        hint = { text: picking ? '點選要移動的船' : '點選白色條紋，船會移到那裡' };
+        banner = { html: picking ? t('選擇要移動的<b>船</b>（航線末端的船）') : t('選擇船要開往的<b>航道</b>'), buttons: [{ label: t('取消'), onClick: () => inter.onCancel() }] };
+        hint = { text: picking ? t('點選要移動的船') : t('點選白色條紋，船會移到那裡') };
       } else if (this.mode) {
         const ids = this.mode === 'road' ? legalRoadEdges(v, me) : this.mode === 'ship' ? legalShips(v, me) : this.mode === 'settlement' ? legalSettlementSpots(v, me) : legalCitySpots(v, me);
-        const name = { road: '道路', settlement: '村莊', city: '城市', ship: '船' }[this.mode];
+        const name = { road: t('道路'), settlement: t('村莊'), city: t('城市'), ship: t('船') }[this.mode];
         inter = {
           kind: this.mode === 'road' || this.mode === 'ship' ? 'edge' : 'vertex',
           ids,
@@ -967,13 +970,13 @@ export class Game {
             this.refresh();
           },
         };
-        banner = { html: `選擇<b>${name}</b>的位置`, buttons: [{ label: '取消', onClick: () => inter.onCancel() }] };
-        hint = { text: this.mode === 'road' || this.mode === 'ship' ? `點選白色條紋建造${name}（右鍵或 Esc 取消）` : `點選白色圓點建造${name}（右鍵或 Esc 取消）` };
+        banner = { html: t('選擇<b>{what}</b>的位置', { what: name }), buttons: [{ label: t('取消'), onClick: () => inter.onCancel() }] };
+        hint = { text: this.mode === 'road' || this.mode === 'ship' ? t('點選白色條紋建造{what}（右鍵或 Esc 取消）', { what: low(name) }) : t('點選白色圓點建造{what}（右鍵或 Esc 取消）', { what: low(name) }) };
       } else banner = null;
     } else if (v.sub) {
-      banner = { html: v.sub.k === 'pair' ? `${P(v.current)} 是第二位，接著 ${P(v.sub.lead)} 行動${me < 0 ? '（觀戰中）' : ''}` : `特別建造：${P(v.current)} 正在建造${me < 0 ? '（觀戰中）' : ''}`, wait: true };
+      banner = { html: (v.sub.k === 'pair' ? cap(t('{who} 是第二位，接著 {lead} 行動', { who: P(v.current), lead: P(v.sub.lead) })) : t('特別建造：{who} 正在建造', { who: P(v.current) })) + (me < 0 ? t('（觀戰中）') : ''), wait: true };
     } else {
-      banner = { html: `${P(v.current)} 的回合${me < 0 ? '（觀戰中）' : ''}`, wait: true };
+      banner = { html: t('{who} 的回合', { who: P(v.current) }) + (me < 0 ? t('（觀戰中）') : ''), wait: true };
     }
 
     if (this.netStatus) {

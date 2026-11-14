@@ -31,6 +31,7 @@
 //   fog      { pool, numbers }: what the 'fog' tiles hide (drawn when they are discovered)
 //
 // name is the map's full name; short, its name in the menus' table of maps (MAP_TABLE)
+import { N_ } from '../i18n/fill.js';
 
 // a hexagonal island, in the order the original board listed its hexes (row by row, north to south)
 function hexagon(radius) {
@@ -41,8 +42,8 @@ function hexagon(radius) {
 
 export const BASE4 = Object.freeze({
   id: 'base-4',
-  name: '標準島嶼',
-  short: '標準島嶼',
+  name: N_('標準島嶼'),
+  short: N_('標準島嶼'),
   players: [2, 4],
   // laid out by the original generator, so a seed gives the same island it always did
   legacy: true,
@@ -64,8 +65,8 @@ function rows(spec) {
 
 export const BASE6 = Object.freeze({
   id: 'base-6',
-  name: '大島嶼',
-  short: '大島嶼',
+  name: N_('大島嶼'),
+  short: N_('大島嶼'),
   players: [5, 6],
   tiles: rows([
     [-3, 0, 2],
@@ -108,8 +109,8 @@ function offsetRows(rows, shiftQ = 0, shiftR = 0, groups = { S: 'main', M: 'main
 
 export const SEA1 = Object.freeze({
   id: 'sea-1',
-  name: '航海家：駛向新海岸',
-  short: '駛向新海岸',
+  name: N_('航海家：駛向新海岸'),
+  short: N_('駛向新海岸'),
   players: [3, 4],
   vp: 14,
   tiles: offsetRows(
@@ -151,8 +152,8 @@ export const SEA1 = Object.freeze({
 const L = 'L';
 export const SEA2 = Object.freeze({
   id: 'sea-2',
-  name: '航海家：四座島嶼',
-  short: '四座島嶼',
+  name: N_('航海家：四座島嶼'),
+  short: N_('四座島嶼'),
   players: [3, 4],
   vp: 13,
   tiles: offsetRows(
@@ -185,8 +186,8 @@ export const SEA2 = Object.freeze({
 const F = 'F';
 export const SEA3 = Object.freeze({
   id: 'sea-3',
-  name: '航海家：霧島',
-  short: '霧島',
+  name: N_('航海家：霧島'),
+  short: N_('霧島'),
   players: [3, 4],
   vp: 12,
   tiles: offsetRows(
@@ -220,8 +221,8 @@ export const SEA3 = Object.freeze({
 const R = 'R';
 export const SEA9 = Object.freeze({
   id: 'sea-9',
-  name: '航海家：新世界',
-  short: '新世界',
+  name: N_('航海家：新世界'),
+  short: N_('新世界'),
   players: [3, 4],
   vp: 12,
   tiles: offsetRows(
@@ -260,7 +261,7 @@ function picture(lines, groups = {}) {
       const ch = line[p];
       if (ch === ' ') continue;
       if (c0 === null) c0 = (((p - r) % 2) + 2) % 2;
-      if ((((p - r - c0) % 2) + 2) % 2) throw new Error(`地圖第 ${r + 1} 列第 ${p + 1} 字不在格線上`);
+      if ((((p - r - c0) % 2) + 2) % 2) throw new Error(`map picture: row ${r + 1}, column ${p + 1} is off the grid`);
       const t = { q: (p - r - c0) / 2, r, t: ch === 'S' || ch === 'P' ? 'sea' : ch === 'F' ? 'fog' : '?' };
       if (groups[ch]) t.g = groups[ch];
       if (ch === 'P') pirate = t;
@@ -300,8 +301,8 @@ const NEW_SHORES_6 = picture(
 export const SEA1_6 = Object.freeze({
   ...BIG,
   id: 'sea-1-6',
-  name: '航海家：駛向新海岸（5–6 人）',
-  short: '駛向新海岸',
+  name: N_('航海家：駛向新海岸（5–6 人）'),
+  short: N_('駛向新海岸'),
   vp: 14,
   tiles: NEW_SHORES_6.tiles,
   groups: {
@@ -333,8 +334,8 @@ const SIX_ISLANDS = picture([
 export const SEA2_6 = Object.freeze({
   ...BIG,
   id: 'sea-2-6',
-  name: '航海家：六座島嶼',
-  short: '六座島嶼',
+  name: N_('航海家：六座島嶼'),
+  short: N_('六座島嶼'),
   vp: 13,
   tiles: SIX_ISLANDS.tiles,
   pool: { forest: 7, pasture: 7, fields: 6, hills: 6, mountains: 6 },
@@ -360,8 +361,8 @@ const FOG_6 = picture([
 export const SEA3_6 = Object.freeze({
   ...BIG,
   id: 'sea-3-6',
-  name: '航海家：霧島（5–6 人）',
-  short: '霧島',
+  name: N_('航海家：霧島（5–6 人）'),
+  short: N_('霧島'),
   vp: 12,
   tiles: FOG_6.tiles,
   pool: { forest: 4, pasture: 4, fields: 5, hills: 5, mountains: 5, gold: 2, desert: 1 },
@@ -377,8 +378,8 @@ export const SEA3_6 = Object.freeze({
 export const SEA9_6 = Object.freeze({
   ...BIG,
   id: 'sea-9-6',
-  name: '航海家：新世界（5–6 人）',
-  short: '新世界',
+  name: N_('航海家：新世界（5–6 人）'),
+  short: N_('新世界'),
   vp: 12,
   tiles: picture(Array.from({ length: 7 }, (_, r) => (r % 2 ? '' : ' ') + 'R R R R R R R R R')).tiles,
   pool: { forest: 7, pasture: 7, fields: 7, hills: 7, mountains: 7, gold: 4, desert: 3 },
@@ -396,9 +397,9 @@ export const DEFAULT_MAP = BASE4.id;
 // The maps a game can be started on, as the menus show them: by kind, the 3–4 player map beside the
 // 5–6 player one.
 export const MAP_TABLE = [
-  { kind: '基本', rows: [[BASE4, BASE6]] },
+  { kind: N_('基本'), rows: [[BASE4, BASE6]] },
   {
-    kind: '航海家',
+    kind: N_('航海家'),
     rows: [
       [SEA1, SEA1_6],
       [SEA2, SEA2_6],

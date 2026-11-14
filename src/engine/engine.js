@@ -2,12 +2,14 @@
 // 5th-edition rulebook & almanac.
 // Pure & deterministic: state is plain JSON; all randomness comes from the seeded rng in state.
 // applyAction(state, action) validates, then mutates state and returns a list of events.
-// Illegal actions throw RuleError (with a Traditional Chinese message) and leave state untouched.
+// Illegal actions throw RuleError and leave state untouched: its key is the message in Chinese (with {name}
+// placeholders filled from its params), read in the player's language by the page (i18n t()).
 
 import { GEO, useMap } from './geometry.js';
 import { generateBoard, RES, TERRAIN_RES, pips, provinceName, richNumbers } from './board.js';
 import { mapDef, isBuiltIn, DEFAULT_MAP } from './maps.js';
 import { rngInt, shuffle, seedState } from './rng.js';
+import { fill, N_ } from '../i18n/fill.js';
 import { seaInfo, roadEdge, shipEdge, shipLegal, legalShipEdges, movableShips, shipTargets, pirateVictims, pirateEdges, tradeRouteFor, SHIP_COST, SHIPS } from './seafarers.js';
 
 export { RES, TERRAIN_RES, pips };
@@ -33,13 +35,16 @@ export const BANK_START = 19;
 export const PIECES = { roads: 15, settlements: 5, cities: 4 };
 
 export class RuleError extends Error {
-  constructor(msg) {
-    super(msg);
+  // key: the message in Chinese, {name} placeholders filled from params (the message itself is filled)
+  constructor(key, params) {
+    super(params ? fill(key, params) : key);
     this.name = 'RuleError';
+    this.key = key;
+    this.params = params || null;
   }
 }
-function need(cond, msg) {
-  if (!cond) throw new RuleError(msg);
+function need(cond, key, params) {
+  if (!cond) throw new RuleError(key, params);
 }
 
 const emptyRes = () => ({ wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 });
@@ -80,7 +85,7 @@ export function createGame(opts) {
   if (opts.entropy) holder.rng = opts.entropy.slice(0, 4).map((x) => x >>> 0);
   const n = opts.players.length;
   const [lo, hi] = def.players || [2, 4];
-  if (n < lo || n > hi) throw new RuleError(`這張地圖需要 ${lo}–${hi} 位玩家`);
+  if (n < lo || n > hi) throw new RuleError('這張地圖需要 {lo}–{hi} 位玩家', { lo, hi });
   const deck = [];
   for (const [t, c] of Object.entries(def.dev || DEV_COUNTS)) for (let i = 0; i < c; i++) deck.push(t);
   shuffle(holder, deck);
@@ -544,16 +549,16 @@ function requireMainTurn(st, p, { needRoll = true } = {}) {
 export function inSub(st, k) {
   return !!st.sub && (!k || st.sub.k === k);
 }
-function noSub(st, what) {
-  need(!st.sub, st.sub && st.sub.k === 'pair' ? `第二位不能${what}` : `特別建造階段不能${what}`);
+function noSubTrade(st) {
+  need(!st.sub, st.sub && st.sub.k === 'pair' ? '第二位不能與其他玩家交易' : '特別建造階段不能與其他玩家交易');
 }
 function pendingMsg(pd) {
   if (!pd) return '';
-  if (pd.type === 'discard') return '等待玩家棄牌';
-  if (pd.type === 'robber') return '請先移動強盜';
-  if (pd.type === 'steal') return '請先選擇要搶奪的玩家';
-  if (pd.type === 'roadBuilding') return '請先放置道路建設的道路';
-  return '請先完成目前的動作';
+  if (pd.type === 'discard') return N_('等待玩家棄牌');
+  if (pd.type === 'robber') return N_('請先移動強盜');
+  if (pd.type === 'steal') return N_('請先選擇要搶奪的玩家');
+  if (pd.type === 'roadBuilding') return N_('請先放置道路建設的道路');
+  return N_('請先完成目前的動作');
 }
 
 function stealFrom(st, thief, victim, ev) {
@@ -757,7 +762,7 @@ H.gold = (st, a, ev) => {
   const res = a.res;
   need(validResMap(res), '無效的選擇');
   const want = Math.min(amt, mapTotal(st.bank));
-  need(mapTotal(res) === want, `請選擇 ${want} 張資源`);
+  need(mapTotal(res) === want, '請選擇 {n} 張資源', { n: want });
   for (const r of RES) need(st.bank[r] >= (res[r] || 0), '銀行沒有足夠的該種資源');
   const pl = st.players[p];
   for (const r of RES) {
@@ -858,7 +863,7 @@ H.discard = (st, a, ev) => {
   need(amt !== undefined, '你不需要棄牌');
   const cards = a.cards;
   need(validResMap(cards), '無效的棄牌');
-  need(mapTotal(cards) === amt, `需要剛好棄掉 ${amt} 張牌`);
+  need(mapTotal(cards) === amt, '需要剛好棄掉 {n} 張牌', { n: amt });
   const pl = st.players[p];
   for (const r of RES) need((pl.res[r] || 0) >= (cards[r] || 0), '你沒有那麼多張牌');
   for (const r of RES) {
@@ -984,7 +989,7 @@ H.bankTrade = (st, a, ev) => {
   need(RES.includes(a.give) && RES.includes(a.get), '無效的交易');
   need(a.give !== a.get, '不能用相同的資源交換');
   const ratio = tradeRatio(st, p, a.give);
-  need(pl.res[a.give] >= ratio, `需要 ${ratio} 張相同資源`);
+  need(pl.res[a.give] >= ratio, '需要 {n} 張相同資源', { n: ratio });
   need(st.bank[a.get] > 0, '銀行已沒有這種資源');
   pl.res[a.give] -= ratio;
   st.bank[a.give] += ratio;
@@ -997,7 +1002,7 @@ H.offer = (st, a, ev) => {
   const p = a.p;
   const pl = st.players[p];
   requireMainTurn(st, p);
-  noSub(st, '與其他玩家交易');
+  noSubTrade(st);
   need(validResMap(a.give) && validResMap(a.get), '無效的交易');
   need(mapTotal(a.give) > 0 && mapTotal(a.get) > 0, '交易雙方都必須給出至少一張牌（不能贈送）');
   for (const r of RES) need(!((a.give[r] || 0) > 0 && (a.get[r] || 0) > 0), '不能用相同的資源交換');

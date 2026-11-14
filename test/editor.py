@@ -13,7 +13,7 @@ def check(name, ok, info=''):
     results[name] = bool(ok)
     print(('PASS ' if ok else 'FAIL ') + name, info)
 
-INIT = "window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; localStorage.setItem('catan3d-settings-v1', JSON.stringify({ speed: 'turbo', quality: 'low', qualityPicked: true }));"
+INIT = "window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true }));"
 FACTS = "[...document.querySelectorAll('.ed-facts div b')].map((b) => +b.textContent)"
 MSGS = "[...document.querySelectorAll('.ed-msgs li')].map((li) => li.className + ':' + li.textContent)"
 
@@ -118,7 +118,7 @@ async def main():
         await page.evaluate("__game.save(); localStorage.removeItem('catan3d-drafts-v1')")
         await page.reload()
         await page.wait_for_selector('.menu-screen.home', timeout=90000)
-        await page.click('text=繼續上一局')
+        await page.click('[data-k="continue"]')
         await page.wait_for_function('window.__game && window.__game.state', timeout=120000)
         st2 = await page.evaluate("({ map: __game.state.map, hexes: __game.state.board.hexes.length })")
         check('the campaign continues after a reload, the draft deleted', st2['map'] == st['map'] and st2['hexes'] == 30, json.dumps(st2))

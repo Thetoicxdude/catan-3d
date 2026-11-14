@@ -16,6 +16,7 @@ import { FogCover } from './fog.js';
 import { GLSL_NOISE } from './noise.js';
 import { fpsMode, refreshInterval, refreshesPerFrame, pixelRatioCap, Governor } from './pace.js';
 import { resCard, icon, RES_NAMES } from '../ui/icons.js';
+import { t } from '../i18n/index.js';
 
 // Map labels are sized by the province under them, as it is on screen (seen at a slant, the far
 // provinces are narrower than the near ones), so they shrink with the map as it is zoomed out and the
@@ -597,7 +598,7 @@ export class MapView {
     if (this.assetChip) return;
     const chip = document.createElement('div');
     chip.className = 'asset-chip';
-    chip.innerHTML = '<i></i><span>載入寫實素材</span><b>0%</b>';
+    chip.innerHTML = t('<i></i><span>載入寫實素材</span><b>0%</b>');
     this.container.appendChild(chip);
     this.assetChip = chip;
     const off = onAssetProgress((st) => {
@@ -695,7 +696,7 @@ export class MapView {
     const rb = document.createElement('div');
     rb.className = 'robber-badge';
     rb.innerHTML = icon('robber', 24);
-    rb.title = '強盜佔領中：這裡不會產出資源';
+    rb.title = t('強盜佔領中：這裡不會產出資源');
     this.robberLabel = this.labels.add(rb, new THREE.Vector3(0, 1.7, 0), { ...ROBBER_FIT, hidden: true });
     this.robberShown = -1;
     // harbours: a token with the resource (or every colour for "any") and the rate, out at sea past the
@@ -707,7 +708,7 @@ export class MapView {
       const any = type === 'any';
       el.className = 'harbor-badge' + (any ? ' any' : ` rc-${type}`);
       el.innerHTML = `<i class="hb-tail"></i><span class="hb-ico"></span><b>${any ? '3:1' : '2:1'}</b>`;
-      el.title = any ? '港口：任意 3 張相同資源換 1 張' : `港口：${RES_NAMES[type]} 2 張換 1 張任意資源`;
+      el.title = any ? t('港口：任意 3 張相同資源換 1 張') : t('港口：{res} 2 張換 1 張任意資源', { res: RES_NAMES[type] });
       const it = this.labels.add(el, a.pos, { ...HARBOR_FIT });
       this.harborLabels.push({ it, el, shore: a.shore });
     }
@@ -1335,11 +1336,11 @@ export class MapView {
     }
     const load = pf.gpuMs != null ? Math.min(100, Math.round((pf.gpuMs * pf.fps) / 10)) : null;
     const rows = [
-      `每秒 ${pf.fps.toFixed(0)} 幀（螢幕 ${pf.hz.toFixed(0)} Hz）`,
-      pf.gpuMs != null ? `顯示卡每幀 ${pf.gpuMs.toFixed(1)} ms，負載約 ${load}%` : '顯示卡時間：這個瀏覽器不提供',
-      `程式每幀 ${pf.cpuMs.toFixed(1)} ms`,
-      `繪製 ${w}×${h}（${Math.round(this.governor.scale * 100)}%）・${{ low: '低', medium: '中', high: '高' }[this.quality] || this.quality}畫質${moving ? '・移動中' : ''}`,
-      `${pf.calls} 次繪製・${(pf.tris / 1000).toFixed(0)}k 三角形`,
+      t('每秒 {fps} 幀（螢幕 {hz} Hz）', { fps: pf.fps.toFixed(0), hz: pf.hz.toFixed(0) }),
+      pf.gpuMs != null ? t('顯示卡每幀 {ms} ms，負載約 {load}%', { ms: pf.gpuMs.toFixed(1), load }) : t('顯示卡時間：這個瀏覽器不提供'),
+      t('程式每幀 {ms} ms', { ms: pf.cpuMs.toFixed(1) }),
+      t('繪製 {w}×{h}（{pct}%）・{q}畫質', { w, h, pct: Math.round(this.governor.scale * 100), q: { low: t('低'), medium: t('中'), high: t('高') }[this.quality] || this.quality }) + (moving ? t('・移動中') : ''),
+      t('{calls} 次繪製・{k}k 三角形', { calls: pf.calls, k: (pf.tris / 1000).toFixed(0) }),
     ];
     if (this.gpuName) rows.push(this.gpuName);
     this.statsEl.textContent = rows.join('\n');

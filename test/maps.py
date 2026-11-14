@@ -20,7 +20,7 @@ def check(name, ok, info=''):
 def token(sub, name):
     return subprocess.check_output(['node', os.path.join(os.path.dirname(__file__), 'accounts.mjs'), '--token', KEYS, sub, name], text=True).strip()
 
-INIT = "window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; localStorage.setItem('catan3d-settings-v1', JSON.stringify({ speed: 'turbo', quality: 'low', qualityPicked: true, name: NAME }));"
+INIT = "window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true, name: NAME }));"
 
 async def main():
     async with async_playwright() as p:

@@ -2,6 +2,7 @@
 // victory-point medals and big announcements. Pure DOM + Web Animations; sounds from sfx.js.
 import { icon, devCard, RES_EN } from './icons.js';
 import { sfx } from './sfx.js';
+import { t } from '../i18n/index.js';
 
 // cube rotation that brings each face to the front (face n sits where the CSS below puts it)
 const FINAL = { 1: [0, 0], 2: [0, -90], 3: [-90, 0], 4: [90, 0], 5: [0, 90], 6: [0, 180] };
@@ -88,7 +89,7 @@ export class Fx {
     this.rollLand = land;
     setTimeout(() => {
       if (this.diceBox !== box) return;
-      const tag = sum === 7 ? '<span>強盜出動</span>' : sum === 6 || sum === 8 ? '<span>豐收</span>' : '';
+      const tag = sum === 7 ? `<span>${t('強盜出動')}</span>` : sum === 6 || sum === 8 ? `<span>${t('豐收')}</span>` : '';
       const s = el('div', 'fx-sum' + (sum === 7 ? ' seven' : sum === 6 || sum === 8 ? ' hot' : ''), `<b class="num">${sum}</b>${tag}`);
       box.appendChild(s);
       box.classList.add('landed');
@@ -143,7 +144,7 @@ export class Fx {
   // played, then shrinks into `target` (the hand's development-card counter).
   devReveal({ type, name, desc, note }, target) {
     const box = el('div', 'fx-dev');
-    box.innerHTML = `<div class="flip"><div class="face back">${devCard('back', '發展卡', { lg: true })}</div><div class="face front">${devCard(type, name, { lg: true })}</div></div><div class="cap"><h4></h4><p></p><div class="when"></div></div>`;
+    box.innerHTML = `<div class="flip"><div class="face back">${devCard('back', t('發展卡'), { lg: true })}</div><div class="face front">${devCard(type, name, { lg: true })}</div></div><div class="cap"><h4></h4><p></p><div class="when"></div></div>`;
     box.querySelector('.back .nm').textContent = 'Development';
     box.querySelector('h4').textContent = name;
     box.querySelector('p').textContent = desc;

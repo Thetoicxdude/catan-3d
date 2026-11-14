@@ -55,7 +55,7 @@ async def main():
         ctx = await b.new_context(viewport={'width': 1280, 'height': 800})
         page = await ctx.new_page()
         page.set_default_timeout(120000)
-        await page.add_init_script("window.__noAssets = true; window.__mapFps = 0.5; localStorage.setItem('catan3d-settings-v1', JSON.stringify({ speed: 'turbo', quality: 'low', qualityPicked: true }));")
+        await page.add_init_script("window.__noAssets = true; window.__mapFps = 0.5; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true }));")
         logs = []
         page.on('console', lambda m: logs.append(f'[{m.type}] {m.text}') if m.type in ('error', 'warning') else None)
         page.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))
@@ -171,7 +171,7 @@ async def main():
         await page.reload()
         await page.wait_for_selector('.menu-screen', timeout=90000)
         await page.wait_for_timeout(1500)
-        await page.click('text=繼續上一局')
+        await page.click('[data-k="continue"]')
         await page.wait_for_function('window.__game && window.__game.state', timeout=120000)
         # (the camera flies to our first settlement; the test page draws a frame every two seconds: skip the flight)
         await page.wait_for_timeout(800)

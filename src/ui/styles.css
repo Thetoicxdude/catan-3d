@@ -259,7 +259,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .chat-list .who { font-weight: 700; margin-right: 7px; }
 .chat-list p.mine .who { color: var(--brass-hi); }
 .chat-list p.note { color: var(--ink-faint); font-size: 12px; }
-.chat-list:empty::before { content: '對所有玩家說話。訊息只會出現在這場戰役裡。'; color: var(--ink-faint); font-size: 12px; }
+/* (the words are the page's, in its language: hud.js) */
+.chat-list:empty::before { content: attr(data-empty); color: var(--ink-faint); font-size: 12px; }
 .chat-form { display: flex; gap: 6px; padding: 6px 8px 8px; border-top: 1px solid var(--line); }
 .chat-form input { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border-radius: 2px; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(199, 166, 96, 0.3); color: var(--ink); font-family: var(--font-body); font-size: 13px; }
 .chat-form input:focus { outline: none; border-color: var(--brass); }

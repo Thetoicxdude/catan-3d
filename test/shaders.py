@@ -12,7 +12,7 @@ Q = os.environ.get('QUALITY', 'medium')
 ART = os.environ.get('ART') == '1'
 MAP = os.environ.get('MAP', 'base-4')
 TURNS = int(os.environ.get('TURNS', '4'))
-INIT = "window.__noAssets = %s; window.__testHooks = true; window.__mapFps = 4; localStorage.setItem('catan3d-settings-v1', JSON.stringify({ speed: 'turbo', quality: '%s', qualityPicked: true, opponents: 3 }));" % ('false' if ART else 'true', Q)
+INIT = "window.__noAssets = %s; window.__testHooks = true; window.__mapFps = 4; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: '%s', qualityPicked: true, opponents: 3 }));" % ('false' if ART else 'true', Q)
 PROGS = "(() => { const r = __game.map.renderer; return r.info.programs.map((p) => (p.cacheKey || '').split(',').slice(0, 3).join('/').slice(0, 60) + ':' + p.id); })()"
 
 async def main():

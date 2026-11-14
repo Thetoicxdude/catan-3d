@@ -11,6 +11,7 @@ async def main():
         W = int(os.environ.get('W', 1280)); H = int(os.environ.get('H', 800))
         ctx = await b.new_context(viewport={'width': W, 'height': H})
         page = await ctx.new_page()
+        await page.add_init_script("try { const k = 'catan3d-settings-v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (!s.lang) { s.lang = 'zh'; localStorage.setItem(k, JSON.stringify(s)); } } catch (e) {}")  # these checks read the Chinese words
         if not os.environ.get('ASSETS'): await page.add_init_script('window.__noAssets = true;')  # UI-flow test: skip the asset pack
         await page.add_init_script('window.__mapFps = float(os.environ.get("FPS", "0.5"))'.replace('float(os.environ.get("FPS", "0.5"))', os.environ.get('FPS','0.5')))
         logs = []

@@ -4,6 +4,7 @@
 // it: what the draft does not say comes from the standard game in proportion (the terrain of the
 // random land, the number tokens, the harbors). The same draft always makes the same definition, on
 // every page and on the server, so a map is stored and shared as its draft.
+import { msg, N_ } from '../i18n/fill.js';
 import { buildGeometry } from './geometry.js';
 
 // a cell of the grid: sea, land drawn at random, or a terrain the author picked
@@ -64,7 +65,7 @@ export function normalizeDraft(raw) {
     String(src.name || '')
       .replace(/[\u0000-\u001f\u007f<>"'`\\]/g, '')
       .trim()
-      .slice(0, LIMITS.name) || '未命名的島嶼';
+      .slice(0, LIMITS.name) || N_('未命名的島嶼');
   const kit = src.kit === 6 ? 6 : 4;
   const vp = clampInt(src.vp, LIMITS.vp[0], LIMITS.vp[1], 10);
   const start = src.start === 'main' ? 'main' : 'any';
@@ -245,6 +246,14 @@ export function checkDraft(draft) {
   const errors = [];
   const warnings = [];
   const notes = [];
+  // each message in Chinese (errors…) and as a key with its parameters (keys.errors…), which the page
+  // shows in the player's language
+  const keys = { errors: [], warnings: [], notes: [] };
+  const add = (list, name, key, params) => {
+    const m = msg(key, params);
+    list.push(m.text);
+    keys[name].push(m);
+  };
   const players = d.kit === 6 ? 6 : 4;
   const stats = {
     tiles: a.tiles.length,
@@ -257,9 +266,9 @@ export function checkDraft(draft) {
     room: 0,
     pool: {},
   };
-  if (!a.land) errors.push('先在格子上畫出陸地');
-  if (a.tiles.length > LIMITS.tiles) errors.push(`地圖最多 ${LIMITS.tiles} 格（現在 ${a.tiles.length} 格）`);
-  if (a.land > LIMITS.land) errors.push(`陸地最多 ${LIMITS.land} 格（現在 ${a.land} 格）`);
+  if (!a.land) add(errors, 'errors', '先在格子上畫出陸地');
+  if (a.tiles.length > LIMITS.tiles) add(errors, 'errors', '地圖最多 {max} 格（現在 {n} 格）', { max: LIMITS.tiles, n: a.tiles.length });
+  if (a.land > LIMITS.land) add(errors, 'errors', '陸地最多 {max} 格（現在 {n} 格）', { max: LIMITS.land, n: a.land });
   let def = null;
   if (a.land && a.tiles.length <= LIMITS.tiles) {
     def = draftToDef(d);
@@ -268,12 +277,12 @@ export function checkDraft(draft) {
     stats.numbered = def.numbers.length;
     stats.room = openingRoom(def);
     if (stats.room < players * 2)
-      errors.push(`開局位置不夠：${players} 國各放 2 個村莊需要 ${players * 2} 個互不相鄰的位置，${def.setup ? '最大的島' : '這張地圖'}只放得下 ${stats.room} 個`);
-    else if (stats.room < players * 4) warnings.push(`地方很擠：開局之後每國只剩大約 ${Math.max(0, Math.floor(stats.room / players) - 2)} 個能蓋村莊的位置`);
-    if (stats.numbered < players * 2) warnings.push(`有數字的陸地只有 ${stats.numbered} 格，資源可能不夠 ${players} 國分`);
-    if ((a.count.d || 0) + (def.pool.desert || 0) > a.land / 3) warnings.push('沙漠太多：沙漠不產出資源');
-    if (!stats.harbors) warnings.push('沒有海岸，所以沒有港口');
-    if (a.seafarers && !d.ships) notes.push(a.count.g ? '有金礦，所以用航海家規則（船、海盜、金礦）' : '有好幾座島，所以用航海家規則（船、海盜）');
+      add(errors, 'errors', def.setup ? '開局位置不夠：{p} 國各放 2 個村莊需要 {need} 個互不相鄰的位置，最大的島只放得下 {room} 個' : '開局位置不夠：{p} 國各放 2 個村莊需要 {need} 個互不相鄰的位置，這張地圖只放得下 {room} 個', { p: players, need: players * 2, room: stats.room });
+    else if (stats.room < players * 4) add(warnings, 'warnings', '地方很擠：開局之後每國只剩大約 {n} 個能蓋村莊的位置', { n: Math.max(0, Math.floor(stats.room / players) - 2) });
+    if (stats.numbered < players * 2) add(warnings, 'warnings', '有數字的陸地只有 {n} 格，資源可能不夠 {p} 國分', { n: stats.numbered, p: players });
+    if ((a.count.d || 0) + (def.pool.desert || 0) > a.land / 3) add(warnings, 'warnings', '沙漠太多：沙漠不產出資源');
+    if (!stats.harbors) add(warnings, 'warnings', '沒有海岸，所以沒有港口');
+    if (a.seafarers && !d.ships) add(notes, 'notes', a.count.g ? '有金礦，所以用航海家規則（船、海盜、金礦）' : '有好幾座島，所以用航海家規則（船、海盜）');
   }
-  return { draft: d, def: errors.length ? null : def, errors, warnings, notes, stats };
+  return { draft: d, def: errors.length ? null : def, errors, warnings, notes, keys, stats };
 }

@@ -23,7 +23,7 @@ KILL = """(() => {
   window.__killWs = () => { let n = 0; for (const s of all) if (s.readyState === 1 && !s.__dead) { s.__dead = true; n++; } return n; };
   window.__wsCount = () => all.length;
 })();"""
-INIT = KILL + "window.__noAssets = true; window.__mapFps = 0.5; window.__mmSeconds = 120; localStorage.setItem('catan3d-settings-v1', JSON.stringify({ speed: 'turbo', quality: 'low', qualityPicked: true, name: NAME }));"
+INIT = KILL + "window.__noAssets = true; window.__mapFps = 0.5; window.__mmSeconds = 120; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true, name: NAME }));"
 STATE = "(() => ({ n: document.querySelector('.ho-n') && document.querySelector('.ho-n').textContent, sec: document.querySelector('.ho-sec') && document.querySelector('.ho-sec').textContent, idle: document.querySelector('.ho-timer') && document.querySelector('.ho-timer').classList.contains('idle'), ws: window.__wsCount() }))()"
 
 async def wait_for(page, pred, limit, label, t0):

@@ -1,0 +1,44 @@
+/* English (html lang="en": the default language, main.js). The type was set for Chinese characters, each
+   a square of its own, spread apart for air; Latin words are longer and their letters belong together. So
+   in English the wide letter-spacing goes, except for a few small capitals, the English captions written
+   for the Chinese titles (which would only repeat them) are hidden, and the places sized for two to four
+   characters make room for a word or two. */
+
+html:lang(en) body * { letter-spacing: normal !important; }
+html:lang(en) .turn-box .t1,
+html:lang(en) .ol-head > span,
+html:lang(en) .hm-sub,
+html:lang(en) .row-label { letter-spacing: 0.08em !important; }
+
+/* the captions that are the title again in English */
+html:lang(en) .title-block .eyebrow,
+html:lang(en) .ol-head small { display: none; }
+
+/* the home screen: the cards' names and the official room's title */
+html:lang(en) .hm-lbl { font-size: max(10px, calc(var(--cw) * 0.098)); }
+html:lang(en) .ho-title { white-space: normal; text-align: center; line-height: 1.02; }
+html:lang(en) .ho-title span { font-size: clamp(13px, 2.15cqw, 26px); padding-left: 0; }
+
+/* a card's or a button's name: the short one on a phone's small cards and narrow buttons (in Chinese
+   the two are the same) */
+.hm-lbl .s, .act .lbl .s { display: none; }
+@media (max-width: 760px) {
+  .hm-lbl .l, .act .lbl .l { display: none; }
+  .hm-lbl .s, .act .lbl .s { display: inline; }
+}
+
+/* the nation's name in the top bar of a phone: on two lines rather than cut short */
+@media (max-width: 900px) {
+  html:lang(en) .tb-name { white-space: normal; font-size: 13px; line-height: 1.05; max-width: 7em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+}
+
+/* the nation's name on its ribbon: a longer word in a smaller hand */
+html:lang(en) .hm-name { width: 236px; }
+html:lang(en) .hm-name input { font-size: 17px; }
+@media (max-width: 760px) {
+  html:lang(en) .hm-name { width: auto; }
+  html:lang(en) .hm-name input { font-size: 15px; }
+}
+@media (max-width: 760px) {
+  html:lang(en) .hm-lbl { font-size: max(11px, calc(var(--cw) * 0.13)); }
+}

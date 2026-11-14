@@ -23,8 +23,8 @@ const res = await build({
 });
 const js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 // (kit.css and theme2.css: the clean interface, on when <html> has ui2; kit3.css and theme3.css: the map
-// table, on when <html> has ui3)
-const css = ['src/ui/styles.css', 'src/ui/map.css', 'src/ui/cards.css', 'src/ui/home.css', 'src/ui/theme.css', 'src/ui/kit.css', 'src/ui/theme2.css', 'src/ui/kit3.css', 'src/ui/theme3.css']
+// table, on when <html> has ui3; lang-en.css: the type in English, on when <html lang="en">)
+const css = ['src/ui/styles.css', 'src/ui/map.css', 'src/ui/cards.css', 'src/ui/home.css', 'src/ui/theme.css', 'src/ui/kit.css', 'src/ui/theme2.css', 'src/ui/kit3.css', 'src/ui/theme3.css', 'src/ui/lang-en.css']
   .map((f) => {
     try {
       return readFileSync(f, 'utf8');
@@ -34,7 +34,8 @@ const css = ['src/ui/styles.css', 'src/ui/map.css', 'src/ui/cards.css', 'src/ui/
   })
   .join('\n');
 
-const page = `<title>卡坦島 3D 戰略版</title>
+// (the page sets its title again in the reader's language: main.js)
+const page = `<title>Catan 3D: Strategy Edition</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700;900&family=UnifrakturMaguntia&display=swap">

@@ -27,7 +27,9 @@ export function pips(n) {
   return 6 - Math.abs(7 - n);
 }
 
-const NAMES = {
+// The provinces' names, from these parts (i18n/places.js has the English parts at the same places).
+// i18n-keep: the names are part of the game's state, in Chinese; the page reads them in its language.
+export const NAMES = {
   forest: [['黑松', '雲杉', '橡木', '霧隱', '幽谷', '楓紅', '古藤', '鹿鳴', '狼嚎', '青岡'], ['林', '森林', '林地']],
   hills: [['赤陶', '紅土', '褐岩', '窯火', '磚紅', '鏽石', '赭石', '炭窯'], ['丘', '丘陵', '崗']],
   pasture: [['青羊', '白羊', '綠野', '風吟', '牧歌', '春草', '銀鈴', '雲絮'], ['原', '牧場', '草原']],
@@ -209,7 +211,7 @@ export function generateBoard(holder, opts = {}) {
     }
     return t.t;
   });
-  if (!def.islands) for (const [g, ids] of Object.entries(freeBy)) if ((g ? expand(groups[g].pool) : pool).length < ids.length) throw new Error('地圖的地形不夠分配');
+  if (!def.islands) for (const [g, ids] of Object.entries(freeBy)) if ((g ? expand(groups[g].pool) : pool).length < ids.length) throw new Error('the map has too few tiles for its terrain');
 
   let terrains = null;
   if (def.legacy) {

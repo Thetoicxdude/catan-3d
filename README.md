@@ -1,6 +1,8 @@
-# 卡坦島 3D 戰略版
+# 卡坦島 3D 戰略版（Catan 3D: Strategy Edition）
 
-線上可玩的卡坦島（基本版規則）。地圖是可以旋轉、傾斜的 3D 戰略地圖，資源卡與發展卡都是寫實卡面。可以跟電腦對戰、在同一台裝置輪流玩，也可以線上多人：開房、用代碼或邀請連結加入、快速配對、觀戰、斷線重連。
+*An online Catan on a 3D strategy map — in English (the default) or Traditional Chinese (Settings → Language).*
+
+線上可玩的卡坦島（基本版規則）。介面有英文（預設）與繁體中文，在設定的第一列切換。地圖是可以旋轉、傾斜的 3D 戰略地圖，資源卡與發展卡都是寫實卡面。可以跟電腦對戰、在同一台裝置輪流玩，也可以線上多人：開房、用代碼或邀請連結加入、快速配對、觀戰、斷線重連。
 
 ## 專案結構
 
@@ -8,6 +10,7 @@
 | --- | --- |
 | `src/` | 遊戲本體（three.js）。規則引擎在 `src/engine/`，是純函式，同一個 seed 可以重播。 |
 | `src/net/` | 線上對戰。由主持人的瀏覽器跑規則並裁判，玩家的手牌用 ECDH + AES-GCM 加密。 |
+| `src/i18n/` | 兩種語言：程式裡的中文字串是翻譯鍵，英文在 `en.js`；`npm test` 會檢查每個字都有英文。 |
 | `server/worker.js` | Cloudflare Worker：提供網頁與素材，並用 Durable Objects 跑線上房間（只轉送每位玩家的 presence，伺服器不需要懂規則）。 |
 | `assets/` | 寫實素材包（約 22 MB，全部 CC0）。 |
 | `build.mjs` | 打包。`site/` 是部署用的網站，`dist/` 是 claude.ai 版與測試頁。 |
@@ -38,7 +41,8 @@ npm run dev        # 打包後啟動本機伺服器：http://127.0.0.1:8787
 ## 測試
 
 ```sh
-npm test                                  # 規則單元測試、網路序列化、300 局完整模擬
+npm test                                  # 翻譯檢查、規則單元測試、網路序列化、300 局完整模擬
+python3 test/english.py                   # 英文介面：畫面上不能出現中文
 node test/rooms.mjs                       # 房間伺服器協定（需先執行 npm run dev）
 python3 test/ui1.py                       # 瀏覽器介面流程（Playwright；ui1 到 ui4）
 python3 test/online.py                    # 線上對局（瀏覽器內的模擬房間）

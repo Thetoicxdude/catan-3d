@@ -2,6 +2,7 @@
 // other page in the room reads them from there, so nothing goes through the host. A message stays
 // posted for 20 seconds, long enough for everyone in the room to have seen it, and is then taken
 // down again so the presence stays small.
+import { t } from '../i18n/index.js';
 const MAX_LEN = 80;
 const KEEP = 3;
 const TTL = 20000;
@@ -51,20 +52,20 @@ export class Chat {
 
   // returns null when sent, or why not ('empty', 'fast', 'off')
   post(text) {
-    const t = cleanChat(text);
-    if (!t) return 'empty';
+    const msgText = cleanChat(text);
+    if (!msgText) return 'empty';
     if (!this.ch) return 'off';
     const now = Date.now();
     if (now - this.lastPost < GAP) return 'fast';
     this.lastPost = now;
     this.n++;
-    this.items.push([this.n, t, now]);
+    this.items.push([this.n, msgText, now]);
     while (this.items.length > KEEP) this.items.shift();
     this.publish();
     this.arm();
     const me = this.ch.me ? this.ch.me() : null;
     const w = (this.who && this.who(me, null)) || {};
-    this.emit({ name: w.name || '你', color: w.color || null, text: t, mine: true });
+    this.emit({ name: w.name || t('你'), color: w.color || null, text: msgText, mine: true });
     return null;
   }
 
@@ -110,7 +111,7 @@ export class Chat {
         const text = cleanChat(it[1]);
         if (!text) continue;
         const w = (this.who && this.who(p.peer, pr)) || {};
-        this.emit({ name: w.name || '玩家', color: w.color || null, text, mine: false });
+        this.emit({ name: w.name || t('玩家'), color: w.color || null, text, mine: false });
       }
       this.seen.set(p.peer, max);
     }

@@ -2,6 +2,7 @@
 // The page asks Google for an ID token ("Sign in with Google" button) and hands it to the site's
 // server, which checks it and keeps a session cookie; nothing about the account is stored in the page.
 // See server/accounts.js.
+import { t, N_ } from '../i18n/index.js';
 const GSI = 'https://accounts.google.com/gsi/client';
 
 let user; // undefined: not asked yet; null: signed out
@@ -83,10 +84,10 @@ function loadGsi() {
     const s = document.createElement('script');
     s.src = GSI;
     s.async = true;
-    s.onload = () => (window.google && window.google.accounts && window.google.accounts.id ? resolve(window.google.accounts.id) : reject(new Error('Google 登入沒有正確載入')));
+    s.onload = () => (window.google && window.google.accounts && window.google.accounts.id ? resolve(window.google.accounts.id) : reject(new Error(N_('Google 登入沒有正確載入'))));
     s.onerror = () => {
       gsi = null;
-      reject(new Error('無法連到 Google 登入，請確認網路連線後再試一次'));
+      reject(new Error(N_('無法連到 Google 登入，請確認網路連線後再試一次')));
     };
     document.head.appendChild(s);
   });
@@ -111,7 +112,7 @@ export async function renderSignIn(el, { onDone, onError, width = 260 } = {}) {
           if (signInDone) signInDone(user);
         } catch (e) {
           console.warn('sign-in', e);
-          if (signInError) signInError(e.status === 401 ? 'Google 的登入憑證無法驗證，請再試一次' : '登入失敗，請稍後再試');
+          if (signInError) signInError(e.status === 401 ? t('Google 的登入憑證無法驗證，請再試一次') : t('登入失敗，請稍後再試'));
         }
       },
     });

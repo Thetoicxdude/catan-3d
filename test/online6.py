@@ -19,7 +19,7 @@ LABEL, HEXES, VP = {'sea-1': ('駛向新海岸', 42, 14), 'sea-2': ('四座島�
 SEATS = 6 if MAP.endswith('-6') else 4
 PRE = 'o6' if MAP == 'sea-1' else 'o6-' + MAP
 INIT = """window.__mapFps = 0.12; window.__mockRoom = true; window.__perf = PERF; window.__keySlot = NAME; window.__noAssets = true;
-localStorage.setItem('catan3d-settings-v1', JSON.stringify({speed:'turbo', follow:false, quality:'low', qualityPicked:true, name: NAME, color: COLOR, opponents: 3}));"""
+localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh', speed:'turbo', follow:false, quality:'low', qualityPicked:true, name: NAME, color: COLOR, opponents: 3}));"""
 if os.environ.get('ROOMS') == 'ws': INIT = INIT.replace('window.__mockRoom = true;', "window.__rooms = 'ws://127.0.0.1:8787/rooms/';")
 CLIENT_STEP = """(async () => {
   const g = window.__game; if (!g || !g.client) return 'nogame';

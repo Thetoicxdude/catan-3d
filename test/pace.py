@@ -6,7 +6,7 @@ import asyncio, sys, os, json
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-INIT = "window.__noAssets = true; window.__testHooks = true; localStorage.setItem('catan3d-settings-v1', JSON.stringify({ speed: 'turbo', quality: 'low', qualityPicked: true }));"
+INIT = "window.__noAssets = true; window.__testHooks = true; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true }));"
 results = {}
 def check(name, ok, info=''):
     results[name] = bool(ok)

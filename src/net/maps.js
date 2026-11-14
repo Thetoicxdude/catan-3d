@@ -4,6 +4,7 @@
 import { accountsAvailable } from './account.js';
 import { draftToDef, normalizeDraft } from '../engine/custom.js';
 import { registerMap, knownMap, mapDef } from '../engine/maps.js';
+import { N_ } from '../i18n/fill.js';
 
 export const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
 export const mapsAvailable = accountsAvailable;
@@ -29,7 +30,7 @@ async function api(path, body) {
     /* not JSON */
   }
   if (!res.ok) {
-    const e = new Error((data && data.message) || (res.status === 404 ? '找不到這張地圖' : res.status === 401 ? '請先登入' : '伺服器忙碌中，請稍後再試'));
+    const e = new Error((data && data.message) || (res.status === 404 ? N_('找不到這張地圖') : res.status === 401 ? N_('請先登入') : N_('伺服器忙碌中，請稍後再試')));
     e.status = res.status;
     e.code = data && data.error;
     throw e;

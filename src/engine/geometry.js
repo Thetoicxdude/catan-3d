@@ -73,7 +73,7 @@ export function buildGeometry(m) {
   const hexIndex = new Map();
   for (const t of def.tiles) {
     const key = t.q + ',' + t.r;
-    if (hexIndex.has(key)) throw new Error('地圖有重複的地塊 ' + key);
+    if (hexIndex.has(key)) throw new Error('the map has the same tile twice: ' + key);
     const w = axialToWorld(t.q, t.r);
     const h = { id: hexes.length, q: t.q, r: t.r, x: w.x, z: w.z, sea: t.t === 'sea', vertices: [], edges: [], neighbors: [] };
     hexIndex.set(key, h.id);

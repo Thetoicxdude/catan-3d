@@ -2,16 +2,38 @@
 import { flagURL } from './flags.js';
 import { esc } from './text.js';
 import { mapDef, MAP_TABLE } from '../engine/maps.js';
+import { t, tx, untx, N_, getLang } from '../i18n/index.js';
 
+// (each colour's name is a key: t(p.name))
 export const PALETTE = [
-  { hex: '#c8372d', name: '赤' },
-  { hex: '#2f6fd0', name: '蒼' },
-  { hex: '#e8892b', name: '琥珀' },
-  { hex: '#17a9bd', name: '碧' },
-  { hex: '#3f9a4a', name: '翠' },
-  { hex: '#8a5cc2', name: '紫' },
+  { hex: '#c8372d', name: N_('赤') },
+  { hex: '#2f6fd0', name: N_('蒼') },
+  { hex: '#e8892b', name: N_('琥珀') },
+  { hex: '#17a9bd', name: N_('碧') },
+  { hex: '#3f9a4a', name: N_('翠') },
+  { hex: '#8a5cc2', name: N_('紫') },
 ];
-export const AI_NAMES = ['北境公國', '蒼藍聯邦', '琥珀公國', '碧海共和國', '翡翠王國', '紫晶帝國', '赤沙酋長國', '銀港自由市', '霧峰同盟'];
+// The default names of nations, as keys: a nation is named in the language of the page that names it
+// (tx(name)), and a default name saved in one language is read in the other (localName).
+export const MY_NAME = N_('曙光王國');
+export const AI_NAMES = [N_('北境公國'), N_('蒼藍聯邦'), N_('琥珀公國'), N_('碧海共和國'), N_('翡翠王國'), N_('紫晶帝國'), N_('赤沙酋長國'), N_('銀港自由市'), N_('霧峰同盟')];
+const DEFAULT_NAMES = new Set([MY_NAME, ...AI_NAMES]);
+export function localName(name) {
+  const key = untx(name);
+  return DEFAULT_NAMES.has(key) ? tx(key) : name;
+}
+// A nation's name fits in about 18 Latin letters or 9 Chinese characters (a Chinese one is twice as wide).
+export const NAME_MAX = 18;
+export function clipName(s, max = NAME_MAX) {
+  let w = 0;
+  let out = '';
+  for (const c of String(s || '')) {
+    w += /[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]/.test(c) ? 2 : 1;
+    if (w > max) break;
+    out += c;
+  }
+  return out;
+}
 
 // What the graphics chip can carry: integrated graphics (laptop APUs, Intel, phones) get medium quality,
 // software rendering low. Checked once.
@@ -40,16 +62,10 @@ export function defaultSettings() {
   const weak = typeof navigator !== 'undefined' && navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
   const tier = typeof document !== 'undefined' ? gpuTier() : 'high';
   return {
-    name: '曙光王國',
+    name: tx(MY_NAME),
     color: '#c8372d',
     opponents: 3,
-    seats: [
-      { name: '蒼藍聯邦', kind: 'ai', level: 'normal' },
-      { name: '琥珀公國', kind: 'ai', level: 'normal' },
-      { name: '碧海共和國', kind: 'ai', level: 'normal' },
-      { name: '翡翠王國', kind: 'ai', level: 'normal' },
-      { name: '紫晶帝國', kind: 'ai', level: 'normal' },
-    ],
+    seats: AI_NAMES.slice(1, 6).map((n) => ({ name: tx(n), kind: 'ai', level: 'normal' })),
     // the island (maps.js) and, on the 5–6 player island, how the turn is shared
     map: 'base-4',
     turns: 'paired',
@@ -60,6 +76,8 @@ export function defaultSettings() {
     dice: 'random',
     mix: 'standard',
     speed: 'normal',
+    // the language: 'en' (the default) or 'zh' (i18n/index.js)
+    lang: 'en',
     // the interface: 'atlas' (the map table, theme3.css), 'classic' (bronze frames) or 'clean' (theme2.css);
     // uiPicked once the player has chosen one in the settings
     ui: 'atlas',
@@ -92,19 +110,19 @@ export function officialSettings(s) {
 // the house rules in words, those that differ from the standard game only (for a room's terms)
 export function houseRulesText(s, withTarget = false) {
   const out = [];
-  if (withTarget) out.push(`${targetFor(s)} 分勝利`);
-  if (s.discard !== 7 && DISCARD.includes(s.discard)) out.push(`手牌超過 ${s.discard} 張才棄牌`);
-  if (s.dice === 'deck') out.push('平衡骰');
-  if (s.mix === 'rich') out.push('數字偏向高機率');
+  if (withTarget) out.push(t('{n} 分勝利', { n: targetFor(s) }));
+  if (s.discard !== 7 && DISCARD.includes(s.discard)) out.push(t('手牌超過 {n} 張才棄牌', { n: s.discard }));
+  if (s.dice === 'deck') out.push(t('平衡骰'));
+  if (s.mix === 'rich') out.push(t('數字偏向高機率'));
   return out;
 }
 
 // what each house rule does, for the notes under the choices (only those not at their standard)
 export function houseRulesNotes(s) {
   const out = [];
-  if (s.dice === 'deck') out.push('平衡骰：36 種骰子組合各一張牌，依序翻開，翻完（最後幾張不用）再重洗。每個點數出現的次數會貼近機率，不會前面一直出 6、後面一直出 8。');
-  if (s.mix === 'rich') out.push('數字偏向高機率：島上的 2、3、11、12 少一些，5、9（大地圖還有 4、10）多一些，6 和 8 數量不變；好位置比較多、比較好選。');
-  if (s.discard !== 7 && DISCARD.includes(s.discard)) out.push(`擲出 7 時，手牌超過 ${s.discard} 張的國家才要棄掉一半（標準是超過 7 張）。`);
+  if (s.dice === 'deck') out.push(t('平衡骰：36 種骰子組合各一張牌，依序翻開，翻完（最後幾張不用）再重洗。每個點數出現的次數會貼近機率，不會前面一直出 6、後面一直出 8。'));
+  if (s.mix === 'rich') out.push(t('數字偏向高機率：島上的 2、3、11、12 少一些，5、9（大地圖還有 4、10）多一些，6 和 8 數量不變；好位置比較多、比較好選。'));
+  if (s.discard !== 7 && DISCARD.includes(s.discard)) out.push(t('擲出 7 時，手牌超過 {n} 張的國家才要棄掉一半（標準是超過 7 張）。', { n: s.discard }));
   return out;
 }
 
@@ -120,12 +138,14 @@ export function fitSettings(s) {
   if (!DICE.includes(s.dice)) s.dice = 'random';
   if (!MIX.includes(s.mix)) s.mix = 'standard';
   if (!['classic', 'clean', 'atlas'].includes(s.ui)) s.ui = 'atlas';
+  if (s.lang !== 'zh') s.lang = 'en';
   if (!['eco', 'std', 'max'].includes(s.fps)) s.fps = 'std';
   s.perfInfo = s.perfInfo === true;
   if (!Array.isArray(s.seats)) s.seats = [];
   for (let i = s.seats.length; i < 5; i++) {
     const used = new Set([s.name, ...s.seats.map((x) => x.name)]);
-    s.seats.push({ name: AI_NAMES.find((n) => !used.has(n)) || AI_NAMES[i], kind: 'ai', level: 'normal' });
+    const names = AI_NAMES.map(tx);
+    s.seats.push({ name: names.find((n) => !used.has(n)) || names[i], kind: 'ai', level: 'normal' });
   }
   const [lo, hi] = def.players;
   s.opponents = Math.min(hi - 1, Math.max(lo - 1, Number(s.opponents) || hi - 1));
@@ -159,10 +179,10 @@ export function seatColors(s) {
 
 export function playersFromSettings(s) {
   const cols = seatColors(s);
-  const players = [{ name: s.name.trim() || '曙光王國', color: s.color, kind: 'human' }];
+  const players = [{ name: clipName(s.name.trim()) || tx(MY_NAME), color: s.color, kind: 'human' }];
   s.seats.slice(0, s.opponents).forEach((seat, i) => {
     players.push({
-      name: (seat.name || '').trim() || AI_NAMES[i],
+      name: clipName((seat.name || '').trim()) || tx(AI_NAMES[i]),
       color: cols[i],
       kind: seat.kind === 'human' ? 'human' : 'ai',
       ai: seat.kind === 'human' ? null : { level: seat.level || 'normal' },
@@ -181,9 +201,13 @@ function el(tag, cls, html) {
 // how the turn is shared among 5–6 players, in a sentence (with ships, what the rule says of them)
 export function turnsNote(turns, def) {
   const sea = !!(def && def.rules && def.rules.seafarers);
-  return turns === 'sbp'
-    ? `每位玩家回合結束後，其他人依序可以建造或購買發展卡（不能交易、不能使用發展卡${sea ? '、不能移船' : ''}）。`
-    : `官方現行規則：每回合由兩位玩家行動。主要玩家照常擲骰、交易、建造；結束後由對面（左手邊第三位）的玩家接著建造、和銀行交易、使用一張發展卡${sea ? '、移動一艘船' : ''}，但不能擲骰或和其他國家交易。`;
+  if (turns === 'sbp')
+    return sea
+      ? t('每位玩家回合結束後，其他人依序可以建造或購買發展卡（不能交易、不能使用發展卡、不能移船）。')
+      : t('每位玩家回合結束後，其他人依序可以建造或購買發展卡（不能交易、不能使用發展卡）。');
+  return sea
+    ? t('官方現行規則：每回合由兩位玩家行動。主要玩家照常擲骰、交易、建造；結束後由對面（左手邊第三位）的玩家接著建造、和銀行交易、使用一張發展卡、移動一艘船，但不能擲骰或和其他國家交易。')
+    : t('官方現行規則：每回合由兩位玩家行動。主要玩家照常擲骰、交易、建造；結束後由對面（左手邊第三位）的玩家接著建造、和銀行交易、使用一張發展卡，但不能擲骰或和其他國家交易。');
 }
 
 // The house rules as rows of choices (the campaign menu and a custom room): `row(label, key, options,
@@ -191,22 +215,22 @@ export function turnsNote(turns, def) {
 export function houseRuleRows(s, row, note) {
   const def = mapDef(s.map);
   const base = def.vp || 10;
-  const own = def.vp ? (def.custom ? '地圖' : '劇本') : '標準';
-  row('勝利分數', 'vpAdj', VP_ADJ.map((d) => [d, `${Math.max(3, base + d)} 分${d === 0 ? `（${own}）` : ''}`]));
-  row('棄牌門檻', 'discard', DISCARD.map((n) => [n, n === 7 ? '7 張（標準）' : `${n} 張`]));
-  row('骰子', 'dice', [
-    ['random', '隨機（標準）'],
-    ['deck', '平衡骰'],
+  const own = def.vp ? (def.custom ? t('地圖') : t('劇本')) : t('標準');
+  row(t('勝利分數'), 'vpAdj', VP_ADJ.map((d) => [d, d === 0 ? t('{n} 分（{own}）', { n: Math.max(3, base + d), own }) : t('{n} 分', { n: Math.max(3, base + d) })]));
+  row(t('棄牌門檻'), 'discard', DISCARD.map((n) => [n, n === 7 ? t('7 張（標準）') : t('{n} 張', { n })]));
+  row(t('骰子'), 'dice', [
+    ['random', t('隨機（標準）')],
+    ['deck', t('平衡骰')],
   ]);
-  row('數字分布', 'mix', [
-    ['standard', '標準'],
-    ['rich', '偏向高機率'],
+  row(t('數字分布'), 'mix', [
+    ['standard', t('標準')],
+    ['rich', t('偏向高機率')],
   ], true);
   // (the official spiral exists for the standard island only, with its own tokens)
   if (def.spiral && s.mix !== 'rich')
-    row('數字排列', 'numbers', [
-      ['balanced', '平衡隨機'],
-      ['spiral', '官方螺旋'],
+    row(t('數字排列'), 'numbers', [
+      ['balanced', t('平衡隨機')],
+      ['spiral', t('官方螺旋')],
     ], true);
   const notes = houseRulesNotes(s);
   if (notes.length) note(notes.map(esc).join('<br>'));
@@ -217,28 +241,29 @@ export function houseRuleRows(s, row, note) {
 // row.
 export function mapTable(current, pick, extra = []) {
   const box = el('div', 'seg maps');
-  box.appendChild(el('span', 'mt-col', '3–4 人'));
-  box.appendChild(el('span', 'mt-col', '5–6 人'));
+  box.appendChild(el('span', 'mt-col', t('{lo}–{hi} 人', { lo: 3, hi: 4 })));
+  box.appendChild(el('span', 'mt-col', t('{lo}–{hi} 人', { lo: 5, hi: 6 })));
   for (const kind of MAP_TABLE) {
-    box.appendChild(el('span', 'mt-kind', esc(kind.kind)));
+    box.appendChild(el('span', 'mt-kind', esc(tx(kind.kind))));
     for (const row of kind.rows) {
       row.forEach((def, i) => {
-        const b = el('button', (i ? 'r' : '') + (def.id === current ? ' on' : ''), esc(def.short || def.name));
+        const b = el('button', (i ? 'r' : '') + (def.id === current ? ' on' : ''), esc(tx(def.short || def.name)));
         b.type = 'button';
         b.dataset.map = def.id;
-        b.title = `${def.name}（${Math.max(3, def.players[0])}–${def.players[1]} 人）`;
+        b.title = t('{name}（{lo}–{hi} 人）', { name: tx(def.name), lo: Math.max(3, def.players[0]), hi: def.players[1] });
         b.addEventListener('click', () => def.id !== current && pick(def.id));
         box.appendChild(b);
       });
     }
   }
   if (extra.length) {
-    box.appendChild(el('span', 'mt-kind', '玩家地圖'));
+    box.appendChild(el('span', 'mt-kind', t('玩家地圖')));
     for (const def of extra) {
-      const b = el('button', 'wide' + (def.id === current ? ' on' : ''), `${esc(def.name)}<small>${def.author ? esc(def.author) + '・' : ''}${def.players[0]}–${def.players[1]} 人</small>`);
+      const players = t('{lo}–{hi} 人', { lo: def.players[0], hi: def.players[1] });
+      const b = el('button', 'wide' + (def.id === current ? ' on' : ''), `${esc(tx(def.name))}<small>${def.author ? esc(tx(def.author)) + '・' : ''}${players}</small>`);
       b.type = 'button';
       b.dataset.map = def.id;
-      b.title = `${def.name}（${def.players[0]}–${def.players[1]} 人，${def.vp} 分勝利）`;
+      b.title = t('{name}（{lo}–{hi} 人，{vp} 分勝利）', { name: tx(def.name), lo: def.players[0], hi: def.players[1], vp: def.vp });
       b.addEventListener('click', () => def.id !== current && pick(def.id));
       box.appendChild(b);
     }
@@ -253,12 +278,12 @@ export function buildInfo() {
   if (!b || !b.sha) return '';
   let when = '';
   try {
-    when = new Date(b.at).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+    when = new Date(b.at).toLocaleString(getLang() === 'zh' ? 'zh-TW' : 'en-GB', { month: getLang() === 'zh' ? 'numeric' : 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   } catch {
     /* no Intl */
   }
   const branch = b.branch && b.branch !== 'main' ? `・${b.branch}` : '';
-  return `版本 ${String(b.sha).replace(/[^0-9a-z]/gi, '').slice(0, 7)}${branch}${when ? `・${when}` : ''}`;
+  return t('版本 {v}', { v: String(b.sha).replace(/[^0-9a-z]/gi, '').slice(0, 7) }) + branch + (when ? `・${when}` : '');
 }
 function buildLabel() {
   const t = buildInfo();
@@ -271,11 +296,11 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
   scr.innerHTML = `
     <div class="title-block">
       <div class="eyebrow">Single Player · Island Campaign</div>
-      <h1>單人遊戲<span>卡坦島 3D 戰略版</span></h1>
-      <p>和電腦對手，或同一台裝置上的朋友輪流，在立體戰略地圖上開拓、交易、築城。率先取得勝利分數的國家，將統一整座島嶼。</p>${buildLabel()}
+      <h1>${t('單人遊戲')}<span>${t('卡坦島 3D 戰略版')}</span></h1>
+      <p>${t('和電腦對手，或同一台裝置上的朋友輪流，在立體戰略地圖上開拓、交易、築城。率先取得勝利分數的國家，將統一整座島嶼。')}</p>${buildLabel()}
     </div>
     <div class="setup-card panel">
-      <div class="modal-head"><h3>新戰役</h3></div>
+      <div class="modal-head"><h3>${t('新戰役')}</h3></div>
       <div class="modal-body"></div>
       <div class="modal-foot"></div>
     </div>`;
@@ -285,11 +310,11 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
   const render = () => {
     body.innerHTML = '';
     const g = el('div', 'form-grid');
-    g.appendChild(el('label', '', '你的國家'));
+    g.appendChild(el('label', '', t('你的國家')));
     const name = el('input');
     name.type = 'text';
     name.id = 'menu-name';
-    name.maxLength = 8;
+    name.maxLength = NAME_MAX;
     name.value = settings.name;
     name.addEventListener('input', () => {
       settings.name = name.value;
@@ -297,14 +322,14 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
     });
     g.appendChild(name);
 
-    g.appendChild(el('label', '', '國家顏色'));
+    g.appendChild(el('label', '', t('國家顏色')));
     const sw = el('div', 'swatches');
     for (const p of PALETTE) {
       const b = el('button', 'swatch' + (settings.color === p.hex ? ' on' : ''));
       b.type = 'button';
       b.style.background = p.hex;
-      b.title = p.name;
-      b.setAttribute('aria-label', p.name + '色');
+      b.title = t(p.name);
+      b.setAttribute('aria-label', t('{c}色', { c: t(p.name) }));
       b.addEventListener('click', () => {
         settings.color = p.hex;
         onChange(settings);
@@ -332,7 +357,7 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
       g.appendChild(s);
     };
     // the island first: it decides how many nations can play
-    g.appendChild(el('label', '', '地圖'));
+    g.appendChild(el('label', '', t('地圖')));
     g.appendChild(
       mapTable(
         settings.map,
@@ -351,13 +376,13 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
       g.appendChild(el('span', ''));
       const links = el('div', 'map-links');
       if (onBrowse) {
-        const br = el('button', 'btn ghost ed-open', '公開地圖…');
+        const br = el('button', 'btn ghost ed-open', t('公開地圖…'));
         br.type = 'button';
         br.addEventListener('click', () => onBrowse());
         links.appendChild(br);
       }
       if (onEditor) {
-        const ed = el('button', 'btn ghost ed-open', '地圖工坊：畫一座自己的島 →');
+        const ed = el('button', 'btn ghost ed-open', t('地圖工坊：畫一座自己的島 →'));
         ed.type = 'button';
         ed.addEventListener('click', () => onEditor());
         links.appendChild(ed);
@@ -366,22 +391,14 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
     }
     const big = mapDef(settings.map).players[0] >= 5;
     seg(
-      '對手數量',
+      t('對手數量'),
       'opponents',
-      big
-        ? [
-            [4, '4 國（5 人局）'],
-            [5, '5 國（6 人局）'],
-          ]
-        : [
-            [2, '2 國（3 人局）'],
-            [3, '3 國（4 人局）'],
-          ],
+      (big ? [4, 5] : [2, 3]).map((n) => [n, t('{n} 國（{p} 人局）', { n, p: n + 1 })]),
     );
     if (big) {
-      seg('回合規則', 'turns', [
-        ['paired', '配對回合'],
-        ['sbp', '特別建造階段'],
+      seg(t('回合規則'), 'turns', [
+        ['paired', t('配對回合')],
+        ['sbp', t('特別建造階段')],
       ]);
       g.appendChild(el('span', ''));
       g.appendChild(el('p', 'form-note', turnsNote(settings.turns, mapDef(settings.map))));
@@ -396,9 +413,9 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
       const nm = el('input');
       nm.type = 'text';
       nm.id = 'seat-name-' + i;
-      nm.maxLength = 8;
+      nm.maxLength = NAME_MAX;
       nm.value = seat.name;
-      nm.setAttribute('aria-label', `第 ${i + 1} 個對手的名稱`);
+      nm.setAttribute('aria-label', t('第 {i} 個對手的名稱', { i: i + 1 }));
       nm.style.cssText = 'width:100%;box-sizing:border-box;height:32px;padding:0 8px;background:rgba(0,0,0,.35);border:1px solid rgba(199,166,96,.25);color:var(--ink);font:inherit;border-radius:2px;min-width:0';
       nm.addEventListener('input', () => {
         seat.name = nm.value;
@@ -407,15 +424,15 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
       row.appendChild(nm);
       const sel = el('select');
       sel.id = 'seat-kind-' + i;
-      sel.setAttribute('aria-label', '控制方式');
+      sel.setAttribute('aria-label', t('控制方式'));
       sel.style.cssText = 'height:32px;background:rgba(0,0,0,.35);border:1px solid rgba(199,166,96,.25);color:var(--ink);font:inherit;border-radius:2px';
-      for (const [v, t] of [
-        ['ai:easy', '電腦·簡單'],
-        ['ai:normal', '電腦·普通'],
-        ['ai:hard', '電腦·困難'],
-        ['human', '玩家（同裝置）'],
+      for (const [v, text] of [
+        ['ai:easy', t('電腦·簡單')],
+        ['ai:normal', t('電腦·普通')],
+        ['ai:hard', t('電腦·困難')],
+        ['human', t('玩家（同裝置）')],
       ]) {
-        const o = el('option', '', t);
+        const o = el('option', '', text);
         o.value = v;
         if ((seat.kind === 'human' && v === 'human') || (seat.kind !== 'human' && v === 'ai:' + (seat.level || 'normal'))) o.selected = true;
         sel.appendChild(o);
@@ -455,42 +472,42 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
       g2.appendChild(el('span', ''));
       g2.appendChild(el('p', 'form-note', html));
     });
-    g2.appendChild(el('label', '', '島嶼'));
+    g2.appendChild(el('label', '', t('島嶼')));
     const rr = el('div', 'menu-actions');
-    const reroll = el('button', 'btn', '換一座島嶼');
+    const reroll = el('button', 'btn', t('換一座島嶼'));
     reroll.type = 'button';
     reroll.addEventListener('click', () => onReroll(true));
     rr.appendChild(reroll);
-    rr.appendChild(el('span', '', '<span style="color:var(--ink-faint);font-size:12px;align-self:center">背景就是你將要開拓的島</span>'));
+    rr.appendChild(el('span', '', `<span style="color:var(--ink-faint);font-size:12px;align-self:center">${t('背景就是你將要開拓的島')}</span>`));
     g2.appendChild(rr);
     body.appendChild(g2);
   };
   render();
 
   if (onBack) {
-    const back = el('button', 'btn', '返回');
+    const back = el('button', 'btn', t('返回'));
     back.type = 'button';
     back.dataset.k = 'back';
     back.addEventListener('click', onBack);
     foot.appendChild(back);
   }
-  const rules = el('button', 'btn', '規則說明');
+  const rules = el('button', 'btn', t('規則說明'));
   rules.type = 'button';
   rules.addEventListener('click', onRules);
   foot.appendChild(rules);
   if (hasSave) {
-    const cont = el('button', 'btn', '繼續上一局');
+    const cont = el('button', 'btn', t('繼續上一局'));
     cont.type = 'button';
     cont.addEventListener('click', onContinue);
     foot.appendChild(cont);
   }
   if (onOnline) {
-    const online = el('button', 'btn', '線上對戰');
+    const online = el('button', 'btn', t('線上對戰'));
     online.type = 'button';
     online.addEventListener('click', onOnline);
     foot.appendChild(online);
   }
-  const start = el('button', 'btn primary', '開始戰役');
+  const start = el('button', 'btn primary', t('開始戰役'));
   start.type = 'button';
   start.addEventListener('click', () => onStart(settings));
   foot.appendChild(start);

@@ -24,6 +24,7 @@ async def main():
         b = await p.chromium.launch(args=['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl'])
         ctx = await b.new_context(viewport={'width': width, 'height': height}, device_scale_factor=1)
         page = await ctx.new_page()
+        await page.add_init_script("try { const k = 'catan3d-settings-v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (!s.lang) { s.lang = 'zh'; localStorage.setItem(k, JSON.stringify(s)); } } catch (e) {}")  # these checks read the Chinese words
         logs = []
         page.on('console', lambda m: logs.append(f'[{m.type}] {m.text}'))
         page.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))

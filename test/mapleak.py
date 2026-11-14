@@ -9,7 +9,7 @@ from playwright.async_api import async_playwright
 N = int(os.environ.get('N', '5'))
 ART = os.environ.get('ART') == '1'
 Q = os.environ.get('QUALITY', 'low')
-INIT = "window.__noAssets = %s; window.__testHooks = true; window.__mapFps = 2; localStorage.setItem('catan3d-settings-v1', JSON.stringify({ speed: 'turbo', quality: '%s', qualityPicked: true }));" % ('false' if ART else 'true', Q)
+INIT = "window.__noAssets = %s; window.__testHooks = true; window.__mapFps = 2; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: '%s', qualityPicked: true }));" % ('false' if ART else 'true', Q)
 
 async def main():
     srv = serve()

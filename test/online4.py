@@ -12,7 +12,7 @@ SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots
 os.makedirs(SP, exist_ok=True)
 INIT = """window.__mapFps = 0.15; window.__mockRoom = true; window.__noAssets = true;
 window.__testHooks = true; window.__keySlot = SLOT; window.__perf = PERF; window.__turnMs = { setup: 7000, play: 12000 };
-localStorage.setItem('catan3d-settings-v1', JSON.stringify({speed:'fast', follow:false, quality:'low', name: NAME, color: COLOR, opponents: 3}));"""
+localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh', speed:'fast', follow:false, quality:'low', name: NAME, color: COLOR, opponents: 3}));"""
 if os.environ.get('ROOMS') == 'ws': INIT = INIT.replace('window.__mockRoom = true;', "window.__rooms = 'ws://127.0.0.1:8787/rooms/';")
 CLIENT_STEP = """(async () => {
   const g = window.__game; if (!g || !g.client) return 'nogame';

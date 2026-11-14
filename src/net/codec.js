@@ -6,6 +6,7 @@ import { RES } from '../engine/engine.js';
 import { generateBoard, provinceName } from '../engine/board.js';
 import { seedState } from '../engine/rng.js';
 import { DEFAULT_MAP, mapDef, isBuiltIn } from '../engine/maps.js';
+import { N_ } from '../i18n/fill.js';
 
 const TER = { forest: 'f', hills: 'h', pasture: 'p', fields: 'g', mountains: 'm', desert: 'd', sea: 's', gold: 'o', fog: 'x' };
 const TER_R = Object.fromEntries(Object.entries(TER).map(([k, v]) => [v, k]));
@@ -85,7 +86,7 @@ export function boardHash(board) {
 
 export class BoardMismatch extends Error {
   constructor() {
-    super('主持人的遊戲版本和你的不同，請重新整理頁面後再加入');
+    super(N_('主持人的遊戲版本和你的不同，請重新整理頁面後再加入'));
     this.name = 'BoardMismatch';
   }
 }
