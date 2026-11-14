@@ -93,32 +93,6 @@
 .res-pick.on .rcard { filter: drop-shadow(0 0 2px var(--brass-hi)) drop-shadow(0 0 9px rgba(234, 208, 142, 0.75)); }
 .res-pick:disabled .rcard { filter: grayscale(0.85) brightness(0.6); }
 
-/* ── build costs: shown on hover / long press over the build buttons ── */
-.actionbar.popping { z-index: 40; }
-.cost-pop {
-  position: absolute; z-index: 30; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%);
-  min-width: 220px; padding: 12px 14px 12px; pointer-events: none; text-align: left; white-space: normal;
-  color: var(--ink); background: linear-gradient(180deg, #2b3237, #1a1f22); border: 1px solid var(--brass);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 240, 200, 0.08);
-  animation: popin 0.14s ease-out;
-}
-.cost-pop::after {
-  content: ""; position: absolute; left: 50%; bottom: -7px; width: 12px; height: 12px; transform: translateX(-50%) rotate(45deg);
-  background: #1a1f22; border-right: 1px solid var(--brass); border-bottom: 1px solid var(--brass);
-}
-@keyframes popin { from { opacity: 0; transform: translate(-50%, 6px); } }
-.cost-pop .hd { display: flex; align-items: baseline; gap: 8px; }
-.cost-pop .hd b { font-family: var(--font-display); font-weight: 900; font-size: 17px; letter-spacing: 0.1em; color: var(--brass-hi); }
-.cost-pop .hd i { font-style: normal; font-family: var(--font-fraktur); font-size: 17px; color: var(--ink-dim); }
-.cost-pop .fx { margin: 3px 0 10px; font-size: 12.5px; color: var(--ink-dim); }
-.cost-pop .row { display: flex; gap: 12px; justify-content: center; padding: 6px 4px 2px; }
-.cost-pop .need { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.cost-pop .need .rcard { --w: 64px; }
-.cost-pop .need.short .rcard { filter: saturate(0.35) brightness(0.78); }
-.cost-pop .need small { font-size: 11.5px; color: var(--ok); white-space: nowrap; }
-.cost-pop .need.short small { color: #f08a78; }
-.cost-pop .st { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-dim); }
-.cost-pop .st.bad { color: #f2b36b; }
 
 /* narrower screens: smaller cards, so an online game's room chip and clock fit in the bar */
 @media (max-width: 1180px) {
@@ -131,7 +105,6 @@
 @media (max-width: 900px) {
   .tb-res { align-self: auto; justify-content: center; gap: 13px; padding: 6px 0 10px; }
   .res-chip.rcard { --w: 44px; flex: none; margin-bottom: 0; }
-  .cost-pop { position: fixed; left: 50%; bottom: calc(86px + var(--safe-b)); }
 }
 @media (max-width: 760px) {
   .res-pick .rcard { --w: 46px; }

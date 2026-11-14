@@ -230,6 +230,42 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .act.primary:hover:not(:disabled) { background: linear-gradient(180deg, #e6c983, #b8944a); }
 .act.primary.glow::after { box-shadow: 0 0 22px 2px rgba(234, 208, 142, 0.55); animation-duration: 1.8s; }
 .act-sep { width: 1px; margin: 4px 6px; background: var(--line); }
+.act.open { border-color: var(--brass-hi); }
+
+/* ───────── the build menu: everything that costs resources, a row each, over the bar ───────── */
+.build-menu {
+  position: absolute; z-index: 20; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%);
+  width: min(460px, calc(100vw - 24px)); max-height: calc(100vh - var(--tb-real, 80px) - 120px); overflow-y: auto;
+  display: flex; flex-direction: column; padding: 6px 8px 8px; box-sizing: border-box; text-align: left;
+}
+.build-menu[hidden] { display: none; }
+.bm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 3px 6px 7px; margin-bottom: 2px; border-bottom: 1px solid var(--line); }
+.bm-head b { font-family: var(--font-display); font-size: 15px; letter-spacing: 0.2em; color: var(--brass-hi); }
+.bm-head small { font-size: 11.5px; color: var(--ink-faint); }
+.bm-row {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; grid-template-areas: "ico name cost" "ico sub left";
+  align-items: center; gap: 2px 12px; width: 100%; padding: 8px 8px; box-sizing: border-box; text-align: left; cursor: pointer;
+  background: none; border: 0; border-radius: 3px; color: var(--ink); font: inherit;
+}
+.bm-row + .bm-row { border-top: 1px solid var(--line); }
+.bm-row:hover:not(.off), .bm-row:focus-visible { background: rgba(199, 166, 96, 0.14); outline: none; }
+.bm-row.on { background: rgba(199, 166, 96, 0.22); box-shadow: inset 3px 0 0 var(--brass-hi); }
+.bm-row.off { cursor: help; }
+.bm-row.off .bm-ico, .bm-row.off .bm-name, .bm-row.off .bm-cost { opacity: 0.48; }
+.bm-row[hidden] { display: none; }
+.bm-ico { grid-area: ico; position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 0, 0, 0.32); border: 1px solid var(--brass-lo); color: var(--brass-hi); }
+.bm-ico .key { position: absolute; right: -5px; bottom: -4px; min-width: 16px; height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 8px; display: grid; place-items: center; font-style: normal; font-family: var(--font-num); font-weight: 700; font-size: 11px; line-height: 1; color: #1f170b; background: var(--brass); }
+.bm-name { grid-area: name; font-family: var(--font-display); font-weight: 700; font-size: 15.5px; line-height: 1.2; }
+.bm-sub { grid-area: sub; font-size: 12px; line-height: 1.35; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bm-sub.why { white-space: normal; }
+.bm-sub.why { color: #f2b36b; }
+.bm-cost { grid-area: cost; display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+.bm-left { grid-area: left; align-self: start; text-align: right; font-size: 11.5px; color: var(--ink-faint); white-space: nowrap; }
+.bm-need { display: inline-flex; align-items: center; gap: 2px; padding: 1px 3px 1px 1px; border-radius: 3px; }
+.bm-need b { font-size: 14px; font-weight: 700; }
+.bm-need.short { box-shadow: inset 0 -2px 0 #e2604e; }
+.bm-need.short b { color: #f08a76; }
+.bm-free { font-size: 12px; color: var(--ink-faint); }
 
 /* ───────── log ───────── */
 .log {
@@ -582,6 +618,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .act .lbl { font-size: 11px; }
   .act .key { display: none; }
   .act-sep { display: none; }
+  .build-menu { left: 6px; right: 6px; width: auto; transform: none; bottom: calc(100% + 6px); max-height: calc(100vh - var(--tb-real, 140px) - 110px); }
+  .bm-row { grid-template-columns: 40px minmax(0, 1fr) auto; padding: 8px 6px; }
+  .bm-sub:not(.why) { display: none; }
+  .bm-row { grid-template-areas: "ico name cost" "ico sub left"; }
   .minimap { bottom: calc(84px + var(--safe-b)); }
   .mapmodes { flex-direction: column; }
   .minimap { flex-direction: row-reverse; align-items: flex-end; }

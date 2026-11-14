@@ -97,8 +97,11 @@ async def main():
         await page.mouse.move(pos['x'], pos['y']); await page.wait_for_timeout(300)
         await page.mouse.click(pos['x'], pos['y']); await page.wait_for_timeout(600)
         print('built road via click', await G(f"__game.state.edges[{e}] === 0"))
-        # city via button
-        await page.click('.act:has-text("城市")'); await page.wait_for_timeout(500)
+        # city from the build menu (the Build button opens it; the menu makes way once a row is picked)
+        await page.click('.act[data-k="build"]'); await page.wait_for_timeout(400)
+        print('build menu open', await G("!document.querySelector('.build-menu').hidden"))
+        await page.click('.bm-row[data-k="city"]'); await page.wait_for_timeout(500)
+        print('build menu closed after picking', await G("document.querySelector('.build-menu').hidden"))
         v = await G("__game.map.interaction.ids[0]")
         pos = await G(f"__scr('v', {v})")
         await page.mouse.move(pos['x'], pos['y']); await page.wait_for_timeout(300)

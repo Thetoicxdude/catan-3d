@@ -17,7 +17,7 @@ import {
   movableShips,
   shipTargets,
 } from '../engine/engine.js';
-import { resCard, icon, dieFace, RES_NAMES, RES_EN } from './icons.js';
+import { resCard, resIcon, icon, dieFace, RES_NAMES, RES_EN } from './icons.js';
 import { Fx } from './fx.js';
 import { sfx } from './sfx.js';
 import { flagURL } from './flags.js';
@@ -34,7 +34,17 @@ const BUILD = {
   city: { name: N_('城市'), en: 'City', fx: N_('由村莊升級：再 +1 勝利分數，產出加倍。'), cost: COSTS.city, piece: 'cities', left: N_('還剩 {n} 座城市') },
   dev: { name: N_('發展卡'), en: 'Development', fx: N_('抽 1 張：騎士、道路建設、豐收之年、壟斷或分數卡。'), cost: COSTS.dev },
   ship: { name: N_('船'), en: 'Ship', fx: N_('在海上或海岸邊，接在你的船或海邊的村莊、城市旁。船隊能把村莊送到別的島。'), cost: COSTS.ship, piece: 'ships', left: N_('還剩 {n} 艘') },
+  moveShip: { name: N_('移船'), en: 'Move ship', fx: N_('每回合一次（擲骰後）：移動航線末端、之前回合建造、不在海盜旁的一艘船。'), cost: null },
 };
+// the build menu's rows, in order, with their keys and icons (ship and moveShip: maps with the sea)
+const BUILD_ROWS = [
+  ['road', '1', 'road'],
+  ['settlement', '2', 'settlement'],
+  ['city', '3', 'city'],
+  ['dev', '4', 'devbuy'],
+  ['ship', '5', 'ship'],
+  ['moveShip', '6', 'moveShip'],
+];
 const TERRAIN_HEX = { forest: '#2f6b2f', hills: '#b5532c', pasture: '#8fcf4f', fields: '#e8c547', mountains: '#8d8d96', desert: '#d9c48e', gold: '#f0b62a', fog: '#7d8790' };
 // (the map table: washes of colour on the parchment, which shows through as the sea)
 const TERRAIN_WASH = { forest: '#7f9c66', hills: '#cf8a5e', pasture: '#b5cd84', fields: '#e8cd78', mountains: '#aeaba2', desert: '#eadbb0', gold: '#e9bd52', fog: '#c2bcae' };
@@ -242,18 +252,13 @@ export class Hud {
     this.logEl.querySelectorAll('.log-tabs [data-tab]').forEach((b) => b.addEventListener('click', () => this.showTab(b.dataset.tab)));
     r.appendChild(this.logEl);
 
-    // action bar
+    // action bar: a few orders; everything that costs resources is in the build menu above it, one row
+    // each (so new things to build make the list longer, not the bar wider)
     this.bar = el('nav', 'actionbar panel');
     const acts = [
       ['roll', 'dice', t('擲骰'), 'R'],
       ['sep'],
-      ['road', 'road', t('道路'), '1', COSTS.road],
-      ['settlement', 'settlement', t('村莊'), '2', COSTS.settlement],
-      ['city', 'city', t('城市'), '3', COSTS.city],
-      ['dev', 'devbuy', t('發展卡§bar'), '4', COSTS.dev],
-      // (Seafarers; shown only on maps with the sea)
-      ['ship', 'ship', t('船'), '5', COSTS.ship],
-      ['moveShip', 'moveShip', t('移船'), '6'],
+      ['build', 'build', t('建造§bar'), 'B'],
       ['sep'],
       ['trade', 'trade', t('交易'), 'T'],
       ['cards', 'cards', t('手中卡牌'), 'C'],
@@ -266,13 +271,13 @@ export class Hud {
         this.bar.appendChild(el('div', 'act-sep'));
         continue;
       }
-      const [k, ic, label, key, cost] = a;
+      const [k, ic, label, key] = a;
       const b = el('button', 'act');
       b.type = 'button';
+      b.dataset.k = k;
       // (a shorter name for a phone's narrow buttons: the same in Chinese; lang-en.css)
-      const short = { settlement: t('村莊§short'), dev: t('發展卡§short'), moveShip: t('移船§short'), end: t('結束回合§short') }[k] || label;
+      const short = { end: t('結束回合§short') }[k] || label;
       b.innerHTML = `<span class="key">${key}</span>${icon(ic, 28)}<span class="lbl"><span class="l">${label}</span><span class="s" aria-hidden="true">${short}</span></span>`;
-      if (cost) b.setAttribute('aria-label', t('{label}（{cost}）', { label, cost: Object.entries(cost).map(([res, n]) => RES_NAMES[res] + (n > 1 ? '×' + n : '')).join(t('＋')) }));
       // unavailable actions stay clickable so they can explain why they are unavailable
       b.addEventListener('click', () => {
         if (b.classList.contains('off')) this.flashHint(b.dataset.why || t('現在不能這樣做'));
@@ -280,8 +285,40 @@ export class Hud {
       });
       this.bar.appendChild(b);
       this.btns[k] = b;
-      if (cost) this.costPop(b, k);
     }
+    this.btns.build.setAttribute('aria-haspopup', 'true');
+    this.btns.build.setAttribute('aria-expanded', 'false');
+    // the build menu: a row for each thing to build, its cost against the hand, how many are left, and
+    // why not (when not); 1–6 pick a row without opening the menu
+    this.buildMenu = el('div', 'build-menu panel');
+    this.buildMenu.hidden = true;
+    this.buildMenu.setAttribute('role', 'menu');
+    this.buildMenu.innerHTML = `<div class="bm-head"><b>${t('建造')}</b><small>${t('1–6 直接選')}</small></div>`;
+    for (const [k, key, ic] of BUILD_ROWS) {
+      const info = BUILD[k];
+      const row = el('button', 'bm-row');
+      row.type = 'button';
+      row.dataset.k = k;
+      row.setAttribute('role', 'menuitem');
+      row.innerHTML = `<span class="bm-ico">${icon(ic, 24)}<i class="key">${key}</i></span><b class="bm-name">${t(info.name)}</b><span class="bm-cost"></span><small class="bm-sub"></small><small class="bm-left"></small>`;
+      row.addEventListener('click', () => {
+        if (row.classList.contains('off')) {
+          this.flashHint(row.dataset.why || t('現在不能這樣做'));
+          return;
+        }
+        // (a placement on the map: the menu makes way; a card bought: it stays for the next)
+        if (k !== 'dev') this.toggleBuild(false);
+        this.h.button(k);
+      });
+      this.buildMenu.appendChild(row);
+      this.btns[k] = row;
+    }
+    this.bar.appendChild(this.buildMenu);
+    // (a click anywhere else closes it)
+    this.buildAway = (e) => {
+      if (this.buildOpen && !this.bar.contains(e.target)) this.toggleBuild(false);
+    };
+    document.addEventListener('pointerdown', this.buildAway, true);
     r.appendChild(this.bar);
     this.hint = el('div', 'nexthint');
     this.hint.hidden = true;
@@ -589,91 +626,51 @@ export class Hud {
     set('cards', !!pl, t('手中的發展卡（C）'), { count: pl && pl.dev && pl.dev.length ? pl.dev.length : null, on: playable > 0 && myTurn });
     const canEnd = myTurn && v.rolled && !v.pending;
     set('end', canEnd, canEnd ? (v.sub ? t('結束（Space）') : t('結束回合（Space）')) : !myTurn ? turnWhy() : v.pending ? pendingWhy() : t('請先擲骰'));
+    // the build button: open while its menu is, lit while placing what it builds, and how many of its rows
+    // can be built now
+    const building = ['road', 'settlement', 'city', 'ship', 'moveShip', 'moveShipTo'].includes(ctx.mode);
+    const ready = myTurn && v.rolled ? BUILD_ROWS.filter(([k]) => !this.btns[k].hidden && !this.btns[k].classList.contains('off')).length : 0;
+    set('build', !!pl, !pl ? turnWhy() : t('建造（B）'), { on: building || this.buildOpen, count: ready || null });
+    this.btns.build.classList.toggle('open', !!this.buildOpen);
     this.bar.style.visibility = v.phase === 'over' ? 'hidden' : '';
-    this.popCtx = { res: pl ? pl.res : null, pieces: pl ? pl.pieces : null, deck: v.devDeckCount };
-    if (this.popFor) this.renderPop();
+    if (v.phase === 'over' && this.buildOpen) this.toggleBuild(false);
+    this.buildCtx = { res: pl ? pl.res : null, pieces: pl ? pl.pieces : null, deck: v.devDeckCount };
+    if (this.buildOpen) this.paintBuild();
   }
 
-  // the cost card of a build button: on hover or keyboard focus, or a long press on a touch screen
-  costPop(b, k) {
-    let timer = null;
-    let pressed = false;
-    const show = () => {
-      this.popFor = k;
-      this.renderPop();
-    };
-    const hide = () => {
-      if (this.popFor !== k) return;
-      this.popFor = null;
-      this.renderPop();
-    };
-    b.addEventListener('pointerenter', (e) => e.pointerType !== 'touch' && show());
-    b.addEventListener('pointerleave', (e) => e.pointerType !== 'touch' && hide());
-    b.addEventListener('focus', () => b.matches(':focus-visible') && show());
-    b.addEventListener('blur', hide);
-    b.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'touch') return;
-      pressed = false;
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        pressed = true;
-        show();
-      }, 420);
-    });
-    const release = (e) => {
-      if (e.pointerType !== 'touch') return;
-      clearTimeout(timer);
-      if (pressed) setTimeout(hide, 1800);
-    };
-    b.addEventListener('pointerup', release);
-    b.addEventListener('pointercancel', release);
-    // a long press only shows the cost; it doesn't also build
-    b.addEventListener(
-      'click',
-      (e) => {
-        if (!pressed) return;
-        pressed = false;
-        e.stopImmediatePropagation();
-        e.preventDefault();
-      },
-      true,
-    );
-    b.addEventListener('contextmenu', (e) => e.preventDefault());
+  // the build menu, open or shut (B, the Build button, Esc, a click elsewhere, a row picked)
+  toggleBuild(open = !this.buildOpen) {
+    this.buildOpen = !!open;
+    this.buildMenu.hidden = !this.buildOpen;
+    this.btns.build.setAttribute('aria-expanded', String(this.buildOpen));
+    this.btns.build.classList.toggle('open', this.buildOpen);
+    if (this.buildOpen) this.paintBuild();
   }
 
-  renderPop() {
-    if (this.pop) {
-      this.pop.remove();
-      this.pop = null;
-    }
-    const k = this.popFor;
-    const info = BUILD[k];
-    this.bar.classList.toggle('popping', !!(info && this.popCtx));
-    if (!info || !this.popCtx) return;
-    const { res, pieces, deck } = this.popCtx;
-    const needs = Object.entries(info.cost)
-      .map(([r, n]) => {
-        const have = res ? res[r] : null;
-        const short = have != null && have < n;
-        return `<div class="need${short ? ' short' : ''}">${resCard(r, { count: n > 1 ? '×' + n : null })}<small>${have != null ? t('持有 {n}', { n: have }) : ''}</small></div>`;
-      })
-      .join('');
-    const b = this.btns[k];
-    const why = b.dataset.why;
-    const left = info.piece && pieces ? t(info.left, { n: pieces[info.piece] }) : k === 'dev' && deck != null ? t('卡堆剩 {n} 張', { n: deck }) : '';
-    const can = k === 'dev' ? t('可以購買') : k === 'city' ? t('可以升級') : t('可以建造');
-    const ok = left ? `${can}・${left}` : can;
-    const pop = el('div', 'cost-pop');
-    pop.setAttribute('role', 'tooltip');
-    pop.innerHTML = `<div class="hd"><b>${t(info.name)}</b>${isZh() ? `<i>${info.en}</i>` : ''}</div><div class="fx">${t(info.fx)}</div><div class="row">${needs}</div><div class="st${why ? ' bad' : ''}">${why ? esc(why) : ok}</div>`;
-    this.bar.appendChild(pop);
-    this.pop = pop;
-    if (getComputedStyle(pop).position !== 'fixed') {
-      // above the button, kept inside the window
-      pop.style.left = b.offsetLeft + b.offsetWidth / 2 + 'px';
-      const r = pop.getBoundingClientRect();
-      const shift = Math.max(0, 8 - r.left) - Math.max(0, r.right - (window.innerWidth - 8));
-      if (shift) pop.style.left = b.offsetLeft + b.offsetWidth / 2 + shift + 'px';
+  // the rows' costs against the hand, the pieces left, and why a row is shut
+  paintBuild() {
+    const c = this.buildCtx;
+    if (!c) return;
+    for (const [k] of BUILD_ROWS) {
+      const info = BUILD[k];
+      const row = this.btns[k];
+      if (row.hidden) continue;
+      const cost = info.cost
+        ? Object.entries(info.cost)
+            .map(([r, n]) => {
+              const short = c.res && c.res[r] < n;
+              return `<span class="bm-need${short ? ' short' : ''}" title="${esc(RES_NAMES[r])}">${resIcon(r, 26)}<b class="num">${n}</b></span>`;
+            })
+            .join('')
+        : `<span class="bm-free">${t('不用資源')}</span>`;
+      row.querySelector('.bm-cost').innerHTML = cost;
+      const why = row.dataset.why;
+      row.querySelector('.bm-sub').textContent = why || t(info.fx);
+      // (the rule on one line; all of it on the row's tooltip)
+      row.title = why ? '' : t(info.fx);
+      row.querySelector('.bm-sub').classList.toggle('why', !!why);
+      const left = info.piece && c.pieces ? t(info.left, { n: c.pieces[info.piece] }) : k === 'dev' && c.deck != null ? t('卡堆剩 {n} 張', { n: c.deck }) : '';
+      row.querySelector('.bm-left').textContent = left;
     }
   }
 

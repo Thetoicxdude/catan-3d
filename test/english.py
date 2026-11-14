@@ -106,8 +106,8 @@ async def main():
         await page.wait_for_function('window.__game && window.__game.state', timeout=60000)
         await page.wait_for_timeout(2500)
         await sweep('setup phase', 'game-setup')
-        # the hand of cards, the rules and the settings in the game
-        for k in ['cards', 'rules', 'settings']:
+        # the build menu, the hand of cards, the rules and the settings in the game
+        for k in ['build', 'cards', 'rules', 'settings']:
             btn = page.locator(f'.actionbar [data-k="{k}"], .topbar [data-k="{k}"]')
             if await btn.count():
                 await btn.first.click()

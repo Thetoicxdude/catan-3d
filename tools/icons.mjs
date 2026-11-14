@@ -8,7 +8,7 @@ const USED = [
   // home: the ways to play, the corner medals, the account
   'crossed-swords', 'tower-flag', 'open-gate', 'scroll-unfurled', 'rule-book', 'cog', 'visored-helm', 'laurels-trophy',
   // the action bar and the top bar
-  'rolling-dices', 'stone-path', 'house', 'castle', 'card-draw', 'trade', 'card-pick', 'player-next', 'hourglass', 'talk',
+  'rolling-dices', 'stone-path', 'house', 'castle', 'card-draw', 'trade', 'card-pick', 'player-next', 'hourglass', 'talk', 'hammer-nails',
   'mounted-knight', 'laurel-crown', 'card-random', 'exit-door', 'meeple-group', 'hooded-figure', 'anchor',
   // Seafarers: ships, moving a ship, the pirate, gold fields, new islands
   'sailboat', 'ship-wheel', 'pirate-flag', 'gold-nuggets', 'island',
@@ -29,9 +29,11 @@ for (const name of USED) {
 const js = `// Icons from Game Icons (https://game-icons.net) by Lorc, Delapouite and other contributors,
 // CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/). Picked by tools/icons.mjs; each is one
 // path on a 512 × 512 grid.
+import { N_ } from '../i18n/fill.js';
 export const GAME_ICONS = ${JSON.stringify(out, null, 0).replace(/","/g, '",\n  "').replace('{"', '{\n  "').replace('"}', '"\n}')};
 
-export const ICON_CREDIT = '圖示：game-icons.net（Lorc、Delapouite 等作者，CC BY 3.0）';
+// (a key: shown through t())
+export const ICON_CREDIT = N_('圖示：game-icons.net（Lorc、Delapouite 等作者，CC BY 3.0）');
 
 // a filled icon in the colour of the text around it
 export function gameIcon(name, size = 24, cls = 'gi') {

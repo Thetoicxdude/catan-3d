@@ -103,12 +103,6 @@
 .toast h4 { color: #3a2412; }
 .no-art .toast { border: 2px solid #8f7444; border-image: none; }
 
-/* ── the build-cost popover over the action bar ── */
-.cost-pop {
-  background: radial-gradient(ellipse 130% 80% at 50% -10%, rgba(64, 98, 122, 0.32) 0%, rgba(64, 98, 122, 0) 62%), linear-gradient(180deg, var(--enamel) 0%, var(--enamel-lo) 100%);
-  border: 8px solid var(--bronze-lo); border-image: var(--frame) 45 round;
-}
-.no-art .cost-pop { border: 2px solid var(--bronze); border-image: none; }
 
 /* ── tooltip ── */
 .tooltip { background: linear-gradient(180deg, rgba(18, 31, 41, 0.97), rgba(9, 16, 22, 0.97)); border: 1px solid rgba(201, 163, 92, 0.7); border-radius: 5px; }

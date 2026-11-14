@@ -78,6 +78,7 @@ const FIGURE = {
   devbuy: 'card-draw',
   trade: 'trade',
   cards: 'card-pick',
+  build: 'hammer-nails',
   end: 'player-next',
   knight: 'mounted-knight',
   vp: 'laurel-crown',

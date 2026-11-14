@@ -53,11 +53,11 @@ html.ui2 .topbar {
 html.ui2 .topbar::after { display: none; }
 html.ui2 .tb-name { background: none; color: var(--gold); -webkit-background-clip: border-box; background-clip: border-box; filter: none; font-size: 17px; }
 html.ui2 .flag { width: 40px; height: 27px; }
-html.ui2 .tb-res { align-self: center; padding: 4px 0 0; gap: 9px; }
-html.ui2 .res-chip.rcard { --w: 35px; margin-bottom: 0; }
-html.ui2 .res-chip.rcard:hover { transform: translateY(2px) scale(1.5); }
-html.ui2 .res-chip.rcard .nm { display: none; }
-html.ui2 .res-chip.rcard .n { top: auto; bottom: -6px; right: -9px; min-width: 18px; height: 18px; font-size: 12px; border-width: 1px; }
+/* the hand: cards big enough to read, hanging below the bar */
+html.ui2 .tb-res { align-self: flex-start; padding: 7px 4px 0 0; gap: 11px; }
+html.ui2 .res-chip.rcard { --w: 52px; margin-bottom: -40px; }
+html.ui2 .res-chip.rcard:hover { transform: translateY(3px) scale(1.16); transform-origin: 50% 0; }
+html.ui2 .res-chip.rcard .n { top: -6px; bottom: auto; right: -9px; min-width: 23px; height: 23px; font-size: 14px; border-width: 1px; }
 html.ui2 .stat { color: var(--gold-soft); }
 html.ui2 .stat .gi { color: var(--gold); }
 html.ui2 .turn-clock { border-radius: 999px; border-color: var(--hair); background: rgba(0, 0, 0, 0.35); }
@@ -141,7 +141,7 @@ html.ui2 .toast {
 html.ui2 .toast h4 { color: var(--gold); }
 html.ui2 .toast p { color: #cdbf9e; }
 html.ui2 .toast .ti { background: rgba(230, 201, 135, 0.14); color: var(--gold); box-shadow: none; width: 30px; height: 30px; }
-html.ui2 .cost-pop { background: var(--glass-solid); border: 1px solid var(--hair); border-image: none; border-radius: 10px; }
+html.ui2 .build-menu { background: var(--glass-solid); border: 1px solid var(--hair); border-image: none; border-radius: 10px; }
 html.ui2 .tooltip { background: var(--glass-solid); border: 1px solid var(--hair); border-radius: 8px; }
 
 /* ── dialogs: darker glass, larger corners, a divider under the title ── */
@@ -173,14 +173,21 @@ html.ui2 .loading .bar i { background: var(--gold); border-radius: 999px; }
   /* (the orders bar is as wide as the screen's middle: the log sits above it, the map modes beside it) */
   html.ui2 .log { bottom: calc(98px + var(--safe-b)); }
 }
+@media (max-width: 1180px) {
+  html.ui2 .res-chip.rcard { --w: 48px; margin-bottom: -34px; }
+  html.ui2 .tb-res { gap: 9px; }
+}
+@media (max-width: 1040px) {
+  html.ui2 .res-chip.rcard { --w: 44px; margin-bottom: -30px; }
+}
 @media (max-width: 900px) {
   html.ui2 { --tb-h: 46px; }
   html.ui2 .topbar { padding-bottom: 4px; row-gap: 2px; background: linear-gradient(180deg, rgba(7, 11, 15, 0.92) 0%, rgba(7, 11, 15, 0.8) 75%, rgba(7, 11, 15, 0) 100%); }
   html.ui2 .flag, html.ui2 .tb-nation .flag { width: 30px; height: 20px; }
   html.ui2 .tb-name { font-size: 14.5px; }
   /* the hand: a row of small cards with their counts, under the nation */
-  html.ui2 .tb-res { padding: 2px 4px 8px; justify-content: space-around; }
-  html.ui2 .res-chip.rcard { --w: 27px; }
+  html.ui2 .tb-res { align-self: auto; padding: 4px 4px 10px; justify-content: center; gap: 16px; }
+  html.ui2 .res-chip.rcard { --w: 48px; margin-bottom: 0; }
   html.ui2 .banner { top: calc(var(--tb-real, 96px) + 4px); font-size: 12.5px; padding: 4px 6px 4px 12px; }
   html.ui2 .toasts { top: calc(var(--tb-real, 96px) + 50px); }
   html.ui2 .outliner, html.ui2 .fab-row { top: calc(var(--tb-real, 96px) + 4px); }

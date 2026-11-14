@@ -203,6 +203,7 @@ export class Game {
     this.map.onHexHover = null;
     this.map.onFrame = null;
     if (this.hud.miniObs) this.hud.miniObs.disconnect();
+    if (this.hud.buildAway) document.removeEventListener('pointerdown', this.hud.buildAway, true);
     this.hudRoot.remove();
     // (nothing on the page keeps pointing at a finished campaign, and through it at its map)
     if (typeof window !== 'undefined' && window.__game === this) window.__game = null;
@@ -661,6 +662,10 @@ export class Game {
         this.moveFrom = null;
         this.setMode('moveShip');
         break;
+      case 'build':
+        this.hud.toggleBuild();
+        this.refresh();
+        break;
       case 'trade':
         this.mode = null;
         this.dialogs.trade(this.ctx(), (a) => this.dispatch(a));
@@ -762,6 +767,10 @@ export class Game {
     if ((k === ' ' || k === 'enter') && e.target && e.target.closest && e.target.closest('button, a, input, select, [role="button"]')) return;
     if (k === 'escape') {
       if (this.dialogs.kind) return;
+      if (this.hud.buildOpen) {
+        this.hud.toggleBuild(false);
+        return;
+      }
       if (this.mode) {
         this.mode = null;
         this.refresh();
@@ -769,7 +778,7 @@ export class Game {
       return;
     }
     if (this.dialogs.kind && !['m'].includes(k)) return;
-    const map = { r: 'roll', 1: 'road', 2: 'settlement', 3: 'city', 4: 'dev', 5: 'ship', 6: 'moveShip', t: 'trade', c: 'cards', ' ': 'end', enter: 'end' };
+    const map = { r: 'roll', b: 'build', 1: 'road', 2: 'settlement', 3: 'city', 4: 'dev', 5: 'ship', 6: 'moveShip', t: 'trade', c: 'cards', ' ': 'end', enter: 'end' };
     if (k === 'm') {
       const i = MAP_MODES.indexOf(this.mapMode);
       this.setMapMode(MAP_MODES[(i + 1) % MAP_MODES.length]);
