@@ -23,6 +23,7 @@ import { BUILDING_TEXT, DEVELOP_TEXT, DIR_COLOR, nationStrip, pointsText } from 
 import { resCard, resIcon, icon, dieFace, RES_NAMES, RES_EN, buildingIcon } from './icons.js';
 import { Fx } from './fx.js';
 import { sfx } from './sfx.js';
+import { shake, reduced, EASE } from './motion.js';
 import { flagURL } from './flags.js';
 import { esc, cardsText } from './text.js';
 import { t, N_, cap, isZh } from '../i18n/index.js';
@@ -303,7 +304,7 @@ export class Hud {
       b.innerHTML = `<span class="key">${key}</span>${icon(ic, 28)}<span class="lbl"><span class="l">${label}</span><span class="s" aria-hidden="true">${short}</span></span>`;
       // unavailable actions stay clickable so they can explain why they are unavailable
       b.addEventListener('click', () => {
-        if (b.classList.contains('off')) this.flashHint(b.dataset.why || t('現在不能這樣做'));
+        if (b.classList.contains('off')) this.refuse(b);
         else this.h.button(k);
       });
       this.bar.appendChild(b);
@@ -326,7 +327,7 @@ export class Hud {
       row.innerHTML = `<span class="bm-ico">${icon(ic, 24)}<i class="key">${key}</i></span><b class="bm-name">${t(info.name)}</b><span class="bm-cost"></span><small class="bm-sub"></small><small class="bm-left"></small>`;
       row.addEventListener('click', () => {
         if (row.classList.contains('off')) {
-          this.flashHint(row.dataset.why || t('現在不能這樣做'));
+          this.refuse(row);
           return;
         }
         // (a placement on the map: the menu makes way; a card bought: it stays for the next)
@@ -444,6 +445,20 @@ export class Hud {
   }
 
   // a short explanation after clicking an unavailable action; the regular hint returns afterwards
+  // something pressed that cannot be done now: it shakes, the resources it lacks flash, the reason shows
+  refuse(el) {
+    this.flashHint(el.dataset.why || t('現在不能這樣做'));
+    shake(el);
+    const short = [...el.querySelectorAll('.bm-need.short')];
+    for (const s of short) {
+      s.classList.remove('flash');
+      void s.offsetWidth;
+      s.classList.add('flash');
+    }
+    clearTimeout(this.shortTimer);
+    if (short.length) this.shortTimer = setTimeout(() => short.forEach((s) => s.classList.remove('flash')), 1000);
+  }
+
   flashHint(text) {
     const prev = this.hintKey;
     this.hint.hidden = false;
@@ -684,12 +699,32 @@ export class Hud {
   }
 
   // the build menu, open or shut (B, the Build button, Esc, a click elsewhere, a row picked)
+  // The menu grows up out of the Build button and sinks back into it (a tenth of a second: what was
+  // picked happens at once, the menu only fades while it does).
   toggleBuild(open = !this.buildOpen) {
+    const was = this.buildOpen;
     this.buildOpen = !!open;
-    this.buildMenu.hidden = !this.buildOpen;
+    const m = this.buildMenu;
     this.btns.build.setAttribute('aria-expanded', String(this.buildOpen));
     this.btns.build.classList.toggle('open', this.buildOpen);
-    if (this.buildOpen) this.paintBuild();
+    clearTimeout(this.buildHide);
+    if (this.buildFade) this.buildFade.cancel();
+    this.buildFade = null;
+    m.classList.remove('closing');
+    if (this.buildOpen) {
+      m.hidden = false;
+      this.paintBuild();
+      if (!was && !reduced()) m.animate([{ opacity: 0, translate: '0 12px', scale: 0.97 }, { opacity: 1, translate: '0 0', scale: 1 }], { duration: 170, easing: EASE.out });
+    } else if (was && !m.hidden && !reduced()) {
+      m.classList.add('closing');
+      this.buildFade = m.animate([{ opacity: 1 }, { opacity: 0, translate: '0 8px', scale: 0.98 }], { duration: 110, easing: EASE.in, fill: 'forwards' });
+      this.buildHide = setTimeout(() => {
+        m.hidden = true;
+        m.classList.remove('closing');
+        if (this.buildFade) this.buildFade.cancel();
+        this.buildFade = null;
+      }, 110);
+    } else m.hidden = true;
   }
 
   // the rows' costs against the hand, the pieces left, and why a row is shut
@@ -746,7 +781,7 @@ export class Hud {
         row.innerHTML = `<span class="bm-ico">${buildingIcon(k, 24)}</span><b class="bm-name">${t(BUILDING_NAMES[k])}</b><span class="bm-cost"></span><small class="bm-sub"></small><small class="bm-left"></small>`;
         row.addEventListener('click', () => {
           if (row.classList.contains('off')) {
-            this.flashHint(row.dataset.why || t('現在不能這樣做'));
+            this.refuse(row);
             return;
           }
           this.toggleBuild(false);
@@ -854,6 +889,20 @@ export class Hud {
       btn.type = 'button';
       btn.addEventListener('click', x.onClick);
       acts.appendChild(btn);
+    }
+    // your turn begins: the order drops down from the bar with a little bounce (once a turn)
+    if (b.turn != null && b.turn !== this.turnDrop) {
+      this.turnDrop = b.turn;
+      if (reduced()) this.banner.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 });
+      else
+        this.banner.animate(
+          [
+            { opacity: 0, translate: '0 -26px', scale: 0.92 },
+            { opacity: 1, translate: '0 4px', scale: 1.04, offset: 0.6 },
+            { opacity: 1, translate: '0 0', scale: 1 },
+          ],
+          { duration: 420, easing: EASE.out },
+        );
     }
   }
 

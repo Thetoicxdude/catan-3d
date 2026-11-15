@@ -1129,7 +1129,7 @@ export class Game {
     } else if (v.current === me) {
       if (!v.rolled) {
         const dev = playableDev(v, me);
-        banner = { html: dev.length ? t('你的回合：<b>擲骰</b>（也可以先使用發展卡）') : t('你的回合：<b>擲骰</b>') };
+        banner = { html: dev.length ? t('你的回合：<b>擲骰</b>（也可以先使用發展卡）') : t('你的回合：<b>擲骰</b>'), turn: v.turn };
         hint = { text: t('擲骰開始你的回合') };
       } else if (this.mode === 'moveShip' || this.mode === 'moveShipTo') {
         // (Seafarers) pick the ship, then where it sails

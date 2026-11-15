@@ -1,0 +1,45 @@
+/* The interface's small motions (motion.js; the design of record: Claude Docs「卡坦島：互動與動畫設計」).
+   Only opacity and the transform properties move: nothing here animates a shadow or a filter, so it is
+   safe over the map. With "reduce motion" set in the system, things only fade (the end of this file). */
+:root {
+  --m-press: 80ms; --m-quick: 140ms; --m-panel-in: 220ms; --m-panel-out: 140ms;
+  --e-out: cubic-bezier(0.2, 0.8, 0.2, 1); --e-in: cubic-bezier(0.5, 0, 0.9, 0.4); --e-pop: cubic-bezier(0.3, 1.5, 0.5, 1); --e-move: cubic-bezier(0.4, 0.05, 0.3, 1);
+}
+
+/* things in flight (motion.js fly, burst): above everything, never in the way */
+.m-fly { position: fixed; inset: 0; z-index: 2000; pointer-events: none; overflow: hidden; }
+.m-flyer { position: absolute; display: grid; place-items: center; will-change: translate, scale; }
+.m-flyer > .cc { width: 100% !important; height: 100% !important; aspect-ratio: auto; margin: 0; transform: none !important; }
+.m-flyer > .ico, .m-flyer > svg { width: 100%; height: 100%; }
+.m-coin { color: #e0a91f; }
+.m-coin.shard { color: #4fa3c9; }
+
+/* a dialog on its way out (dialogs.js leave): a picture of it that cannot be touched or found */
+.modal-layer.leaving { pointer-events: none !important; }
+/* (moved into the copy, its CSS animations would start again: the cards just drawn would turn back) */
+.modal-layer.leaving, .modal-layer.leaving * { animation: none !important; }
+
+/* the build menu grows from the Build button (hud.js toggleBuild) */
+.build-menu { transform-origin: 50% 100%; transition: opacity 0.15s ease; }
+.build-menu.closing { pointer-events: none; }
+/* a development card turning over in the middle of the screen: the menu steps back */
+.fx-reveal .build-menu { opacity: 0.12; }
+
+/* a resource short for the row pressed: its chip flashes */
+.bm-need { position: relative; }
+.bm-need.flash { animation: m-need 0.45s var(--e-out) 2; }
+.bm-need.flash::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 5px; pointer-events: none; opacity: 0;
+  box-shadow: 0 0 0 2px #e2604e, 0 0 10px rgba(226, 96, 78, 0.6); animation: m-ring 0.45s ease-out 2;
+}
+@keyframes m-need { 30% { scale: 1.2; } }
+@keyframes m-ring { 25% { opacity: 1; } }
+
+@keyframes m-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .modal, .modal.side-page, .toast { animation: m-fade 0.12s ease-out; }
+  .rv-in { animation: none; }
+  .rv-tag { animation: m-fade 0.12s both; }
+  .bm-need.flash { animation: none; }
+  button.cc, .cp-slot .cc, .hm-tab, .hm-card, .ho-board { transition: none; }
+}

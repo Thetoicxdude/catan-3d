@@ -181,6 +181,31 @@ export const sfx = {
     tone(c, t, { f: 520, to: 260, type: 'triangle', gain: 0.12, d: 0.28 });
     sfx.whoosh(0.02);
   },
+  // something that cannot be done: a soft low double knock
+  deny() {
+    const c = ac();
+    if (!c) return;
+    const t = c.currentTime + 0.005;
+    tone(c, t, { f: 196, to: 174, type: 'triangle', gain: 0.07, d: 0.07 });
+    tone(c, t + 0.09, { f: 174, to: 155, type: 'triangle', gain: 0.06, d: 0.08 });
+  },
+  // a seal pressed down (in use, claimed, owned)
+  stamp() {
+    const c = ac();
+    if (!c) return;
+    const t = c.currentTime + 0.005;
+    burst(c, t, { f: 420, q: 0.7, gain: 0.3, dur: 0.06, type: 'lowpass' });
+    tone(c, t, { f: 120, to: 70, gain: 0.16, d: 0.12 });
+  },
+  // a coin or a shard landing, a little higher for each in a run
+  coin(step = 0) {
+    const c = ac();
+    if (!c) return;
+    const t = c.currentTime + 0.005;
+    const f = 1318.5 * Math.pow(2, Math.min(step, 9) / 24);
+    tone(c, t, { f, type: 'triangle', gain: 0.05, d: 0.16 });
+    tone(c, t, { f: f * 2.4, gain: 0.025, d: 0.09 });
+  },
   // your turn
   turn() {
     const c = ac();

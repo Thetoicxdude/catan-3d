@@ -16,6 +16,8 @@ import { cards as collection, commit, onCards } from '../meta/store.js';
 import { DIR_COLOR, BUILDING_TEXT, buildingName, blueprintName } from './develop-ui.js';
 import { buildingIcon, icon, resIcon, RES_NAMES } from './icons.js';
 import { emblemSvg } from './emblems.js';
+import { fly, burst, count, pop, stamp, shake, fadeIn, whenShown, EASE, reduced } from './motion.js';
+import { sfx } from './sfx.js';
 import { t, N_, list } from '../i18n/index.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -164,26 +166,79 @@ export function openCards(dialogs, settings, save, opts = {}) {
           settings.bpCur = cur;
           save(settings);
           render();
+          // (set down like a seal)
+          stamp(body.querySelector('.cp-inuse'));
+          pop(body.querySelector('.cp-tab.on small'), { scale: 1.2 });
         }),
       );
-    body.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => ((cur = +b.dataset.set), render())));
+    body.querySelectorAll('[data-set]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const was = cur;
+        cur = +b.dataset.set;
+        render();
+        // (the other blueprint slides in from its side)
+        if (was !== cur && !reduced()) body.querySelector('.cp-slots').animate([{ opacity: 0, translate: `${cur > was ? 24 : -24}px 0` }, { opacity: 1, translate: '0 0' }], { duration: 180, easing: EASE.out });
+      }),
+    );
     body.querySelectorAll('[data-slot]').forEach((b) =>
       b.addEventListener('click', () => {
-        settings.bps[cur] = bp.filter((x) => x !== b.dataset.slot);
         sel = b.dataset.slot;
-        save(settings);
-        render();
+        takeOut(b.dataset.slot);
       }),
     );
     body.querySelectorAll('.cp-coll .cc[data-k]').forEach((b) =>
       b.addEventListener('click', () => {
+        const was = sel;
         sel = b.dataset.k;
         // (a new card looked at loses its mark)
         if (seen(c, [sel])) commit();
         render();
+        if (was !== sel) fadeIn(body.querySelector('.cp-detail'));
       }),
     );
     paintDetail();
+  };
+  // A card put in the blueprint flies there from the collection (look: a copy of it as it was, from:
+  // where it was), and its place bounces as it lands.
+  const landIn = (k, look, from) => {
+    const slot = body.querySelector(`.cp-slot[data-slot="${k}"]`);
+    const card = slot && slot.querySelector('.cc');
+    if (!card || !look || !from || reduced()) return;
+    card.style.visibility = 'hidden';
+    sfx.whoosh();
+    fly(look, from, card, {
+      arc: 70,
+      onArrive: () => {
+        card.style.visibility = '';
+        pop(slot, { scale: 1.12 });
+        pop(body.querySelector('.cp-status'), { scale: 1.15 });
+      },
+    });
+  };
+  // A card taken out of the blueprint: the ones after it close the gap, and it goes back to its place
+  // in the collection (or drops away, when that place is out of sight).
+  const takeOut = (k) => {
+    const before = new Map([...body.querySelectorAll('.cp-slot[data-slot]')].map((s) => [s.dataset.slot, s.getBoundingClientRect()]));
+    const old = body.querySelector(`.cp-slot[data-slot="${k}"] .cc`);
+    const look = old && old.cloneNode(true);
+    const from = old && old.getBoundingClientRect();
+    settings.bps[cur] = settings.bps[cur].filter((x) => x !== k);
+    save(settings);
+    render();
+    if (reduced()) return;
+    for (const s of body.querySelectorAll('.cp-slot[data-slot]')) {
+      const a = before.get(s.dataset.slot);
+      if (!a) continue;
+      const b = s.getBoundingClientRect();
+      const dx = a.left - b.left;
+      const dy = a.top - b.top;
+      if (dx || dy) s.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0 0' }], { duration: 220, easing: EASE.out });
+    }
+    if (!look || !from) return;
+    const home = body.querySelector(`.cp-coll .cc[data-k="${k}"]`);
+    const r = home && home.getBoundingClientRect();
+    if (r && r.bottom > 0 && r.top < window.innerHeight) fly(look, from, home, { ms: 420, arc: 30, onArrive: () => pop(home, { scale: 1.06 }) });
+    else fly(look, from, { left: from.left + from.width * 0.1, top: from.top + 28, width: from.width * 0.8, height: from.height * 0.8 }, { ms: 260, arc: 0, fade: true });
   };
   // the selected card: everything it does, and putting it in or taking it out
   const paintDetail = () => {
@@ -200,24 +255,24 @@ export function openCards(dialogs, settings, save, opts = {}) {
       acts.appendChild(el('p', 'cp-how', `<span>${esc(how.text)}</span>`));
       if (how.tab && opts.onShop) acts.appendChild(btn(how.tab === 'missions' ? esc(t('看任務')) : esc(t('去抽卡')), '', () => opts.onShop(how.tab)));
     } else if (bp.includes(sel)) {
-      acts.appendChild(
-        btn(esc(t('拿出藍圖')), '', () => {
-          settings.bps[cur] = bp.filter((x) => x !== sel);
-          save(settings);
-          render();
-        }),
-      );
+      acts.appendChild(btn(esc(t('拿出藍圖')), '', () => takeOut(sel)));
     } else {
       acts.appendChild(
         btn(esc(t('放進藍圖')), 'primary', () => {
           const k = sel;
+          // (the card as it is in the collection, to fly from there)
+          const src = body.querySelector(`.cp-coll .cc[data-k="${k}"]`);
+          const from = src && src.getBoundingClientRect();
+          const look = src && src.cloneNode(true);
           if (isWonder(k) && bp.some(isWonder)) settings.bps[cur] = bp.map((x) => (isWonder(x) ? k : x));
           else if (bp.length >= BLUEPRINT_SIZE) {
             flash = t('藍圖已滿：先拿出一張');
-            return render();
+            render();
+            return shake(body.querySelector('.cp-slots'));
           } else settings.bps[cur] = [...bp, k];
           save(settings);
           render();
+          landIn(k, look, from);
         }),
       );
       if (isWonder(sel) && bp.some(isWonder)) acts.appendChild(el('p', 'cp-how', esc(t('藍圖只能帶 1 座世界奇觀：會換掉原本的那座'))));
@@ -252,9 +307,43 @@ export function openShop(dialogs, opts = {}) {
     }
     return false;
   };
+  // The coins and shards in the head, as shown: they count to what the collection holds as coins are
+  // spent and as coins and shards land on them (made once, so a count is not cut short by a render).
+  const shown = { coins: c.coins, shards: c.shards };
   const balances = () => {
     const box = dialogs.cur && dialogs.cur.el.querySelector('.sp-bals');
-    if (box) box.innerHTML = coinHtml(c.coins) + shardHtml(c.shards);
+    if (box && !box.firstChild) box.innerHTML = coinHtml(shown.coins) + shardHtml(shown.shards);
+  };
+  const balEl = (kind, part = '.num') => dialogs.cur && dialogs.cur.el.querySelector(`.sp-bals .cur.${kind === 'coins' ? 'coin' : 'shard'} ${part}`);
+  // to the collection's number, counting
+  const settle = (kind, ms = 450) => {
+    const from = shown[kind];
+    shown[kind] = c[kind];
+    count(balEl(kind), from, c[kind], { ms, fmt: num });
+  };
+  // a coin or shard has landed: `by` more
+  const bump = (kind, by, i = 0) => {
+    shown[kind] = Math.min(c[kind], shown[kind] + by);
+    const e = balEl(kind);
+    if (e) {
+      e.textContent = num(shown[kind]);
+      pop(e, { scale: 1.22 });
+    }
+    sfx.coin(i);
+  };
+  // n coins (or shards) fly from `from` into the head, the number going up as each lands
+  const flying = { coins: 0, shards: 0 };
+  const rain = (kind, total, from, n) => {
+    const parts = Array.from({ length: n }, (_, i) => Math.floor(total / n) + (i < total % n ? 1 : 0));
+    const to = balEl(kind, '.ico');
+    if (!to || reduced()) return bump(kind, total);
+    flying[kind]++;
+    burst(icon(kind === 'coins' ? 'coin' : 'shard', 22), from, to, n, {
+      cls: kind === 'coins' ? '' : 'shard',
+      onEach: (i) => bump(kind, parts[i], i),
+      // (all landed: the number is what the collection holds)
+      onDone: () => --flying[kind] === 0 && shown[kind] !== c[kind] && settle(kind, 200),
+    });
   };
   const render = () => {
     const n = claimable(c);
@@ -311,6 +400,15 @@ export function openShop(dialogs, opts = {}) {
     reveal = r.cards.map((x) => ({ ...x, slotted: x.fresh && gained(x.k) }));
     commit();
     render();
+    settle('coins');
+    // a card drawn again turns into shards: they fly from under it into the head as its tag shows
+    // (the tags show one after another: collection.css .rv-tag)
+    const tags = body.querySelectorAll('.sp-reveal .rv-tag');
+    reveal.forEach((x, i) => {
+      if (x.fresh) return;
+      const tag = tags[i];
+      setTimeout(() => (tag && tag.isConnected ? rain('shards', x.shards, tag, 2) : bump('shards', x.shards)), reduced() ? 0 : 640 + i * 130);
+    });
   };
 
   // the shop: the cards of the pack for shards
@@ -329,6 +427,14 @@ export function openShop(dialogs, opts = {}) {
             commit();
           }
           render();
+          if (r.error) return;
+          // the shards counted off, the card stamped as owned
+          settle('shards');
+          const card = body.querySelector(`.sp-item .cc[data-k="${k}"]`);
+          if (card) {
+            pop(card, { scale: 1.08 });
+            stamp(card.parentElement.querySelector('.sp-owned'));
+          }
         });
         b.disabled = c.shards < priceOf(k);
         cell.appendChild(b);
@@ -359,13 +465,21 @@ export function openShop(dialogs, opts = {}) {
       ${rest.map(row).join('')}`;
     box.querySelectorAll('[data-claim]').forEach((b) =>
       b.addEventListener('click', () => {
-        const r = claim(c, b.dataset.claim);
+        const id = b.dataset.claim;
+        const from = b.getBoundingClientRect();
+        const r = claim(c, id);
         if (!r) return;
         if (r.coins) note = t('領到 {n} 金幣', { n: r.coins });
         else if (r.shards) note = t('已經有{name}：換成 {n} 碎片', { name: buildingName(r.card), n: r.shards });
         else note = gained(r.card) ? t('拿到{name}，已放進藍圖', { name: buildingName(r.card) }) : t('拿到{name}', { name: buildingName(r.card) });
         commit();
         render();
+        // the reward on its way: coins (or shards) into the head, a card turning over; the row stamped
+        const row = body.querySelector(`.ms-row[data-m="${id}"]`);
+        if (r.coins) rain('coins', r.coins, from, Math.max(3, Math.min(8, Math.round(r.coins / 30))));
+        else if (r.shards) rain('shards', r.shards, from, 3);
+        else if (row) pop(row.querySelector('.ms-reward .cc'), { scale: 1.18, ms: 320 });
+        if (row) stamp(row.querySelector('.ms-got'), { sound: !r.coins && !r.shards });
       }),
     );
   };
@@ -407,6 +521,14 @@ export function rewardsBox(out) {
   const done = out.done.map((id) => missionOf(id)).filter(Boolean);
   box.innerHTML = `<div class="rw-coins">${icon('coin', 22)}<b class="num">+${num(out.total)}</b><span class="rw-what">${lines}</span></div>
     ${done.length ? `<div class="rw-missions">${icon('mission', 18)}<span>${esc(t('任務完成：'))}${list(done.map((m) => `<b>${esc(t(m.text))}</b>`))}<small>${esc(t('到主畫面的「抽卡・商店」領取'))}</small></span></div>` : ''}`;
+  // once on screen: the coins counted up from nothing, what for line by line, then the missions done
+  whenShown(box, () => {
+    count(box.querySelector('.rw-coins > b'), 0, out.total, { ms: 800, delay: 250, fmt: (n) => '+' + num(n) });
+    box.querySelectorAll('.rw-line').forEach((x, i) => fadeIn(x, { delay: 250 + i * 160, y: 4 }));
+    const m = box.querySelector('.rw-missions');
+    if (m) fadeIn(m, { delay: 1100, y: 10, ms: 260 });
+    if (out.total) setTimeout(() => sfx.coin(3), 1000);
+  });
   return box;
 }
 

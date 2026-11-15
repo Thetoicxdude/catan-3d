@@ -141,8 +141,14 @@ export class Fx {
   }
 
   // A bought development card flips over in the middle of the screen, says when it can be
-  // played, then shrinks into `target` (the hand's development-card counter).
+  // played, then shrinks into `target` (the hand's development-card counter). The screen behind dims
+  // and the build menu steps back while it shows (it was turning over on top of the menu); a click
+  // anywhere sends it on its way at once.
   devReveal({ type, name, desc, note }, target) {
+    const dim = el('div', 'fx-dim');
+    this.layer.appendChild(dim);
+    this.reveals = (this.reveals || 0) + 1;
+    this.root.classList.add('fx-reveal');
     const box = el('div', 'fx-dev');
     box.innerHTML = `<div class="flip"><div class="face back">${devCard('back', t('發展卡'), { lg: true })}</div><div class="face front">${devCard(type, name, { lg: true })}</div></div><div class="cap"><h4></h4><p></p><div class="when"></div></div>`;
     box.querySelector('.back .nm').textContent = 'Development';
@@ -164,7 +170,18 @@ export class Fx {
     });
     sfx.whoosh();
     const hold = slow ? 2200 : 1200;
-    setTimeout(() => {
+    let gone = false;
+    const away = () => {
+      if (gone) return;
+      gone = true;
+      clearTimeout(timer);
+      window.removeEventListener('pointerdown', away, true);
+      dim.classList.add('out');
+      setTimeout(() => dim.remove(), 450);
+      if (--this.reveals <= 0) {
+        this.reveals = 0;
+        this.root.classList.remove('fx-reveal');
+      }
       const r = target && target.getBoundingClientRect();
       const tx = r && r.width ? r.left + r.width / 2 - window.innerWidth / 2 : 0;
       const ty = r && r.width ? r.top + r.height / 2 - window.innerHeight * 0.42 : -window.innerHeight * 0.4;
@@ -179,7 +196,10 @@ export class Fx {
           target.classList.add('vp-hit');
         }
       };
-    }, hold);
+    };
+    const timer = setTimeout(away, hold);
+    // (the click that bought it is over by now: a later one, anywhere)
+    setTimeout(() => !gone && window.addEventListener('pointerdown', away, true), 120);
   }
 
   // a small "+n" that rises and fades at a screen point

@@ -6,6 +6,7 @@ import { resIcon, resCard, devCard, icon, RES_NAMES } from './icons.js';
 import { flagURL } from './flags.js';
 import { esc, cardsHtml, DEV_INFO, rulesHtml } from './text.js';
 import { t, isZh, getLang } from '../i18n/index.js';
+import { reduced } from './motion.js';
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -43,7 +44,9 @@ export class Dialogs {
   }
 
   open({ kind, title, cls = '', body, foot = [], dismissable = true, clear = false, onClose = null, refresh = null, headExtra = '' }) {
-    this.close(true);
+    // (one dialog in place of another: swapped at once, the new one makes its own entrance)
+    this.close(true, true);
+    this.dropGhost();
     const m = el('div', 'modal panel ' + cls);
     if (kind) m.dataset.kind = kind;
     m.setAttribute('role', 'dialog');
@@ -73,14 +76,51 @@ export class Dialogs {
     return this.cur;
   }
 
-  close(silent = false) {
+  // silent: without onClose; instant: without the exit (another dialog takes its place)
+  close(silent = false, instant = false) {
     if (!this.cur) return;
     const c = this.cur;
     this.cur = null;
+    if (!instant) this.leave(c.el);
     this.layer.innerHTML = '';
     this.layer.hidden = true;
     if (c.timer) clearInterval(c.timer);
     if (!silent && c.onClose) c.onClose();
+  }
+
+  // The exit: the dialog, moved into a copy of the layer just after it, fades and shrinks away (a side
+  // page slides back to the left) and is gone in a fifth of a second. That copy cannot be touched or
+  // focused and has no kind, so neither the game nor the tests take it for an open dialog.
+  leave(m) {
+    if (!m || !m.isConnected || !m.animate || reduced() || this.layer.hidden) return;
+    this.dropGhost();
+    const r = m.getBoundingClientRect();
+    if (!r.width) return;
+    const ghost = this.layer.cloneNode(false);
+    ghost.removeAttribute('id');
+    ghost.classList.add('leaving');
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.inert = true;
+    // (the same size as it was: some sizes come from the kind)
+    m.style.width = r.width + 'px';
+    m.style.height = r.height + 'px';
+    m.dataset.left = m.dataset.kind || '';
+    m.removeAttribute('data-kind');
+    m.removeAttribute('role');
+    m.removeAttribute('aria-modal');
+    ghost.appendChild(m);
+    this.layer.after(ghost);
+    this.ghost = ghost;
+    const side = m.classList.contains('side-page');
+    const out = { duration: 150, easing: 'cubic-bezier(.5,0,.9,.4)', fill: 'forwards' };
+    m.animate(side ? [{ translate: '0 0' }, { translate: '-56px 0' }] : [{ translate: '0 0', scale: 1 }, { translate: '0 6px', scale: 0.98 }], out);
+    ghost.animate([{ opacity: 1 }, { opacity: 0 }], out);
+    setTimeout(() => ghost.remove(), 190);
+  }
+
+  dropGhost() {
+    if (this.ghost) this.ghost.remove();
+    this.ghost = null;
   }
 
   refresh(ctx) {

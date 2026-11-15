@@ -13,6 +13,7 @@ import { icon } from './ui/icons.js';
 import { esc } from './ui/text.js';
 import { reportResult } from './net/account.js';
 import { setSfx } from './ui/sfx.js';
+import { installPress } from './ui/motion.js';
 import { registerMap } from './engine/maps.js';
 import { checkDraft } from './engine/custom.js';
 import { showEditor, loadDrafts } from './ui/editor.js';
@@ -27,6 +28,8 @@ import { gameOver as cardsGameOver, observe as cardsObserve, MISSIONS } from './
 
 const SETTINGS_KEY = 'catan3d-settings-v1';
 const app = document.getElementById('app');
+// every control pressed answers at once (motion.js)
+installPress(document);
 // without the art pack (the claude.ai page) the bronze frames fall back to plain lines
 {
   const probe = new Image();
