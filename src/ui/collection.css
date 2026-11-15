@@ -2,25 +2,22 @@
    the cards themselves, drawing, the shop, the missions; the blueprint in use on the setup screen and in
    the room lobby; what a finished game earned. */
 
-/* ── side pages: a sheet of the dialogs layer against one edge of the screen ── */
-.modal-layer:has(> .side-page) { padding: 0; }
-.modal-layer:has(> .side-page.from-left) { justify-content: flex-start; }
-.modal-layer:has(> .side-page.from-right) { justify-content: flex-end; }
+/* ── side pages: a sheet of the dialogs layer against the left edge of the screen ── */
+.modal-layer:has(> .side-page) { padding: 0; justify-content: flex-start; }
 .modal.side-page {
   height: 100%; max-height: none; box-sizing: border-box; border-radius: 0;
-  padding-top: calc(12px + var(--safe-t)); padding-bottom: calc(12px + var(--safe-b));
+  padding-top: calc(12px + var(--safe-t)); padding-bottom: calc(12px + var(--safe-b)); padding-left: max(18px, var(--safe-l));
+  width: min(1100px, calc(100vw - 56px)); animation: side-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
-.modal.side-page.from-left { width: min(1100px, calc(100vw - 56px)); padding-left: max(18px, var(--safe-l)); animation: side-in-l 0.3s cubic-bezier(0.2, 0.9, 0.3, 1); }
-.modal.side-page.from-right { width: min(660px, calc(100vw - 56px)); padding-right: max(18px, var(--safe-r)); animation: side-in-r 0.3s cubic-bezier(0.2, 0.9, 0.3, 1); }
-@keyframes side-in-l { from { opacity: 0; transform: translateX(-48px); } }
-@keyframes side-in-r { from { opacity: 0; transform: translateX(48px); } }
+.modal.side-page[data-kind="shop"] { width: min(680px, calc(100vw - 56px)); }
+@keyframes side-in { from { opacity: 0; transform: translateX(-48px); } }
 @media (max-width: 760px) {
-  .modal.side-page.from-left, .modal.side-page.from-right { width: 100vw; }
+  .modal.side-page, .modal.side-page[data-kind="shop"] { width: 100vw; }
 }
 
 /* ── a building as a collectible card: its direction's frame, the figure in a medallion ── */
 .cc {
-  position: relative; flex: none; width: 128px; aspect-ratio: 5 / 7; box-sizing: border-box;
+  position: relative; flex: none; width: 128px; aspect-ratio: 5 / 6; box-sizing: border-box;
   display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 12px 8px 9px;
   border: 0; border-radius: 10px; font: inherit; text-align: center; color: #2b1b0e; cursor: default;
   background: linear-gradient(180deg, color-mix(in srgb, var(--dc) 30%, #f7edd4) 0 38%, #f4e8cb 38% 100%);
@@ -38,9 +35,6 @@ button.cc:hover, button.cc:focus-visible { transform: translateY(-3px); outline:
 .cc.k-wonder .cc-art { border-radius: 16px; }
 .cc-name { margin-top: 5px; font-family: var(--font-display); font-weight: 800; font-size: 14px; line-height: 1.15; color: #2b1b0e; }
 .cc-kind { font-size: 10.5px; line-height: 1.2; color: #5a4632; }
-.cc-cost { margin-top: auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 4px; font-size: 11px; color: #2b1b0e; }
-.cc-cost .dv-need b { color: #2b1b0e; }
-.cc-stages { font-size: 11px; font-weight: 700; color: color-mix(in srgb, var(--dc) 70%, #000); }
 .cc-pts {
   position: absolute; top: 7px; left: 7px; min-width: 22px; height: 22px; padding: 0 5px; box-sizing: border-box; display: grid; place-items: center;
   border-radius: 11px; background: #2b1b0e; color: #f3d48a; font-size: 12px; font-weight: 800; box-shadow: 0 0 0 2px #f8f0dc;
@@ -49,11 +43,7 @@ button.cc:hover, button.cc:focus-visible { transform: translateY(-3px); outline:
   content: '✓'; position: absolute; top: 7px; right: 7px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%;
   background: var(--dc); color: #fff; font-size: 13px; font-weight: 900; box-shadow: 0 0 0 2px #f8f0dc;
 }
-.cc.locked { filter: grayscale(0.9) brightness(0.8) contrast(0.92); }
-.cc-lock {
-  position: absolute; left: 50%; top: 31%; transform: translate(-50%, -50%); width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%;
-  background: rgba(30, 22, 14, 0.82); color: #f1e2bd; box-shadow: 0 0 0 2px #f8f0dc;
-}
+.cc.locked { filter: grayscale(1) brightness(0.94); }
 .cc-new {
   position: absolute; top: -7px; right: -7px; padding: 2px 7px; border-radius: 10px; background: #c0392b; color: #fff; font-size: 11px; font-weight: 800;
   letter-spacing: 0.05em; box-shadow: 0 0 0 2px #f8f0dc, 0 2px 5px rgba(0, 0, 0, 0.4);
@@ -63,10 +53,31 @@ button.cc:hover, button.cc:focus-visible { transform: translateY(-3px); outline:
 .cc.small.k-wonder .cc-art { border-radius: 10px; }
 .cc.small .cc-name { margin-top: 3px; font-size: 10.5px; }
 .cc.small .cc-pts { top: 3px; left: 3px; min-width: 17px; height: 17px; font-size: 10px; padding: 0 3px; }
-.cc.small .cc-cost { display: none; }
-.cc.small .cc-lock { width: 26px; height: 26px; top: 30%; }
 .cc.small.on::after { width: 16px; height: 16px; top: 3px; right: 3px; font-size: 10px; }
 .cc-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* ── a card opened (cardDetail): its cost in resource cards large enough to read ── */
+.cd { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; border-radius: 10px; border: 2px solid var(--dc); background: color-mix(in srgb, var(--dc) 7%, transparent); }
+.cd.locked { filter: grayscale(1); }
+.cd-top { display: flex; align-items: center; gap: 10px; }
+.cd-ico { flex: none; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; background: var(--dc); color: #fff7e2; }
+.cd-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.cd-title b { font-family: var(--font-display); font-size: 18px; line-height: 1.2; }
+.cd-title small { font-size: 12px; opacity: 0.75; }
+.cd-pts { flex: none; max-width: 9em; text-align: right; font-size: 12.5px; font-weight: 800; line-height: 1.25; color: var(--dc); }
+.cd-cost h6 { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; opacity: 0.75; }
+.cb-row { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.cb { display: inline-flex; align-items: center; gap: 7px; }
+.cb .rc-mini { border-radius: 4px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); }
+.cb-n { display: flex; flex-direction: column; line-height: 1.1; }
+.cb-n b { font-size: 17px; }
+.cb-n small { font-size: 11.5px; opacity: 0.8; }
+.cd-stage { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.cd-stage + .cd-stage { border-top: 1px dashed var(--line); }
+.cd-stage > i { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--dc); color: #fff; font-style: normal; font-size: 12px; font-weight: 800; }
+.cd-cond, .cd-fx, .cd-note { margin: 0; font-size: 13.5px; line-height: 1.6; }
+.cd-cond b, .cd-fx b { display: block; font-size: 12px; letter-spacing: 0.06em; opacity: 0.75; }
+.cd-note { font-size: 12.5px; opacity: 0.8; }
 
 /* ── the Cards page ── */
 .cards-page { display: flex; flex-direction: column; gap: 14px; }
@@ -83,7 +94,7 @@ button.cc:hover, button.cc:focus-visible { transform: translateY(-3px); outline:
 .cp-slot { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 7px; }
 .cp-slot:hover .cc, .cp-slot:focus-visible .cc { transform: translateY(-2px); }
 .cp-slot:focus-visible { outline: none; }
-.cp-slot.empty { width: 72px; aspect-ratio: 5 / 7; box-sizing: border-box; display: grid; place-items: center; border: 2px dashed var(--line); cursor: default; opacity: 0.55; }
+.cp-slot.empty { width: 72px; aspect-ratio: 5 / 6; box-sizing: border-box; display: grid; place-items: center; border: 2px dashed var(--line); cursor: default; opacity: 0.55; }
 .cp-slot.empty i { font-style: normal; font-size: 18px; }
 .cp-deckbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; flex-wrap: wrap; }
 .cp-status { font-weight: 700; }
@@ -201,35 +212,31 @@ button.cc:hover, button.cc:focus-visible { transform: translateY(-3px); outline:
   .sp-bals { gap: 8px; }
 }
 
-/* ── the home screen: a tab at each side for the two pages (narrow screens: medals in the corner) ── */
+/* ── the home screen: the two pages' tabs on the left edge (narrow or upright screens: medals in the corner) ── */
+.hm-tabs { position: absolute; left: 0; top: 50%; z-index: 3; display: flex; flex-direction: column; gap: 14px; transform: translateY(-50%); }
 .hm-tab {
-  position: absolute; top: 50%; z-index: 3; width: 62px; box-sizing: border-box; padding: 14px 6px 12px;
-  display: flex; flex-direction: column; align-items: center; gap: 8px; transform: translateY(-50%);
-  border: 2px solid #c9a35a; background: linear-gradient(180deg, #5a3b21 0%, #3b2513 100%); cursor: pointer;
+  position: relative; width: 62px; box-sizing: border-box; padding: 14px 6px 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  border: 2px solid #c9a35a; border-left: 0; border-radius: 0 14px 14px 0; background: linear-gradient(180deg, #5a3b21 0%, #3b2513 100%); cursor: pointer;
   color: #f3dfb0; font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.18em;
   box-shadow: 0 0 0 2px #2a1a0e, 0 8px 18px rgba(0, 0, 0, 0.55); transition: transform 0.15s ease;
 }
-.hm-tab.left { left: 0; border-left: 0; border-radius: 0 14px 14px 0; }
-.hm-tab.right { right: 0; border-right: 0; border-radius: 14px 0 0 14px; }
-.hm-tab.left:hover, .hm-tab.left:focus-visible { transform: translate(4px, -50%); outline: none; }
-.hm-tab.right:hover, .hm-tab.right:focus-visible { transform: translate(-4px, -50%); outline: none; }
+.hm-tab:hover, .hm-tab:focus-visible { transform: translateX(4px); outline: none; }
 .hm-tab .lbl { writing-mode: vertical-rl; text-shadow: 0 1px 2px #000; }
 .hm-purse { font-size: 12px; letter-spacing: 0; color: #f1c965; }
 .hm-purse::before { content: ''; display: block; width: 14px; height: 2px; margin: 0 auto 6px; background: rgba(201, 163, 90, 0.5); }
 .hm-badge {
-  position: absolute; top: -8px; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; display: grid; place-items: center;
+  position: absolute; top: -8px; right: -9px; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; display: grid; place-items: center;
   border-radius: 10px; background: #c0392b; color: #fff; font-family: var(--font-num, inherit); font-size: 11.5px; font-style: normal; letter-spacing: 0;
   box-shadow: 0 0 0 2px #2a1a0e, 0 2px 5px rgba(0, 0, 0, 0.5);
 }
 .hm-badge[hidden] { display: none; }
-.hm-tab.left .hm-badge { right: -9px; }
-.hm-tab.right .hm-badge { left: -9px; }
 .hm-medal { position: relative; }
 .hm-medal .hm-badge { top: -4px; right: -4px; }
 .hm-medal.narrow { display: none; }
 @media (max-width: 999px), (max-aspect-ratio: 1 / 1) {
   /* (narrow or upright screens: the board takes the whole width, the tabs would cover its frame) */
-  .hm-tab { display: none; }
+  .hm-tabs { display: none; }
   .hm-medal.narrow { display: flex; }
 }
 @media (max-width: 760px) {
@@ -237,7 +244,9 @@ button.cc:hover, button.cc:focus-visible { transform: translateY(-3px); outline:
   .hm-medal .emblem { width: 37px; height: 37px; padding: 4px; }
 }
 
-/* ── the build menu: a blueprint of fewer than seven cards says where more come from ── */
+/* ── the build menu: a basic card left out of the blueprint (struck through), and a blueprint of fewer
+   than seven cards says where more come from ── */
+.bm-row.nocard .bm-name { text-decoration: line-through; text-decoration-thickness: 2px; }
 .bm-bp-note { margin: 4px 8px 2px; font-size: 11.5px; line-height: 1.45; opacity: 0.75; grid-column: 1 / -1; }
 
 /* ── the blueprint in use: the setup screen and the room lobby ── */

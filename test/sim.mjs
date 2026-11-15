@@ -153,8 +153,9 @@ for (let g = 0; g < GAMES; g++) {
   // a few cards, or none (a new player's: meta/collection.js)
   if (st.rules && st.rules.develop) {
     st.players.forEach((pl, i) => (pl.bp = PRESETS[chooseBlueprint(st, i, pl.ai.level, rnd)].slice()));
-    if (g % 5 === 1) st.players[0].bp = ['granary', 'market'];
+    if (g % 5 === 1) st.players[0].bp = ['road', 'settlement', 'granary', 'market'];
     if (g % 5 === 3) st.players[0].bp = [];
+    if (g % 5 === 4) st.players[0].bp = ['road', 'settlement', 'city', 'granary', 'market', 'aqueduct', 'gardens'];
   }
   check(st, 'start');
   const mem = players.map(() => ({}));
@@ -171,6 +172,9 @@ for (let g = 0; g < GAMES; g++) {
         const sub = st.sub ? st.sub.k : null;
         for (const e of ev) {
           if (sub === 'sbp' && (e.type === 'bankTrade' || e.type === 'playDev')) throw new Error(`[invariant] ${e.type} in the special building phase`);
+          // (the development mode) a basic card left out of the blueprint is never paid for
+          if (st.rules && st.rules.cards && e.type === 'build' && !e.setup && !e.free && ['road', 'settlement', 'city'].includes(e.what) && !st.players[e.p].bp.includes(e.what)) throw new Error(`[invariant] p${e.p} paid for a ${e.what} without its card`);
+          if (st.rules && st.rules.cards && e.type === 'buyDev' && !e.cost && !st.players[e.p].bp.includes('dev')) throw new Error(`[invariant] p${e.p} bought a development card without its card`);
           if (e.type === 'turnStart' && e.sub) stats.subTurns = (stats.subTurns || 0) + 1;
           if ((e.type === 'build' || e.type === 'buyDev') && a.p !== undefined && st.sub) stats.subBuilds = (stats.subBuilds || 0) + 1;
           if (e.type === 'roll' && e.sum === 7) stats.sevens++;

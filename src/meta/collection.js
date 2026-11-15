@@ -1,16 +1,18 @@
 // The building cards a player owns for the development mode, and how more are earned (no screen here:
 // the side pages are ui/cards-ui.js, the saving and the account copy meta/store.js).
 //
-// A new player owns two cards, the granary and the market (the basic buildings — roads, settlements,
-// cities, development cards and developments — need no card). Missions give the rest of the granary
-// blueprint (穀倉, PRESETS.farm) without its wonder: aqueduct, shipyard, camp, academy. The other 12
-// (seven buildings and the five world wonders) are drawn: a draw can repeat a card, and a repeat becomes
-// shards, which buy a chosen card in the shop. Coins pay for draws: a finished game, a win, an online
-// game, the first game of each day, missions. Nothing here is bought with money.
+// A blueprint is 7 cards (2026-11-15): the basic cards (road, settlement, city, development card),
+// which every player owns, and the special buildings. A new player owns three buildings besides, the
+// granary, the market and the aqueduct, so the first blueprint is full: the four basic cards and those
+// three. Missions give the rest of the granary series (the first ready-made blueprint the player chose
+// these from: shipyard, frontier camp, academy). The other 12 (seven buildings and the five world
+// wonders) are drawn: a draw can repeat a card, and a repeat becomes shards, which buy a chosen card in
+// the shop. Coins pay for draws: a finished game, a win, an online game, the first game of each day,
+// missions. Nothing here is bought with money.
 //
 // The collection is plain data, kept as one JSON object:
 //   v        the format (1)
-//   own      the cards owned, in BUILDING_IDS order
+//   own      the buildings owned, in BUILDING_IDS order (the basic cards are not listed: everyone's)
 //   coins, shards
 //   prog     each mission's progress (missing: 0)
 //   got      the missions whose reward was taken
@@ -19,13 +21,15 @@
 //   gids     the last games counted (so a game is counted once, whatever reloads)
 //   fresh    cards gained and not yet looked at (the Cards page's "new" marks)
 //   rev, at  a counter of changes and the time of the last one (which copy is newer: store.js)
-import { BUILDINGS, BUILDING_IDS, PRESETS, BLUEPRINT_SIZE, isWonder } from '../engine/develop.js';
+import { BUILDINGS, BUILDING_IDS, BASIC, BLUEPRINT_SIZE, isWonder, isBasic } from '../engine/develop.js';
 import { N_ } from '../i18n/fill.js';
 
-// the two cards every player starts with
-export const STARTER = ['granary', 'market'];
-// what the missions give: the rest of the granary blueprint, without its wonder
-export const MISSION_CARDS = PRESETS.farm.filter((k) => !isWonder(k) && !STARTER.includes(k));
+// the three buildings every player starts with (beside the four basic cards)
+export const STARTER = ['granary', 'market', 'aqueduct'];
+// the first blueprint of a new player: full
+export const FIRST_BLUEPRINT = [...BASIC, ...STARTER];
+// what the missions give: the rest of the granary series
+export const MISSION_CARDS = ['shipyard', 'camp', 'academy'];
 // what the draws give
 export const POOL = BUILDING_IDS.filter((k) => !STARTER.includes(k) && !MISSION_CARDS.includes(k));
 
@@ -57,16 +61,16 @@ export function chanceOf(k) {
 // reward: { card } or { coins }. The first one is a welcome present, done from the start.
 export const MISSIONS = [
   { id: 'welcome', text: N_('歡迎來到卡坦島'), what: 'once', goal: 1, reward: { coins: 200 } },
-  { id: 'plot', text: N_('在發展模式開發 1 塊地'), what: 'once', goal: 1, reward: { card: 'aqueduct' } },
-  { id: 'devgame', text: N_('打完 1 局發展模式'), what: 'once', goal: 1, reward: { card: 'shipyard' } },
-  { id: 'build2', text: N_('在一局發展模式裡蓋好 2 座特殊建築'), what: 'most', goal: 2, reward: { card: 'camp' } },
+  { id: 'plot', text: N_('在發展模式開發 1 塊地'), what: 'once', goal: 1, reward: { card: 'shipyard' } },
+  { id: 'devgame', text: N_('打完 1 局發展模式'), what: 'once', goal: 1, reward: { card: 'camp' } },
   { id: 'devwin', text: N_('贏 1 局發展模式'), what: 'once', goal: 1, reward: { card: 'academy' } },
+  { id: 'build2', text: N_('在一局發展模式裡蓋好 2 座特殊建築'), what: 'most', goal: 2, reward: { coins: 100 } },
   { id: 'level2', text: N_('把一塊開發地升到二級'), what: 'once', goal: 1, reward: { coins: 80 } },
   { id: 'wonder', text: N_('開工一座世界奇觀'), what: 'once', goal: 1, reward: { coins: 100 } },
   { id: 'wonderdone', text: N_('完成一座世界奇觀'), what: 'once', goal: 1, reward: { coins: 200 } },
   { id: 'defend', text: N_('用騎士保住一座世界奇觀'), what: 'once', goal: 1, reward: { coins: 150 } },
-  { id: 'build5', text: N_('在一局發展模式裡蓋好 5 座特殊建築'), what: 'most', goal: 5, reward: { coins: 200 } },
-  { id: 'full', text: N_('帶 7 張建築的藍圖打完 1 局'), what: 'once', goal: 1, reward: { coins: 150 } },
+  { id: 'build3', text: N_('在一局發展模式裡蓋好 3 座特殊建築'), what: 'most', goal: 3, reward: { coins: 200 } },
+  { id: 'army', text: N_('打完一局時持有最大騎士團'), what: 'once', goal: 1, reward: { coins: 150 } },
   { id: 'online', text: N_('打完 1 局線上房間'), what: 'once', goal: 1, reward: { coins: 100 } },
   { id: 'games10', text: N_('打完 10 局（任何模式）'), what: 'count', goal: 10, reward: { coins: 300 } },
   { id: 'wins5', text: N_('贏 5 局（任何模式）'), what: 'count', goal: 5, reward: { coins: 300 } },
@@ -80,7 +84,7 @@ const GIDS = 40;
 const sortCards = (a) => BUILDING_IDS.filter((k) => a.includes(k));
 
 export function newCollection() {
-  return { v: 1, own: STARTER.slice(), coins: 0, shards: 0, prog: { welcome: 1 }, got: [], games: 0, wins: 0, day: '', gids: [], fresh: [], rev: 0, at: 0 };
+  return { v: 1, own: sortCards(STARTER), coins: 0, shards: 0, prog: { welcome: 1 }, got: [], games: 0, wins: 0, day: '', gids: [], fresh: [], rev: 0, at: 0 };
 }
 
 // A collection as read back (a stored copy, the account's copy): whatever is malformed is put right,
@@ -106,7 +110,8 @@ export function fitCollection(c) {
   return out;
 }
 
-export const owns = (c, k) => c.own.includes(k);
+// (the basic cards: everyone's)
+export const owns = (c, k) => isBasic(k) || c.own.includes(k);
 
 // Two copies of one player's collection put together (a device that played signed out joins the
 // account): every card and mission either has, the larger of each count.
@@ -130,11 +135,12 @@ export function mergeCollections(a, b) {
   });
 }
 
-// a blueprint kept to what this collection owns (and to a valid one: 7 at most, one wonder)
+// a blueprint kept to what this collection owns (the basic cards are everyone's) and to a valid one:
+// 7 at most, one wonder
 export function ownedBlueprint(c, bp) {
   const out = [];
   for (const k of Array.isArray(bp) ? bp : []) {
-    if (!owns(c, k) || out.includes(k) || (isWonder(k) && out.some(isWonder))) continue;
+    if (!(isBasic(k) || owns(c, k)) || out.includes(k) || (isWonder(k) && out.some(isWonder))) continue;
     if (out.length < BLUEPRINT_SIZE) out.push(k);
   }
   return out;
@@ -204,7 +210,7 @@ export function observe(c, view, me, events = []) {
   const built = Object.keys(view.players[me].built || {}).length;
   if (built) {
     changed = advance(c, 'build2', built, done) || changed;
-    changed = advance(c, 'build5', built, done) || changed;
+    changed = advance(c, 'build3', built, done) || changed;
   }
   return changed ? done : null;
 }
@@ -234,7 +240,7 @@ export function gameOver(c, r, view, me, today) {
   const dev = !!(view && view.rules && view.rules.develop);
   if (dev) advance(c, 'devgame', 1, done);
   if (dev && r.won) advance(c, 'devwin', 1, done);
-  if (dev && view.players[me] && (view.players[me].bp || []).length >= BLUEPRINT_SIZE) advance(c, 'full', 1, done);
+  if (view && view.players && view.largestArmy === me) advance(c, 'army', 1, done);
   if (online) advance(c, 'online', 1, done);
   advance(c, 'games10', 1, done);
   if (r.won) advance(c, 'wins5', 1, done);

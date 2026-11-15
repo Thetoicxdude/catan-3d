@@ -2,9 +2,10 @@
 // game (maps.js DEV4, DEV3). Three things are added:
 //   developments  on a hex where a player has a settlement: one or two levels, each an extra card of a
 //                 resource chosen when it is built, every time the hex produces
-//   blueprints    the 7 buildings a player brings to the game (from 18): special buildings, attached
-//                 beside the player's own settlements (a village holds one, a city two), and at most
-//                 one world wonder
+//   blueprints    the 7 cards a player brings to the game: the basic cards (road, settlement, city,
+//                 development card: paid for only when brought, rules.cards) and the special buildings
+//                 (from 18), attached beside the player's own settlements (a village holds one, a city
+//                 two), at most one of them a world wonder
 //   world wonders on the deserts, paid in three stages on three of the owner's turns; the robber
 //                 destroys one unless its owner plays a knight
 // The engine (engine.js) keeps the state and calls these; every function works on a state or a view,
@@ -116,36 +117,66 @@ export const WONDER_VP = 5;
 export const SCORE_VP = 3;
 export const BLUEPRINT_SIZE = 7;
 
-// The five ready-made blueprints (the computer players pick one of these).
+// The basic cards (2026-11-15: the 7 cards of a blueprint include them, and they may be left out for
+// another card). Without one a player cannot pay for that piece all game; what is not paid for needs no
+// card: the opening's settlements and roads, the road building card's roads, the royal road's road and
+// the great library's card. Improvements need no card at all.
+export const BASIC = ['road', 'settlement', 'city', 'dev'];
+export const BASIC_NAMES = { road: N_('道路'), settlement: N_('村莊'), city: N_('城市'), dev: N_('發展卡') };
+export const isBasic = (k) => BASIC.includes(k);
+// why a basic card left out cannot be paid for
+export const NO_CARD = { road: N_('你的藍圖沒有道路卡'), settlement: N_('你的藍圖沒有村莊卡'), city: N_('你的藍圖沒有城市卡'), dev: N_('你的藍圖沒有發展卡') };
+// a card of a blueprint: a basic card or a special building
+export const isCard = (k) => isBasic(k) || !!BUILDINGS[k];
+// whether p may pay for basic card k (st: a state or a view; games from before the basic cards, and
+// the other modes, need none)
+export function hasBasic(st, p, k) {
+  if (!st.rules || !st.rules.cards) return true;
+  const bp = st.players[p] && st.players[p].bp;
+  return !bp || bp.includes(k);
+}
+// A game saved before the basic cards were cards: everyone keeps all four (and the rule is on, so every
+// page reads the blueprints alike).
+export function upgradeCards(st) {
+  if (!st || !st.rules || !st.rules.develop || st.rules.cards) return st;
+  st.rules.cards = true;
+  for (const pl of st.players) if (Array.isArray(pl.bp)) pl.bp = [...BASIC.filter((k) => !pl.bp.includes(k)), ...pl.bp];
+  return st;
+}
+
+// The five ready-made blueprints (the computer players pick one of these): the four basic cards, two
+// buildings and a wonder.
 export const PRESETS = {
-  farm: ['aqueduct', 'granary', 'market', 'shipyard', 'camp', 'academy', 'gardens'],
-  port: ['market', 'shipyard', 'guild', 'granary', 'post', 'camp', 'lighthouse'],
-  order: ['barracks', 'wall', 'mercenaries', 'adventurers', 'academy', 'press', 'greatWall'],
-  frontier: ['post', 'camp', 'market', 'aqueduct', 'wall', 'shipyard', 'royalRoad'],
-  scholars: ['academy', 'press', 'barracks', 'adventurers', 'market', 'granary', 'library'],
+  farm: [...BASIC, 'aqueduct', 'market', 'gardens'],
+  port: [...BASIC, 'market', 'shipyard', 'lighthouse'],
+  order: [...BASIC, 'barracks', 'mercenaries', 'greatWall'],
+  frontier: [...BASIC, 'post', 'camp', 'royalRoad'],
+  scholars: [...BASIC, 'academy', 'press', 'library'],
 };
 export const PRESET_IDS = Object.keys(PRESETS);
 export const PRESET_NAMES = { farm: N_('穀倉'), port: N_('商港'), order: N_('騎士團§preset'), frontier: N_('拓荒'), scholars: N_('書院') };
 export const DEFAULT_PRESET = 'port';
 
-// Up to 7 different buildings, at most one of them a wonder. (A player brings the cards they own: a new
-// player has two, meta/collection.js; the computer players always bring a full ready-made one.)
+// Up to 7 different cards (basic cards and buildings), at most one of them a wonder. (A player brings
+// the cards they own, meta/collection.js; the computer players always bring a full ready-made one.)
 export function validBlueprint(bp) {
   if (!Array.isArray(bp) || bp.length > BLUEPRINT_SIZE) return false;
-  if (new Set(bp).size !== bp.length || !bp.every((k) => BUILDINGS[k])) return false;
+  if (new Set(bp).size !== bp.length || !bp.every(isCard)) return false;
   return bp.filter(isWonder).length <= 1;
 }
-// a blueprint from what a seat brings: a ready-made one's name, or the buildings themselves (kept to
-// a valid blueprint: the first seven different ones, the first wonder)
+// a blueprint from what a seat brings: a ready-made one's name, or the cards themselves (kept to a
+// valid blueprint: the first seven different ones, the first wonder)
 export function blueprintOf(x) {
   if (typeof x === 'string' && PRESETS[x]) return PRESETS[x].slice();
   const out = [];
   for (const k of Array.isArray(x) ? x : []) {
-    if (!BUILDINGS[k] || out.includes(k) || (isWonder(k) && out.some(isWonder))) continue;
+    if (!isCard(k) || out.includes(k) || (isWonder(k) && out.some(isWonder))) continue;
     if (out.length < BLUEPRINT_SIZE) out.push(k);
   }
   return out;
 }
+// the special buildings of a blueprint (its basic cards left out)
+export const specialsOf = (bp) => (bp || []).filter((k) => !!BUILDINGS[k]);
 
 export const developOn = (st) => !!(st && st.rules && st.rules.develop);
 

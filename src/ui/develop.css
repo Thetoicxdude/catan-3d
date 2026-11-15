@@ -29,7 +29,8 @@
 .bp-mini.going { opacity: 1; border-style: dashed; }
 .bp-mini i { position: absolute; right: -5px; bottom: -6px; font-style: normal; font-family: var(--font-num); font-size: 9px; font-weight: 700; line-height: 1; padding: 1px 2px; border-radius: 3px; background: var(--dc); color: #fff; }
 .bp-icons { display: inline-flex; gap: 3px; vertical-align: middle; }
-.bp-icons .bp-mini { opacity: 1; width: 24px; height: 24px; }
+.bp-mini.nobasic { opacity: 0.55; border-style: dashed; }
+.bp-mini.nobasic::after { content: ''; position: absolute; left: 2px; right: 2px; top: 50%; height: 2px; background: currentColor; transform: rotate(-35deg); }
 
 /* ── the campaign setup: the blueprint row, a friend's ready-made blueprint ── */
 .bp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
@@ -81,25 +82,6 @@
 .dv-card .rcard { --w: 96px; }
 .dv-dialog.defend .timebar { height: 4px; margin-top: 10px; border-radius: 2px; background: rgba(0, 0, 0, 0.2); overflow: hidden; }
 .dv-dialog.defend .timebar i { display: block; height: 100%; width: 100%; background: #e2604e; transition: width 1s linear; }
-
-/* ── a building's card with everything it does (the Cards page's detail, cards-ui.js) ── */
-.bp-card { position: relative; display: flex; flex-direction: column; gap: 5px; padding: 8px 9px 9px; border-radius: 8px; border: 2px solid color-mix(in srgb, var(--dc) 60%, transparent); background: color-mix(in srgb, var(--dc) 6%, transparent); color: inherit; font: inherit; text-align: left; }
-.bp-card.s-on { border-color: var(--dc); background: color-mix(in srgb, var(--dc) 18%, transparent); box-shadow: inset 0 0 0 1px var(--dc); }
-.bp-card.s-on::after { content: '✓'; position: absolute; top: 4px; right: 7px; color: var(--dc); font-weight: 900; }
-.bp-top { display: flex; align-items: center; gap: 7px; }
-.bp-ico { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--dc); color: #fff; flex: none; }
-.bp-card.k-wonder .bp-ico { border-radius: 9px; }
-.bp-title { display: flex; flex-direction: column; min-width: 0; }
-.bp-title b { font-family: var(--font-display); font-size: 14.5px; line-height: 1.15; }
-.bp-title small { font-size: 11px; opacity: 0.75; }
-.bp-pts { margin-left: auto; font-size: 11px; font-weight: 700; text-align: right; color: var(--dc); max-width: 7.5em; line-height: 1.15; }
-.bp-card.s-on .bp-pts { margin-right: 12px; }
-.bp-cost { display: flex; flex-wrap: wrap; gap: 3px 6px; }
-.bp-stage { display: inline-flex; align-items: center; gap: 2px; }
-.bp-stage i { font-style: normal; font-family: var(--font-num); font-size: 10px; width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; background: var(--dc); color: #fff; }
-.bp-cond, .bp-fx { font-size: 12px; line-height: 1.35; }
-.bp-cond i { font-style: normal; font-weight: 700; margin-right: 4px; color: var(--dc); }
-.bp-fx { opacity: 0.88; }
 
 /* (the map table's paper: ink instead of the dark panels' light) */
 html.ui3 .bp-mini i { color: #fff; }

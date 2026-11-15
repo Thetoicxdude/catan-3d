@@ -18,7 +18,7 @@ import {
   shipTargets,
   freeRoad,
 } from '../engine/engine.js';
-import { developOn, plotSpots, plotCost, specialWhy, specialHosts, hostWhy, slotsAt, wonderSpots, wonderWhy, wonderOf, wonderDone, stageCost, isWonder, hasBuilt, BUILDINGS, BUILDING_NAMES, PLOT_COST, BLUEPRINT_SIZE } from '../engine/develop.js';
+import { developOn, plotSpots, plotCost, specialWhy, specialHosts, hostWhy, slotsAt, wonderSpots, wonderWhy, wonderOf, wonderDone, stageCost, isWonder, hasBuilt, BUILDINGS, BUILDING_NAMES, PLOT_COST, BLUEPRINT_SIZE, hasBasic, specialsOf, NO_CARD } from '../engine/develop.js';
 import { BUILDING_TEXT, DEVELOP_TEXT, DIR_COLOR, nationStrip, pointsText } from './develop-ui.js';
 import { resCard, resIcon, icon, dieFace, RES_NAMES, RES_EN, buildingIcon } from './icons.js';
 import { Fx } from './fx.js';
@@ -631,16 +631,19 @@ export class Hud {
     const cities = free && v.rolled ? legalCitySpots(v, me).length : 0;
     // (the development mode: the royal road's free road)
     const freeR = !!pl && freeRoad(v, me);
-    const okRoad = free && v.rolled && pl.pieces.roads > 0 && (freeR || canAfford(pl.res, COSTS.road)) && roads > 0;
-    const okSet = free && v.rolled && pl.pieces.settlements > 0 && canAfford(pl.res, COSTS.settlement) && setts > 0;
-    const okCity = free && v.rolled && pl.pieces.cities > 0 && canAfford(pl.res, COSTS.city) && cities > 0;
+    // (the development mode: a basic card left out of the blueprint is never paid for this game)
+    const card = (k) => !pl || hasBasic(v, me, k);
+    const okRoad = free && v.rolled && pl.pieces.roads > 0 && (freeR || (card('road') && canAfford(pl.res, COSTS.road))) && roads > 0;
+    const okSet = free && v.rolled && card('settlement') && pl.pieces.settlements > 0 && canAfford(pl.res, COSTS.settlement) && setts > 0;
+    const okCity = free && v.rolled && card('city') && pl.pieces.cities > 0 && canAfford(pl.res, COSTS.city) && cities > 0;
     // (the development mode: the great library buys one for any single card)
     const libCard = !!pl && developOn(v) && wonderDone(v, me, 'library') && !v.used.library && RES.some((r) => pl.res[r] > 0);
-    const okDev = free && v.rolled && (canAfford(pl.res, COSTS.dev) || libCard) && v.devDeckCount > 0;
-    set('road', okRoad, okRoad ? t('建造道路（1）：木材＋磚塊') : why(freeR ? {} : COSTS.road, roads, pl ? pl.pieces.roads : 1, t('道路已經用完了')), { on: ctx.mode === 'road' });
-    set('settlement', okSet, okSet ? t('建造村莊（2）：木材＋磚塊＋羊毛＋小麥') : why(COSTS.settlement, setts, pl ? pl.pieces.settlements : 1, t('村莊已經用完了（可先升級城市）')), { on: ctx.mode === 'settlement' });
-    set('city', okCity, okCity ? t('升級城市（3）：小麥×2＋礦石×3') : why(COSTS.city, cities, pl ? pl.pieces.cities : 1, t('城市已經用完了')), { on: ctx.mode === 'city' });
-    set('dev', okDev, okDev ? t('購買發展卡（4）：羊毛＋小麥＋礦石') : v.devDeckCount === 0 ? t('發展卡已賣完') : why(COSTS.dev, 1, 1, ''));
+    const okDev = free && v.rolled && ((card('dev') && canAfford(pl.res, COSTS.dev)) || libCard) && v.devDeckCount > 0;
+    set('road', okRoad, okRoad ? t('建造道路（1）：木材＋磚塊') : !freeR && !card('road') ? t(NO_CARD.road) : why(freeR ? {} : COSTS.road, roads, pl ? pl.pieces.roads : 1, t('道路已經用完了')), { on: ctx.mode === 'road' });
+    set('settlement', okSet, okSet ? t('建造村莊（2）：木材＋磚塊＋羊毛＋小麥') : !card('settlement') ? t(NO_CARD.settlement) : why(COSTS.settlement, setts, pl ? pl.pieces.settlements : 1, t('村莊已經用完了（可先升級城市）')), { on: ctx.mode === 'settlement' });
+    set('city', okCity, okCity ? t('升級城市（3）：小麥×2＋礦石×3') : !card('city') ? t(NO_CARD.city) : why(COSTS.city, cities, pl ? pl.pieces.cities : 1, t('城市已經用完了')), { on: ctx.mode === 'city' });
+    set('dev', okDev, okDev ? t('購買發展卡（4）：羊毛＋小麥＋礦石') : v.devDeckCount === 0 ? t('發展卡已賣完') : !card('dev') && !libCard ? t(NO_CARD.dev) : why(COSTS.dev, 1, 1, ''));
+    for (const k of ['road', 'settlement', 'city', 'dev']) this.btns[k].classList.toggle('nocard', !card(k));
     // (Seafarers) build a ship, move one
     const seafaring = !!v.ships;
     this.btns.ship.hidden = !seafaring;
@@ -733,7 +736,7 @@ export class Hud {
       this.bpBox.innerHTML = `<div class="bm-head"><b>${t('藍圖')}</b><small>${t('每種每人一座；奇觀分三階段')}</small></div>`;
       // (a phone: the blueprint folds away under its head)
       this.bpBox.firstChild.addEventListener('click', () => window.innerWidth <= 760 && this.bpBox.classList.toggle('fold'));
-      for (const k of pl.bp || []) {
+      for (const k of specialsOf(pl.bp)) {
         const key = 'bp:' + k;
         const row = el('button', 'bm-row bm-b' + (isWonder(k) ? ' wonder' : ''));
         row.type = 'button';

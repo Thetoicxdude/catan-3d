@@ -38,7 +38,7 @@ for (let g = 0; g < 124; g++) {
   const drawn = g >= 104 && g < 108 ? DRAWN[(g - 104) >> 1] : null;
   const sea = (g >= 52 && g < 104) || !!(drawn && drawn.rules && drawn.rules.seafarers) || (house && g % 4 >= 2);
   const sea6 = g >= 88 && g < 104;
-  const players = Array.from({ length: dev ? (g % 4 === 3 ? 3 - (g % 2) : 4) : drawn ? drawn.players[1] : big || sea6 ? 5 + (g % 2) : g % 3 ? 4 : 3 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' }, bp: dev ? PRESETS[(g + i) % 5] : undefined }));
+  const players = Array.from({ length: dev ? (g % 4 === 3 ? 3 - (g % 2) : 4) : drawn ? drawn.players[1] : big || sea6 ? 5 + (g % 2) : g % 3 ? 4 : 3 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' }, bp: dev ? Object.values(PRESETS)[(g + i) % 5] : undefined }));
   const map = dev ? (players.length === 4 ? 'dev-4' : 'dev-3') : house ? HOUSE[g % 4] : drawn ? drawn.id : sea6 ? SEA6[(g - 88) >> 2] : big ? 'base-6' : sea ? (g >= 80 ? 'sea-9' : g >= 72 ? 'sea-3' : g >= 64 ? 'sea-2' : 'sea-1') : undefined;
   const rules = house ? { discard: 8 + (g % 3), dice: 'deck' } : (big && g >= 46) || (sea6 && g % 4 === 3) ? { turns: 'sbp' } : undefined;
   const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4], map, rules, board: house ? { mix: 'rich' } : undefined });
@@ -158,4 +158,11 @@ for (let g = 0; g < 124; g++) {
   const bd = { ...C.encodeBoard(st), hk: 'zzzz' };
   assert.throws(() => C.decodeBoard(bd, 0), (e) => e instanceof C.BoardMismatch);
 }
+// (the development mode) a blueprint as the lobby sends it: basic cards and buildings, seven at most
+assert.deepEqual(C.bpDecode(C.bpCode(['road', 'settlement', 'city', 'dev', 'granary', 'market', 'gardens'])), ['road', 'settlement', 'city', 'dev', 'granary', 'market', 'gardens']);
+assert.deepEqual(C.bpDecode(C.bpCode(['road', 'granary'])), ['road', 'granary']);
+assert.deepEqual(C.bpDecode(''), []);
+assert.equal(C.bpDecode(C.bpCode(['road', 'road'])), null);
+assert.equal(C.bpDecode('rdstctdvgrmkaqhg'), null, 'eight cards');
+
 console.log(`codec ok: ${checked} views compared, largest public snapshot ${maxSize} bytes (5–6 players on the large island: ${bigMax}; Seafarers: ${seaMax}; Seafarers for 5–6: ${sea6Max}; maps players made: ${drawnMax}; the development mode: ${devMax}), largest takeover snapshot ${fullMax} bytes`);

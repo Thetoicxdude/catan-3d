@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { GEO } from '../src/engine/geometry.js';
 import { createGame, applyAction, RuleError, tradeRatio, makeView, totalVP, publicVP, actorsNow, robberVictims, handLimitOf, playableDev, redactEvent } from '../src/engine/engine.js';
 import { mapDef, developMap } from '../src/engine/maps.js';
-import { PRESETS, validBlueprint, BUILDINGS, slotsAt, specialHosts, plotSpots, wonderSpots, robberSpots, guardedHexes } from '../src/engine/develop.js';
+import { PRESETS, validBlueprint, BUILDINGS, slotsAt, specialHosts, plotSpots, wonderSpots, robberSpots, guardedHexes, BASIC, hasBasic, upgradeCards, NO_CARD } from '../src/engine/develop.js';
 import { TERRAIN_RES, RES } from '../src/engine/board.js';
 import { seedState } from '../src/engine/rng.js';
 
@@ -26,6 +26,12 @@ const seats = (n, bp = 'port') => Array.from({ length: n }, (_, i) => ({ name: '
 // a game in play on an empty board: player 0 to move, dice rolled
 function fresh(bp, n = 4, seed = 5) {
   const st = createGame({ seed, players: seats(n, bp), map: developMap(n).id, firstPlayer: 0 });
+  // (a list of buildings: the four basic cards with all of them, whatever their number, as the tests
+  // here are about the buildings; the basic cards themselves: their own test)
+  st.players.forEach((pl, i) => {
+    const b = Array.isArray(bp) && typeof bp[0] !== 'string' ? bp[i] : bp;
+    if (Array.isArray(b)) pl.bp = [...BASIC.filter((k) => !b.includes(k)), ...b];
+  });
   st.phase = 'play';
   st.turn = 5;
   st.current = 0;
@@ -109,27 +115,74 @@ test('maps: deserts apart, some inland; no patch over three; numbers spread', ()
   }
 });
 
-test('blueprints: up to seven different, one wonder at most; a preset by name; what a seat brings', () => {
+test('blueprints: up to seven cards (basic cards and buildings), one wonder at most; a preset by name; what a seat brings', () => {
   assert.ok(Object.values(PRESETS).every(validBlueprint));
+  assert.ok(Object.values(PRESETS).every((bp) => bp.length === 7 && BASIC.every((k) => bp.includes(k))), 'the computers bring the four basic cards and three buildings');
   assert.ok(!validBlueprint(['market', 'market', 'shipyard']));
   assert.ok(!validBlueprint(['market', 'gardens', 'library']));
   assert.ok(!validBlueprint([...PRESETS.port, 'wall']));
   assert.ok(!validBlueprint(['market', 'x']));
-  // (a player brings the cards they own: two at first, none at all is a blueprint too)
   assert.ok(validBlueprint([]));
-  assert.ok(validBlueprint(['granary', 'market']));
-  assert.ok(validBlueprint(['market', 'shipyard', 'guild', 'granary', 'post', 'camp']));
-  assert.ok(validBlueprint(['market', 'shipyard', 'guild', 'granary', 'post', 'camp', 'wall']));
-  const st = createGame({ seed: 1, players: [{ name: 'a', bp: 'order' }, { name: 'b', bp: ['x', 'granary', 'granary', 'gardens', 'library'] }, { name: 'c' }, { name: 'd', bp: PRESETS.farm }], map: 'dev-4' });
+  assert.ok(validBlueprint([...BASIC, 'granary', 'market', 'aqueduct']), "a new player's");
+  assert.ok(validBlueprint(['road', 'settlement', 'granary', 'market', 'guild', 'wall', 'gardens']), 'basic cards left out for buildings');
+  const st = createGame({ seed: 1, players: [{ name: 'a', bp: 'order' }, { name: 'b', bp: ['x', 'road', 'granary', 'granary', 'gardens', 'library'] }, { name: 'c' }, { name: 'd', bp: PRESETS.farm }], map: 'dev-4' });
   assert.deepEqual(st.players[0].bp, PRESETS.order);
-  assert.deepEqual(st.players[1].bp, ['granary', 'gardens']);
+  assert.deepEqual(st.players[1].bp, ['road', 'granary', 'gardens']);
   assert.deepEqual(st.players[2].bp, []);
   assert.deepEqual(st.players[3].bp, PRESETS.farm);
+  assert.equal(st.rules.cards, true);
   // the standard game has none of it
   const std = createGame({ seed: 1, players: seats(4) });
   assert.equal(std.plots, undefined);
   assert.equal(std.players[0].bp, undefined);
   throwsRule(() => act(Object.assign(std, { phase: 'play', rolled: true, current: 0 }), { type: 'develop', p: 0, hex: 0, res: 'wood' }));
+});
+
+test('basic cards: a piece left out is never paid for; the opening, the royal road and the library need none', () => {
+  const st = createGame({ seed: 9, players: seats(4, 'port'), map: 'dev-4', firstPlayer: 0 });
+  // player 0 brings no road, settlement, city or development card
+  st.players[0].bp = ['granary', 'market', 'royalRoad', 'library'];
+  assert.ok(!hasBasic(st, 0, 'road') && hasBasic(st, 1, 'road'));
+  // the opening as usual
+  const v = GEO.vertices.find((x) => x.hexes.length === 3 && x.hexes.every((h) => terr(st, h) !== 'desert')).id;
+  act(st, { type: 'settlement', p: 0, vertex: v });
+  act(st, { type: 'road', p: 0, edge: GEO.vertices[v].edges[0] });
+  assert.equal(st.vertices[v].p, 0);
+  // in play: nothing of the four for money
+  st.phase = 'play';
+  st.setup = null;
+  st.turn = 9;
+  st.current = 0;
+  st.rolled = true;
+  give(st, 0, all(9));
+  const e = GEO.edges.find((x) => st.edges[x.id] === -1 && x.v.some((u) => GEO.vertices[u].edges.some((f) => st.edges[f] === 0))).id;
+  throwsRule(() => act(st, { type: 'road', p: 0, edge: e }), new RegExp(NO_CARD.road));
+  throwsRule(() => act(st, { type: 'city', p: 0, vertex: v }), new RegExp(NO_CARD.city));
+  throwsRule(() => act(st, { type: 'buyDev', p: 0 }), new RegExp(NO_CARD.dev));
+  const far = GEO.vertices.find((x) => !st.vertices[x.id] && x.edges.some((f) => st.edges[f] === 0) && !x.neighbors.some((u) => st.vertices[u])) || GEO.vertices[0];
+  throwsRule(() => act(st, { type: 'settlement', p: 0, vertex: far.id }), new RegExp(NO_CARD.settlement));
+  // the royal road's road and the great library's card come without the cards
+  const d = deserts(st)[0];
+  st.wonders.push({ h: d, k: 'royalRoad', p: 0, s: 3, t: 1, done: true }, { h: deserts(st)[1], k: 'library', p: 0, s: 3, t: 1, done: true });
+  act(st, { type: 'road', p: 0, edge: e });
+  assert.equal(st.edges[e], 0);
+  const before = st.players[0].dev.length;
+  act(st, { type: 'buyDev', p: 0, lib: 'wood' });
+  assert.equal(st.players[0].dev.length, before + 1);
+  // a player with the cards as before
+  st.current = 1;
+  give(st, 1, all(5));
+  assert.doesNotThrow(() => act(st, { type: 'buyDev', p: 1 }));
+  // the standard game and games saved before: no card needed
+  const std = createGame({ seed: 1, players: seats(4) });
+  assert.ok(hasBasic(std, 0, 'road'));
+  const old = createGame({ seed: 2, players: seats(4, 'port'), map: 'dev-4' });
+  delete old.rules.cards;
+  old.players[0].bp = ['market', 'shipyard', 'guild', 'granary', 'post', 'camp', 'lighthouse'];
+  upgradeCards(old);
+  assert.equal(old.rules.cards, true);
+  assert.deepEqual(old.players[0].bp.slice(0, 4), BASIC);
+  assert.equal(old.players[0].bp.length, 11, 'the old blueprint keeps all its buildings');
 });
 
 test('developments: on a hex beside your settlement, one developer per hex, two levels; costs', () => {

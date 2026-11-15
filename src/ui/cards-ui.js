@@ -1,17 +1,20 @@
 // The building cards on the home screen (rules and saving: meta/collection.js, meta/store.js):
-//   openCards   the Cards side page: the three blueprints (one in use) and the 18 cards, the ones not
-//               owned yet locked with how to get them
+//   openCards   the Cards side page: the three blueprints (one in use) and every card, the basic ones
+//               first; the ones not owned yet are grey, and a card opened says how to get it
 //   openShop    the Draw & Shop side page: drawing cards for coins, the shop (shards for a chosen
 //               card), the missions and their rewards
 //   deckLine    the blueprint in use, in a line (single-player setup, room lobby: nothing to choose
 //               there, it is chosen at home)
 //   rewardsBox  what a finished game earned (the end-of-game sheet)
-// Both side pages are sheets of the dialogs layer that slide in from an edge of the screen.
-import { BUILDINGS, BUILDING_IDS, DIRS, DIR_NAMES, BLUEPRINT_SIZE, WONDER_VP, SCORE_VP, isWonder } from '../engine/develop.js';
-import { POOL, MISSIONS, DRAW_COST, DRAW10_COST, COINS, owns, ownedBlueprint, missionFor, missionOf, missionState, claim, claimable, draw, buy, priceOf, dupShards, chanceOf, seen, slotNew } from '../meta/collection.js';
+// Both side pages are sheets of the dialogs layer that slide in from the left of the screen. Small
+// cards show only their figure, name and points: what a card costs and does is on the card opened
+// (cardDetail), where the resources are large enough to read.
+import { BUILDINGS, BUILDING_IDS, DIRS, DIR_NAMES, BLUEPRINT_SIZE, WONDER_VP, SCORE_VP, BASIC, BASIC_NAMES, isWonder, isBasic } from '../engine/develop.js';
+import { COSTS } from '../engine/engine.js';
+import { POOL, MISSIONS, STARTER, DRAW_COST, DRAW10_COST, COINS, owns, ownedBlueprint, missionFor, missionOf, missionState, claim, claimable, draw, buy, priceOf, dupShards, chanceOf, seen, slotNew } from '../meta/collection.js';
 import { cards as collection, commit, onCards } from '../meta/store.js';
-import { DIR_COLOR, buildingCard, buildingName, blueprintName, costHtml } from './develop-ui.js';
-import { buildingIcon, icon } from './icons.js';
+import { DIR_COLOR, BUILDING_TEXT, buildingName, blueprintName } from './develop-ui.js';
+import { buildingIcon, icon, resIcon, RES_NAMES } from './icons.js';
 import { emblemSvg } from './emblems.js';
 import { t, N_, list } from '../i18n/index.js';
 
@@ -32,26 +35,70 @@ const btn = (label, cls, onClick) => {
 export const coinHtml = (n) => `<span class="cur coin" title="${esc(t('金幣'))}">${icon('coin', 16)}<b class="num">${num(n)}</b></span>`;
 export const shardHtml = (n) => `<span class="cur shard" title="${esc(t('碎片'))}">${icon('shard', 16)}<b class="num">${num(n)}</b></span>`;
 
-// a card's points in a corner: 1, +3 (a scoring building), 5 (a wonder)
-const ptsShort = (k) => (BUILDINGS[k].kind === 'wonder' ? String(WONDER_VP) : BUILDINGS[k].kind === 'score' ? '+' + SCORE_VP : '1');
-const KIND = { func: N_('功能建築'), score: N_('計分建築'), wonder: N_('世界奇觀') };
+// ── every card: the basic ones and the buildings ──
 
-// A building as a collectible card: its direction's frame, the figure, name, kind, cost (a wonder: its
-// three stages). marks: locked (not owned), on (in the blueprint shown), fresh (new), sel (selected).
+// the basic cards' colour, figure (icons.js) and words (the build menu's own)
+const BASIC_COLOR = '#7a6448';
+const BASIC_FIGURE = { road: 'road', settlement: 'settlement', city: 'city', dev: 'devbuy' };
+const BASIC_TEXT = {
+  road: N_('連接你的村莊與城市。連續最長、至少 5 條的道路得 2 分。'),
+  settlement: N_('+1 勝利分數。相鄰地形擲出點數時產出 1 張資源。'),
+  city: N_('由村莊升級：再 +1 勝利分數，產出加倍。'),
+  dev: N_('抽 1 張：騎士、道路建設、豐收之年、壟斷或分數卡。'),
+};
+const KIND = { func: N_('功能建築'), score: N_('計分建築'), wonder: N_('世界奇觀') };
+export const cardName = (k) => (isBasic(k) ? t(BASIC_NAMES[k]) : buildingName(k));
+export const cardColor = (k) => (isBasic(k) ? BASIC_COLOR : DIR_COLOR[BUILDINGS[k].dir]);
+export const cardIcon = (k, size) => (isBasic(k) ? icon(BASIC_FIGURE[k], size) : buildingIcon(k, size));
+// a card's points in a corner: 1, +3 (a scoring building), 5 (a wonder); the basic cards: a settlement
+// 1, a city 2 (none for the others)
+function ptsShort(k) {
+  if (isBasic(k)) return k === 'settlement' ? '1' : k === 'city' ? '2' : '';
+  const kind = BUILDINGS[k].kind;
+  return kind === 'wonder' ? String(WONDER_VP) : kind === 'score' ? '+' + SCORE_VP : '1';
+}
+const kindLine = (k) => (isBasic(k) ? t('基本卡') : `${t(DIR_NAMES[BUILDINGS[k].dir])}・${t(KIND[BUILDINGS[k].kind])}`);
+
+// A card as a small collectible card: its colour's frame, the figure, name and kind, its points. marks:
+// locked (not owned: grey), on (in the blueprint shown), fresh (new), sel (opened).
 export function cardFace(k, { locked = false, on = false, fresh = false, sel = false, tag = 'div', small = false } = {}) {
-  const b = BUILDINGS[k];
-  const cls = ['cc', 'd-' + b.dir, 'k-' + b.kind, locked && 'locked', on && 'on', fresh && 'fresh', sel && 'sel', small && 'small'].filter(Boolean).join(' ');
-  const cost = b.kind === 'wonder' ? `<span class="cc-stages">${esc(t('三階段'))}</span>` : costHtml(b.cost, small ? 11 : 13);
+  const kind = isBasic(k) ? 'basic' : BUILDINGS[k].kind;
+  const cls = ['cc', 'k-' + kind, locked && 'locked', on && 'on', fresh && 'fresh', sel && 'sel', small && 'small'].filter(Boolean).join(' ');
   const attrs = tag === 'button' ? ` type="button" aria-pressed="${sel}"` : '';
-  return `<${tag} class="${cls}" data-k="${k}" style="--dc:${DIR_COLOR[b.dir]}"${attrs} title="${esc(buildingName(k))}">
-    <span class="cc-pts num">${ptsShort(k)}</span>
-    <span class="cc-art">${buildingIcon(k, small ? 30 : 44)}</span>
-    <b class="cc-name">${esc(buildingName(k))}</b>
-    ${small ? '' : `<small class="cc-kind">${esc(t(DIR_NAMES[b.dir]))}・${esc(t(KIND[b.kind]))}</small>`}
-    <span class="cc-cost">${cost}</span>
-    ${locked ? `<span class="cc-lock">${icon('lock', small ? 18 : 24)}</span>` : ''}
+  const pts = ptsShort(k);
+  return `<${tag} class="${cls}" data-k="${k}" style="--dc:${cardColor(k)}"${attrs} title="${esc(cardName(k))}">
+    ${pts ? `<span class="cc-pts num">${pts}</span>` : ''}
+    <span class="cc-art">${cardIcon(k, small ? 30 : 44)}</span>
+    <b class="cc-name">${esc(cardName(k))}</b>
+    ${small ? '' : `<small class="cc-kind">${esc(kindLine(k))}</small>`}
     ${fresh && !locked ? `<span class="cc-new">${esc(t('新'))}</span>` : ''}
   </${tag}>`;
+}
+
+// a cost as resource cards large enough to read: the card, how many, its name
+function costBig(cost) {
+  return `<span class="cb-row">${Object.entries(cost)
+    .map(([r, n]) => `<span class="cb" title="${esc(RES_NAMES[r])}">${resIcon(r, 38)}<span class="cb-n"><b class="num">×${n}</b><small>${esc(RES_NAMES[r])}</small></span></span>`)
+    .join('')}</span>`;
+}
+
+// A card opened: everything about it, the cost in large resource cards (a wonder: its three stages).
+export function cardDetail(k, { on = false, locked = false } = {}) {
+  const b = BUILDINGS[k];
+  const pts = isBasic(k) ? (k === 'settlement' ? t('{n} 分', { n: 1 }) : k === 'city' ? t('{n} 分', { n: 2 }) : '') : b.kind === 'wonder' ? t('完工 {n} 分', { n: WONDER_VP }) : k === 'adventurers' ? t('持有最大騎士團時 +{n}', { n: SCORE_VP }) : k === 'post' ? t('持有最長道路時 +{n}', { n: SCORE_VP }) : t('{n} 分', { n: 1 });
+  const cost = isBasic(k)
+    ? costBig(COSTS[k])
+    : b.kind === 'wonder'
+      ? b.stages.map((c, i) => `<div class="cd-stage"><i class="num">${i + 1}</i>${costBig(c)}</div>`).join('')
+      : costBig(b.cost);
+  const words = isBasic(k)
+    ? `<p class="cd-fx">${esc(t(BASIC_TEXT[k]))}</p><p class="cd-note">${esc(t('沒放進藍圖的話，這局就不能花錢蓋（開局照常放村莊和道路）。'))}</p>`
+    : `<p class="cd-cond"><b>${esc(t('條件'))}</b>${esc(t(BUILDING_TEXT[k].cond))}</p><p class="cd-fx"><b>${esc(t('效果'))}</b>${esc(t(BUILDING_TEXT[k].fx))}</p>`;
+  return `<div class="cd${on ? ' on' : ''}${locked ? ' locked' : ''}" style="--dc:${cardColor(k)}">
+    <div class="cd-top"><span class="cd-ico">${cardIcon(k, 34)}</span><span class="cd-title"><b>${esc(cardName(k))}</b><small>${esc(kindLine(k))}</small></span>${pts ? `<span class="cd-pts">${esc(pts)}</span>` : ''}</div>
+    <div class="cd-cost"><h6>${esc(b && b.kind === 'wonder' ? t('三個階段的花費') : t('花費'))}</h6>${cost}</div>
+    ${words}
+  </div>`;
 }
 
 // how a card not owned yet is had: its mission, or drawing and the shop
@@ -62,12 +109,12 @@ function howToGet(c, k) {
     return { text: t('任務：{m}（{n}/{goal}）', { m: t(m.text), n: s.n, goal: s.goal }), tab: 'missions' };
   }
   if (POOL.includes(k)) return { text: t('抽卡可以抽到（每次 {p}%），也可以在商店用 {n} 碎片兌換', { p: (chanceOf(k) * 100).toFixed(1), n: priceOf(k) }), tab: 'draw' };
-  return { text: t('一開始就有'), tab: null };
+  return { text: isBasic(k) ? t('基本卡：每位玩家都有') : t('一開始就有'), tab: null };
 }
 
-// a side page: a sheet of the dialogs layer at one edge of the screen
-function sidePage(dialogs, { kind, title, body, side, headExtra = '', onClose = null, foot = [] }) {
-  return dialogs.open({ kind, title, body, foot, cls: `side-page from-${side}`, headExtra, onClose });
+// a side page: a sheet of the dialogs layer against the left edge of the screen
+function sidePage(dialogs, { kind, title, body, headExtra = '', onClose = null, foot = [] }) {
+  return dialogs.open({ kind, title, body, foot, cls: 'side-page', headExtra, onClose });
 }
 
 // ── the Cards page ──
@@ -88,23 +135,21 @@ export function openCards(dialogs, settings, save, opts = {}) {
       .join('');
     const slots = Array.from({ length: BLUEPRINT_SIZE }, (_, i) => (bp[i] ? `<button type="button" class="cp-slot" data-slot="${bp[i]}" title="${esc(t('拿出藍圖'))}">${cardFace(bp[i], { small: true })}</button>` : `<span class="cp-slot empty"><i class="num">${i + 1}</i></span>`)).join('');
     const status = `${bp.length}/${BLUEPRINT_SIZE}${bp.length >= BLUEPRINT_SIZE ? ' · ' + esc(blueprintName(bp)) : ''}`;
-    const groups = DIRS.map((d) => {
-      const cardsHtml = BUILDING_IDS.filter((k) => BUILDINGS[k].dir === d)
-        .map((k) => cardFace(k, { tag: 'button', locked: !owns(c, k), on: bp.includes(k), fresh: c.fresh.includes(k), sel: k === sel }))
-        .join('');
-      return `<section class="cp-group" style="--dc:${DIR_COLOR[d]}"><h5>${esc(t(DIR_NAMES[d]))}</h5><div class="cc-grid">${cardsHtml}</div></section>`;
-    }).join('');
+    const face = (k) => cardFace(k, { tag: 'button', locked: !owns(c, k), on: bp.includes(k), fresh: c.fresh.includes(k), sel: k === sel });
+    const groups =
+      `<section class="cp-group" style="--dc:${BASIC_COLOR}"><h5>${esc(t('基本卡'))}</h5><div class="cc-grid">${BASIC.map(face).join('')}</div></section>` +
+      DIRS.map((d) => `<section class="cp-group" style="--dc:${DIR_COLOR[d]}"><h5>${esc(t(DIR_NAMES[d]))}</h5><div class="cc-grid">${BUILDING_IDS.filter((k) => BUILDINGS[k].dir === d).map(face).join('')}</div></section>`).join('');
     body.innerHTML = `
       <section class="cp-deck">
         <div class="cp-tabs" role="group" aria-label="${esc(t('藍圖'))}">${tabs}</div>
         <div class="cp-slots">${slots}</div>
         <div class="cp-deckbar"><span class="cp-status num">${status}</span><span class="cp-use"></span></div>
-        <p class="cp-note">${esc(t('道路、村莊、城市、發展卡與開發不用卡牌，一直都能蓋。藍圖最多 7 張、其中最多 1 座世界奇觀；開局帶的是「使用中」的那套。'))}</p>
+        <p class="cp-note">${esc(t('藍圖 7 張，含基本卡（道路、村莊、城市、發展卡）：沒帶的基本卡，這局就不能花錢蓋。開發不用卡牌。最多 1 座世界奇觀；開局帶「使用中」的那套。'))}</p>
         ${flash ? `<p class="cp-flash" role="status">${esc(flash)}</p>` : ''}
       </section>
       <div class="cp-main">
         <section class="cp-coll">
-          <h4>${esc(t('收藏'))} <span class="num">${c.own.length}/${BUILDING_IDS.length}</span></h4>
+          <h4>${esc(t('收藏'))} <span class="num">${c.own.length + BASIC.length}/${BUILDING_IDS.length + BASIC.length}</span></h4>
           ${groups}
         </section>
         <aside class="cp-detail" aria-live="polite"></aside>
@@ -148,11 +193,11 @@ export function openCards(dialogs, settings, save, opts = {}) {
       return;
     }
     const bp = settings.bps[cur];
-    box.innerHTML = buildingCard(sel, { state: bp.includes(sel) ? 'on' : '' });
+    box.innerHTML = cardDetail(sel, { on: bp.includes(sel), locked: !owns(c, sel) });
     const acts = el('div', 'cp-acts');
     if (!owns(c, sel)) {
       const how = howToGet(c, sel);
-      acts.appendChild(el('p', 'cp-how', `${icon('lock', 16)}<span>${esc(how.text)}</span>`));
+      acts.appendChild(el('p', 'cp-how', `<span>${esc(how.text)}</span>`));
       if (how.tab && opts.onShop) acts.appendChild(btn(how.tab === 'missions' ? esc(t('看任務')) : esc(t('去抽卡')), '', () => opts.onShop(how.tab)));
     } else if (bp.includes(sel)) {
       acts.appendChild(
@@ -179,7 +224,7 @@ export function openCards(dialogs, settings, save, opts = {}) {
     }
     box.appendChild(acts);
   };
-  sidePage(dialogs, { kind: 'cards', title: t('卡牌'), body, side: 'left', onClose: opts.onClose });
+  sidePage(dialogs, { kind: 'cards', title: t('卡牌'), body, onClose: opts.onClose });
   render();
 }
 
@@ -307,8 +352,8 @@ export function openShop(dialogs, opts = {}) {
     const first = MISSIONS.filter((m) => m.id === 'welcome' || m.reward.card);
     const rest = MISSIONS.filter((m) => !first.includes(m));
     box.innerHTML = `
-      <h5 class="ms-head">${esc(t('新手任務：湊齊「穀倉」藍圖'))}</h5>
-      <p class="sp-lead">${esc(t('完成這些任務，加上一開始的糧倉與市集，就有穀倉藍圖的 6 種建築（不含空中花園）。'))}</p>
+      <h5 class="ms-head">${esc(t('新手任務：湊齊穀倉系列'))}</h5>
+      <p class="sp-lead">${esc(t('完成這些任務，加上一開始的{cards}，就有穀倉系列的 6 種建築（不含空中花園）。', { cards: list(STARTER.map(buildingName)) }))}</p>
       ${first.map(row).join('')}
       <h5 class="ms-head">${esc(t('挑戰'))}</h5>
       ${rest.map(row).join('')}`;
@@ -326,7 +371,7 @@ export function openShop(dialogs, opts = {}) {
   };
 
   const foot = opts.onCards ? [btn(`${icon('cards', 16)}${esc(t('卡牌'))}`, 'ghost', () => opts.onCards())] : [];
-  sidePage(dialogs, { kind: 'shop', title: t('抽卡・商店'), body, side: 'right', headExtra: '<span class="sp-bals"></span>', onClose: opts.onClose, foot });
+  sidePage(dialogs, { kind: 'shop', title: t('抽卡・商店'), body, headExtra: '<span class="sp-bals"></span>', onClose: opts.onClose, foot });
   render();
 }
 
@@ -346,7 +391,7 @@ export function deckLine(settings, onChange = null) {
   const i = [0, 1, 2].includes(settings.bpCur) ? settings.bpCur : 0;
   const bp = ownedBlueprint(c, settings.bps && settings.bps[i]);
   const box = el('div', 'deck-line');
-  const cardsHtml = bp.map((k) => `<span class="dk-card" style="--dc:${DIR_COLOR[BUILDINGS[k].dir]}" title="${esc(buildingName(k))}">${buildingIcon(k, 16)}</span>`).join('') + '<span class="dk-card empty"></span>'.repeat(BLUEPRINT_SIZE - bp.length);
+  const cardsHtml = bp.map((k) => `<span class="dk-card" style="--dc:${cardColor(k)}" title="${esc(cardName(k))}">${cardIcon(k, 16)}</span>`).join('') + '<span class="dk-card empty"></span>'.repeat(BLUEPRINT_SIZE - bp.length);
   box.innerHTML = `<span class="dl-name"><b>${esc(t('藍圖 {n}', { n: i + 1 }))}</b><small class="num">${bp.length}/${BLUEPRINT_SIZE}</small></span><span class="dk-cards">${cardsHtml}</span>`;
   if (onChange) box.appendChild(btn(esc(t('在「卡牌」更換')), 'ghost dl-change', onChange));
   else box.appendChild(el('small', 'dl-hint', esc(t('在主畫面的「卡牌」更換'))));

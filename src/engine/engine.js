@@ -14,6 +14,8 @@ import { seaInfo, roadEdge, shipEdge, shipLegal, legalShipEdges, movableShips, s
 import {
   developOn,
   blueprintOf,
+  hasBasic,
+  NO_CARD,
   plotWhy,
   plotCost,
   specialWhy,
@@ -694,6 +696,7 @@ H.settlement = (st, a, ev) => {
     return;
   }
   requireMainTurn(st, p);
+  need(hasBasic(st, p, 'settlement'), NO_CARD.settlement);
   need(pl.pieces.settlements > 0, '村莊已經用完了（可先升級城市）');
   need(canAfford(pl.res, COSTS.settlement), '資源不足：村莊需要 木材、磚塊、羊毛、小麥 各 1');
   need(distanceOK(st, v), st.vertices[v] ? '這個路口已有建築' : '距離規則：相鄰的路口不能有建築');
@@ -760,6 +763,7 @@ H.road = (st, a, ev) => {
   if (!free) {
     requireMainTurn(st, p);
     royal = freeRoad(st, p);
+    if (!royal) need(hasBasic(st, p, 'road'), NO_CARD.road);
     if (!royal) need(canAfford(pl.res, COSTS.road), '資源不足：道路需要 木材、磚塊 各 1');
   }
   need(pl.pieces.roads > 0, '道路已經用完了');
@@ -880,6 +884,7 @@ H.city = (st, a, ev) => {
   requireMainTurn(st, p);
   need(Number.isInteger(v) && v >= 0 && v < GEO.vertices.length, '無效的位置');
   const b = st.vertices[v];
+  need(hasBasic(st, p, 'city'), NO_CARD.city);
   need(b && b.p === p && b.t === 's', '城市只能由你自己的村莊升級');
   need(pl.pieces.cities > 0, '城市已經用完了');
   need(canAfford(pl.res, COSTS.city), '資源不足：城市需要 小麥 2、礦石 3');
@@ -905,7 +910,10 @@ H.buyDev = (st, a, ev) => {
     need(RES.includes(a.lib), '請選擇一種資源');
     cost = { [a.lib]: 1 };
     need(pl.res[a.lib] > 0, '你沒有那種資源');
-  } else need(canAfford(pl.res, COSTS.dev), '資源不足：發展卡需要 羊毛、小麥、礦石 各 1');
+  } else {
+    need(hasBasic(st, p, 'dev'), NO_CARD.dev);
+    need(canAfford(pl.res, COSTS.dev), '資源不足：發展卡需要 羊毛、小麥、礦石 各 1');
+  }
   need(a.how === undefined || a.how === 'knight' || a.how === 'pick', '無效的動作');
   if (a.how === 'knight') need(developOn(st) && hasBuilt(st, p, 'barracks'), '你沒有兵營');
   if (a.how === 'pick') need(developOn(st) && hasBuilt(st, p, 'academy'), '你沒有學院');

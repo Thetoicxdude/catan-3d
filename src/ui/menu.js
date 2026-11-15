@@ -2,8 +2,8 @@
 import { flagURL } from './flags.js';
 import { esc } from './text.js';
 import { mapDef, MAP_TABLE, developMap, DEV4 } from '../engine/maps.js';
-import { BUILDING_IDS, isWonder, BLUEPRINT_SIZE } from '../engine/develop.js';
-import { STARTER, ownedBlueprint } from '../meta/collection.js';
+import { BASIC, isCard, isSpecial, isWonder, BLUEPRINT_SIZE } from '../engine/develop.js';
+import { FIRST_BLUEPRINT, ownedBlueprint } from '../meta/collection.js';
 import { cards } from '../meta/store.js';
 import { t, tx, untx, N_, getLang } from '../i18n/index.js';
 import { deckLine } from './cards-ui.js';
@@ -72,10 +72,12 @@ export function defaultSettings() {
     seats: AI_NAMES.slice(1, 6).map((n) => ({ name: tx(n), kind: 'ai', level: 'normal' })),
     // 'standard' or 'develop' (the development mode, develop.js: its own island, by the number of players)
     mode: 'standard',
-    // the development mode: three blueprints made of this player's building cards (meta/collection.js),
-    // and the one the next game takes (bpCur); chosen on the home screen's Cards page
-    bps: [STARTER.slice(), [], []],
+    // the development mode: three blueprints of 7 cards (the basic cards and this player's buildings,
+    // meta/collection.js), and the one the next game takes (bpCur); chosen on the home screen's Cards
+    // page. bpv 2: blueprints that hold the basic cards (2026-11-15)
+    bps: [FIRST_BLUEPRINT.slice(), BASIC.slice(), BASIC.slice()],
     bpCur: 0,
+    bpv: 2,
     // the island (maps.js) and, on the 5–6 player island, how the turn is shared
     map: 'base-4',
     turns: 'paired',
@@ -159,13 +161,18 @@ export function fitSettings(s) {
   if (!vpAdjs(s).includes(s.vpAdj)) s.vpAdj = s.target === 8 ? -2 : s.target === 12 ? 2 : 0;
   if (!vpAdjs(s).includes(s.vpAdj)) s.vpAdj = 0;
   delete s.target;
-  // the development mode's blueprints: three, each of known buildings, all different, at most one wonder
+  // the development mode's blueprints: three, each of known cards, all different, at most one wonder
   // and seven cards (whether the cards are owned is the collection's to say: myBlueprint)
   if (!Array.isArray(s.bps)) s.bps = [];
+  // (saved before the basic cards were cards: each takes the four, then its first three buildings)
+  if (s.bpv !== 2) {
+    s.bps = s.bps.map((bp) => (Array.isArray(bp) ? [...BASIC, ...bp.filter(isSpecial)].slice(0, BLUEPRINT_SIZE) : bp));
+    s.bpv = 2;
+  }
   for (let i = 0; i < 3; i++) {
     const bp = s.bps[i];
-    const ok = Array.isArray(bp) && bp.length <= BLUEPRINT_SIZE && new Set(bp).size === bp.length && bp.every((k) => BUILDING_IDS.includes(k)) && bp.filter(isWonder).length <= 1;
-    if (!ok) s.bps[i] = i ? [] : STARTER.slice();
+    const ok = Array.isArray(bp) && bp.length <= BLUEPRINT_SIZE && new Set(bp).size === bp.length && bp.every(isCard) && bp.filter(isWonder).length <= 1;
+    if (!ok) s.bps[i] = (i ? BASIC : FIRST_BLUEPRINT).slice();
   }
   s.bps.length = 3;
   if (![0, 1, 2].includes(s.bpCur)) s.bpCur = 0;

@@ -47,6 +47,7 @@ import {
   PRESETS,
   PRESET_IDS,
   slotsAt,
+  hasBasic,
 } from '../engine/develop.js';
 
 const LEVELS = {
@@ -320,7 +321,9 @@ function buildPlans(view, p, lvl) {
   let key = 0;
   const noise = (k = key) => (hnoise(view.turn + 7, p + 3, k) - 0.5) * 2 * lvl.noise;
 
-  if (me.pieces.cities > 0) {
+  // (the development mode: a basic card left out of the blueprint is never paid for)
+  const card = (k) => hasBasic(view, p, k);
+  if (me.pieces.cities > 0 && card('city')) {
     for (const v of legalCitySpots(view, p)) {
       let pv = 0;
       for (const h of GEO.vertices[v].hexes) {
@@ -331,7 +334,7 @@ function buildPlans(view, p, lvl) {
       plans.push({ kind: 'city', vertex: v, cost: COSTS.city, value: 1.25 + pv * 0.09 + (stage === 'late' ? 0.35 : 0) + noise(1000 + v) });
     }
   }
-  if (me.pieces.settlements > 0) {
+  if (me.pieces.settlements > 0 && card('settlement')) {
     const site = developOn(view) ? wonderSite(view, p) : null;
     for (const v of legalSettlementSpots(view, p)) {
       plans.push({
@@ -344,7 +347,7 @@ function buildPlans(view, p, lvl) {
   }
   // (the development mode: the royal road's free road)
   const roadCost = freeRoad(view, p) ? {} : COSTS.road;
-  if (me.pieces.roads > 0) {
+  if (me.pieces.roads > 0 && (card('road') || freeRoad(view, p))) {
     // roads toward future settlement spots
     if (me.pieces.settlements > 0) {
       const reach = reachableSpots(view, p, 3).filter((s) => s.d >= 1);
@@ -406,7 +409,7 @@ function buildPlans(view, p, lvl) {
         const r = RES.slice().sort((a, b) => me.res[b] - me.res[a])[0];
         if (me.res[r] > 0) plans.push({ kind: 'dev', cost: { [r]: 1 }, lib: r, how, value: dv + 0.45 + noise(4001) });
       }
-      plans.push({ kind: 'dev', cost: COSTS.dev, how, value: dv + noise(4000) });
+      if (card('dev')) plans.push({ kind: 'dev', cost: COSTS.dev, how, value: dv + noise(4000) });
     } else plans.push({ kind: 'dev', cost: COSTS.dev, value: dv + noise(4000) });
   }
   if (developOn(view)) developPlans(view, p, lvl, weights, stage, noise, plans);

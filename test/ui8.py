@@ -1,9 +1,11 @@
 # The building cards on the page (src/meta/collection.js, src/ui/cards-ui.js): a new player's home screen
-# (the welcome present waiting on the Draw & Shop tab), taking it, a draw (the card goes into the
-# blueprint in use), the shop (shards for a card), the Cards page (18 cards, the locked ones with how to
-# get them, a card put in, another blueprint taken into use), the setup showing that blueprint, a
-# campaign where it is played (the computers with seven cards each), a mission done in play, and the
-# coins and missions of the finished game; the pages at phone width.
+# (a full first blueprint: the four basic cards and three buildings; the welcome present waiting on the
+# Draw & Shop tab, both tabs on the left), taking it, a draw (into the collection: the blueprint is
+# full), the shop (shards for a card), the Cards page (the basic cards and the 18 buildings, the ones not
+# owned grey, a card opened with its cost, another blueprint without the development card taken into
+# use), the setup showing that blueprint, a campaign where it is played (no development cards for
+# money; the computers with seven cards each), a mission done in play, and the coins and missions of
+# the finished game; the pages at phone width.
 #   python3 test/ui8.py          (SHOTS=dir for the screenshots)
 import asyncio, sys, os, json, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
@@ -47,14 +49,21 @@ async def main():
 
         # ── a new player's home screen ──
         c = await page.evaluate(CARDS)
-        check('a new player owns the granary and the market', c['own'] == ['granary', 'market'] and c['coins'] == 0, c['own'])
-        marks = await page.evaluate("() => ({ tabs: [...document.querySelectorAll('.hm-tab')].filter((t) => getComputedStyle(t).display !== 'none').map((t) => t.dataset.k), shop: document.querySelector('.hm-tab[data-k=\"shop\"] .hm-badge').textContent, shopShown: !document.querySelector('.hm-tab[data-k=\"shop\"] .hm-badge').hidden, cardsShown: !document.querySelector('.hm-tab[data-k=\"cards\"] .hm-badge').hidden })")
-        check('the side tabs, the welcome present marked', marks['tabs'] == ['cards', 'shop'] and marks['shopShown'] and marks['shop'] == '1' and not marks['cardsShown'], marks)
+        s = await page.evaluate(SETTINGS)
+        first = ['road', 'settlement', 'city', 'dev', 'granary', 'market', 'aqueduct']
+        # (nothing saved yet: the first blueprint is the settings' default)
+        deck1 = (s.get('bps') or [first])[0]
+        check('a new player: three buildings, a full first blueprint with the basic cards', c['own'] == ['aqueduct', 'granary', 'market'] and c['coins'] == 0 and deck1 == first, (c['own'], deck1))
+        marks = await page.evaluate("() => ({ tabs: [...document.querySelectorAll('.hm-tab')].filter((t) => getComputedStyle(t).display !== 'none').map((t) => [t.dataset.k, Math.round(t.getBoundingClientRect().left)]), shop: document.querySelector('.hm-tab[data-k=\"shop\"] .hm-badge').textContent, shopShown: !document.querySelector('.hm-tab[data-k=\"shop\"] .hm-badge').hidden, cardsShown: !document.querySelector('.hm-tab[data-k=\"cards\"] .hm-badge').hidden })")
+        check('both tabs on the left, the welcome present marked', marks['tabs'] == [['cards', 0], ['shop', 0]] and marks['shopShown'] and marks['shop'] == '1' and not marks['cardsShown'], marks)
         await page.screenshot(path=f'{SP}/ui8-home.png')
 
         # ── Draw & Shop: the present, a draw ──
         await page.click('.hm-tab[data-k="shop"]')
-        await page.wait_for_selector('.modal.side-page.from-right .shop-page')
+        await page.wait_for_selector('.modal.side-page .shop-page')
+        await page.wait_for_timeout(600)
+        left = await page.evaluate("() => Math.round(document.querySelector('.modal.side-page').getBoundingClientRect().left)")
+        check('the Draw & Shop page opens at the left', left == 0, left)
         await page.click('[data-tab="missions"]')
         await page.click('[data-claim="welcome"]')
         await page.wait_for_timeout(300)
@@ -67,7 +76,7 @@ async def main():
         c = await page.evaluate(CARDS)
         got = await page.evaluate("() => [...document.querySelectorAll('.sp-reveal .rv .cc')].map((x) => x.dataset.k)")
         s = await page.evaluate(SETTINGS)
-        check('a draw: 100 coins, a card of the pack, into the blueprint in use', c['coins'] == 100 and len(got) == 1 and got[0] in c['own'] and len(c['own']) == 3 and got[0] in s['bps'][0], (c['coins'], got, s['bps'][0]))
+        check('a draw: 100 coins, a card of the pack into the collection (the blueprint is full)', c['coins'] == 100 and len(got) == 1 and got[0] in c['own'] and len(c['own']) == 4 and (s.get('bps') or [first])[0] == first, (c['coins'], got, s.get('bps')))
         await page.screenshot(path=f'{SP}/ui8-draw.png')
         ten = await page.locator('.sp-draw >> nth=1').is_disabled()
         check('ten draws need 900 coins', ten)
@@ -87,16 +96,19 @@ async def main():
 
         # ── the Cards page: the collection, a locked card, the blueprints ──
         await page.click('.modal-foot .btn:has-text("卡牌")')
-        await page.wait_for_selector('.modal.side-page.from-left .cards-page')
+        await page.wait_for_selector('.modal.side-page .cards-page')
         n = await page.locator('.cp-coll .cc').count()
         locked = await page.locator('.cp-coll .cc.locked').count()
+        lock_icons = await page.locator('.cp-coll .cc .cc-lock, .cp-coll .cc .cc-cost').count()
         c = await page.evaluate(CARDS)
-        check('the Cards page shows the 18 cards, the ones not owned locked', n == 18 and locked == 18 - len(c['own']), (n, locked))
-        await page.click('.cp-coll .cc[data-k="aqueduct"]')
+        check('the Cards page: the 4 basic cards and the 18 buildings, the ones not owned grey only, no costs on them', n == 22 and locked == 18 - len(c['own']) and lock_icons == 0, (n, locked, lock_icons))
+        await page.click('.cp-coll .cc[data-k="shipyard"]')
         how = await page.inner_text('.cp-detail')
-        check('a locked card says how to get it', '任務' in how and '開發' in how, how.replace('\n', ' ')[:80])
-        # another blueprint: two cards in it, then taken into use
+        costs = await page.locator('.cp-detail .cb').count()
+        check('a card opened: its cost in large cards, how to get it', '任務' in how and '開發' in how and costs == 3, (costs, how.replace('\n', ' ')[:90]))
+        # another blueprint: the basic cards but the development card, two buildings; then taken into use
         await page.click('.cp-tab[data-set="1"]')
+        await page.click('.cp-slot[data-slot="dev"]')
         for k in ['market', 'granary']:
             await page.click(f'.cp-coll .cc[data-k="{k}"]')
             await page.click('.cp-acts .btn.primary')
@@ -104,11 +116,12 @@ async def main():
         await page.click('.cp-use .btn')
         await page.wait_for_timeout(200)
         s = await page.evaluate(SETTINGS)
-        check('a second blueprint made and taken into use', s['bpCur'] == 1 and s['bps'][1] == ['market', 'granary'], (s['bpCur'], s['bps']))
-        # a card out of it again from its place
+        mine = ['road', 'settlement', 'city', 'market', 'granary']
+        check('a second blueprint made (a basic card out) and taken into use', s['bpCur'] == 1 and s['bps'][1] == mine, (s['bpCur'], s['bps']))
+        # a card out of it again from its place, and back
         await page.click('.cp-slot[data-slot="granary"]')
         s = await page.evaluate(SETTINGS)
-        check('a card taken out from its place', s['bps'][1] == ['market'], s['bps'][1])
+        check('a card taken out from its place', s['bps'][1] == mine[:-1], s['bps'][1])
         await page.click('.cp-acts .btn.primary')
         await page.screenshot(path=f'{SP}/ui8-cards.png')
         await page.click('.modal.side-page .modal-head .icon-btn')
@@ -118,12 +131,12 @@ async def main():
         await page.click('[data-k="single"]')
         await page.wait_for_timeout(1800)
         line = await page.evaluate("() => { const d = document.querySelector('.deck-line'); return d ? { text: d.textContent, cards: d.querySelectorAll('.dk-card:not(.empty)').length } : null; }")
-        check('the setup shows blueprint 2 with its two cards', line and '藍圖 2' in line['text'] and line['cards'] == 2, line)
+        check('the setup shows blueprint 2 with its five cards', line and '藍圖 2' in line['text'] and line['cards'] == 5, line)
         await page.click('text=開始戰役')
         await page.wait_for_function('window.__game && window.__game.state')
         await page.wait_for_timeout(2000)
         bps = await page.evaluate("() => __game.state.players.map((p) => p.bp)")
-        check('the nation brings its two cards, the computers seven each', bps[0] == ['market', 'granary'] and all(len(x) == 7 for x in bps[1:]), bps)
+        check('the nation brings its five cards, the computers seven each', bps[0] == mine and all(len(x) == 7 for x in bps[1:]), bps)
         await page.evaluate('() => { window.__autoHuman = true; window.__game.schedule(); }')
         await page.wait_for_function("() => __game.state.phase === 'play'", timeout=180000)
         await page.wait_for_timeout(1200)
@@ -131,7 +144,11 @@ async def main():
         await page.keyboard.press('b')
         await page.wait_for_timeout(400)
         rows = await page.evaluate("() => [...document.querySelectorAll('.build-menu .bm-row')].filter((r) => !r.hidden).map((r) => r.dataset.k)")
-        check('the build menu has the two cards of the blueprint', [r for r in rows if r.startswith('bp:')] == ['bp:market', 'bp:granary'] and 'develop' in rows, rows)
+        check('the build menu has the two buildings of the blueprint', [r for r in rows if r.startswith('bp:')] == ['bp:market', 'bp:granary'] and 'develop' in rows, rows)
+        dev = await page.evaluate("() => { const r = document.querySelector('.bm-row[data-k=\"dev\"]'); return { off: r.classList.contains('off'), nocard: r.classList.contains('nocard'), why: r.dataset.why || r.title }; }")
+        check('no development card in the blueprint: its row is shut, and why', dev['off'] and dev['nocard'] and '藍圖' in (dev['why'] or ''), dev)
+        refused = await page.evaluate("() => { try { __game.dispatch({ type: 'buyDev', p: 0 }); return __game.state.players[0].dev.length; } catch (e) { return 'refused'; } }")
+        check('and the rules refuse it', refused in ('refused', 0), refused)
         await page.screenshot(path=f'{SP}/ui8-build.png')
         await page.keyboard.press('b')
 
@@ -173,14 +190,14 @@ async def main():
         await page.wait_for_timeout(300)
         c = await page.evaluate(CARDS)
         s = await page.evaluate(SETTINGS)
-        check('the win of a development game gives the academy, into the blueprint', 'academy' in c['own'] and 'academy' in s['bps'][1], (c['own'], s['bps'][1]))
+        check('the win of a development game gives the academy, into the blueprint with room', 'academy' in c['own'] and 'academy' in s['bps'][1], (c['own'], s['bps'][1]))
 
         # ── phone width: the medals instead of the tabs, the pages over the whole screen ──
         await page.set_viewport_size({'width': 390, 'height': 844})
         await page.goto('http://127.0.0.1:8765/dist/index.test.html')
         await page.wait_for_selector('.menu-screen.home', timeout=60000)
         await page.wait_for_timeout(800)
-        vis = await page.evaluate("() => ({ tabs: [...document.querySelectorAll('.hm-tab')].some((t) => getComputedStyle(t).display !== 'none'), medals: [...document.querySelectorAll('.hm-medal')].filter((m) => getComputedStyle(m).display !== 'none').map((m) => m.dataset.k) })")
+        vis = await page.evaluate("() => ({ tabs: [...document.querySelectorAll('.hm-tab')].some((t) => t.getBoundingClientRect().width > 0), medals: [...document.querySelectorAll('.hm-medal')].filter((m) => m.getBoundingClientRect().width > 0).map((m) => m.dataset.k) })")
         check('a phone shows the medals, not the tabs', not vis['tabs'] and vis['medals'][:2] == ['cards', 'shop'], vis)
         await page.click('.hm-medal[data-k="cards"]')
         await page.wait_for_selector('.cards-page')

@@ -405,7 +405,7 @@ const DEVELOP = {
   pieces: { roads: 25, settlements: 7, cities: 5 },
   vp: 18,
   robber: { anyDesert: true },
-  rules: { develop: true },
+  rules: { develop: true, cards: true },
 };
 export const DEV4 = Object.freeze({
   ...DEVELOP,

@@ -2,9 +2,9 @@
 // shop, coins from finished games, copies put together, blueprints kept to the cards owned.
 //   node test/cards.mjs
 import assert from 'node:assert/strict';
-import { BUILDING_IDS, PRESETS, isWonder } from '../src/engine/develop.js';
+import { BUILDING_IDS, PRESETS, BASIC, isWonder, validBlueprint } from '../src/engine/develop.js';
 import {
-  STARTER, MISSION_CARDS, POOL, MISSIONS, DRAW_COST, DRAW10_COST, COINS, newCollection, fitCollection, mergeCollections, owns, ownedBlueprint,
+  STARTER, FIRST_BLUEPRINT, MISSION_CARDS, POOL, MISSIONS, DRAW_COST, DRAW10_COST, COINS, newCollection, fitCollection, mergeCollections, owns, ownedBlueprint,
   claim, claimable, missionState, missionFor, observe, gameOver, draw, buy, pick, priceOf, dupShards, chanceOf, seen, slotNew,
 } from '../src/meta/collection.js';
 
@@ -42,10 +42,12 @@ const devView = ({ plots = {}, wonders = [], built = {}, bp = ['granary', 'marke
   players: [{ bp, built }, { bp: PRESETS.port, built: {} }],
 });
 
-test('the 18 cards: two to start with, four from missions (the granary blueprint without its wonder), twelve to draw', () => {
-  assert.deepEqual(STARTER, ['granary', 'market']);
-  assert.deepEqual(MISSION_CARDS, ['aqueduct', 'shipyard', 'camp', 'academy']);
-  assert.ok([...STARTER, ...MISSION_CARDS].every((k) => PRESETS.farm.includes(k)));
+test('the cards: four basic ones and three buildings to start with (a full blueprint), three from missions, twelve to draw', () => {
+  assert.deepEqual(STARTER, ['granary', 'market', 'aqueduct']);
+  assert.deepEqual(FIRST_BLUEPRINT, [...BASIC, ...STARTER]);
+  assert.equal(FIRST_BLUEPRINT.length, 7);
+  assert.ok(validBlueprint(FIRST_BLUEPRINT));
+  assert.deepEqual(MISSION_CARDS, ['shipyard', 'camp', 'academy']);
   assert.equal(POOL.length, 12);
   assert.equal(POOL.filter(isWonder).length, 5);
   assert.deepEqual([...STARTER, ...MISSION_CARDS, ...POOL].sort(), BUILDING_IDS.slice().sort());
@@ -54,9 +56,11 @@ test('the 18 cards: two to start with, four from missions (the granary blueprint
   assert.ok(chanceOf('gardens') < chanceOf('guild'), 'wonders are rarer');
 });
 
-test('a new player: the two cards, no coins, the welcome present waiting', () => {
+test('a new player: the starter buildings and every basic card, no coins, the welcome present waiting', () => {
   const c = newCollection();
-  assert.deepEqual(c.own, STARTER);
+  assert.deepEqual(c.own, ['aqueduct', 'granary', 'market'], 'in the cards\' order');
+  assert.deepEqual(fitCollection(null).own, c.own);
+  assert.ok(BASIC.every((k) => owns(c, k)));
   assert.equal(c.coins, 0);
   assert.equal(claimable(c), 1);
   assert.deepEqual(claim(c, 'welcome'), { coins: 200 });
@@ -125,24 +129,24 @@ test('missions in a game: developing, the second level, a wonder begun and finis
   assert.deepEqual(observe(c, devView(), 0, [{ type: 'wonderDone', p: 0, hex: 3, k: 'gardens' }]), ['wonderdone']);
   assert.deepEqual(observe(c, devView(), 0, [{ type: 'defend', p: 0, by: 1, hex: 3, k: 'gardens' }]), ['defend']);
   assert.deepEqual(observe(c, devView({ built: { granary: 4, market: 9 } }), 0), ['build2']);
-  assert.equal(missionState(c, 'build5').n, 2);
+  assert.equal(missionState(c, 'build3').n, 2);
   observe(c, devView({ built: { granary: 4 } }), 0);
-  assert.equal(missionState(c, 'build5').n, 2, 'the most in one game');
-  // the rewards: a card each for the granary's missions
-  assert.deepEqual(claim(c, 'plot'), { card: 'aqueduct' });
-  assert.deepEqual(claim(c, 'build2'), { card: 'camp' });
-  assert.ok(owns(c, 'aqueduct') && owns(c, 'camp'));
+  assert.equal(missionState(c, 'build3').n, 2, 'the most in one game');
+  // the rewards: a card each for the granary series' missions, coins for the others
+  assert.deepEqual(claim(c, 'plot'), { card: 'shipyard' });
+  assert.deepEqual(claim(c, 'build2'), { coins: 100 });
+  assert.ok(owns(c, 'shipyard'));
   assert.deepEqual(claim(c, 'level2'), { coins: 80 });
 });
 
 test('a finished game: coins for it, a win, an online room, the first of the day; counted once', () => {
   const c = newCollection();
   const r = { gid: 's:1:2', mode: 'single', won: true, vp: 18, place: 1, n: 4, turns: 90 };
-  const out = gameOver(c, r, devView({ bp: [...PRESETS.port] }), 0, '2026-11-15');
+  const out = gameOver(c, r, { ...devView({ bp: [...PRESETS.port] }), largestArmy: 0 }, 0, '2026-11-15');
   assert.deepEqual(out.coins, [['game', COINS.game], ['win', COINS.win], ['daily', COINS.daily]]);
   assert.equal(out.total, COINS.game + COINS.win + COINS.daily);
   assert.equal(c.coins, out.total);
-  assert.deepEqual(out.done.sort(), ['devgame', 'devwin', 'full'].sort());
+  assert.deepEqual(out.done.sort(), ['army', 'devgame', 'devwin'].sort());
   assert.equal(c.games, 1);
   assert.equal(c.wins, 1);
   assert.equal(gameOver(c, r, devView(), 0, '2026-11-15'), null, 'the same game again');
@@ -159,8 +163,8 @@ test('a finished game: coins for it, a win, an online room, the first of the day
 });
 
 test('a stored copy put right: unknown cards, the starter cards, counts', () => {
-  const c = fitCollection({ own: ['guild', 'x', 'guild', 'library'], coins: -5, shards: 12.7, prog: { plot: 9, games10: 4, nope: 3 }, got: ['plot', 'zzz'], games: 3, wins: 8, gids: ['a', 5], fresh: ['guild', 'wall'], day: 'today' });
-  assert.deepEqual(c.own, ['granary', 'market', 'guild', 'library']);
+  const c = fitCollection({ own: ['guild', 'x', 'guild', 'library', 'road'], coins: -5, shards: 12.7, prog: { plot: 9, games10: 4, nope: 3 }, got: ['plot', 'zzz'], games: 3, wins: 8, gids: ['a', 5], fresh: ['guild', 'wall'], day: 'today' });
+  assert.deepEqual(c.own, ['aqueduct', 'granary', 'market', 'guild', 'library']);
   assert.equal(c.coins, 0);
   assert.equal(c.shards, 12);
   assert.equal(c.prog.plot, 1);
@@ -188,7 +192,7 @@ test('two copies put together: every card and mission, the larger counts', () =>
   b.prog.games10 = 3;
   b.rev = 9;
   const m = mergeCollections(a, b);
-  assert.deepEqual(m.own, ['granary', 'market', 'guild', 'library']);
+  assert.deepEqual(m.own, ['aqueduct', 'granary', 'market', 'guild', 'library']);
   assert.equal(m.coins, 300);
   assert.equal(m.shards, 40);
   assert.equal(m.prog.plot, 1);
@@ -197,10 +201,12 @@ test('two copies put together: every card and mission, the larger counts', () =>
   assert.equal(m.rev, 10, 'newer than both');
 });
 
-test('blueprints kept to the cards owned; a new card slots into one with room', () => {
+test('blueprints kept to the cards owned (the basic cards are everyone\'s); a new card slots into one with room', () => {
   const c = newCollection();
   c.own.push('gardens', 'library', 'wall');
   assert.deepEqual(ownedBlueprint(c, ['granary', 'guild', 'gardens', 'library', 'market', 'granary']), ['granary', 'gardens', 'market']);
+  assert.deepEqual(ownedBlueprint(c, ['road', 'city', 'guild', 'wall']), ['road', 'city', 'wall']);
+  assert.deepEqual(ownedBlueprint(c, [...FIRST_BLUEPRINT, 'wall']), FIRST_BLUEPRINT, 'seven at most');
   assert.deepEqual(ownedBlueprint(c, null), []);
   const bp = ['granary'];
   assert.ok(slotNew(bp, 'gardens'));

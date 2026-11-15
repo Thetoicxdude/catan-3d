@@ -20,13 +20,14 @@ const KIND_R = { h: 'human', a: 'ai', r: 'remote' };
 const LVL = { easy: 'e', normal: 'n', hard: 'x' };
 const LVL_R = { e: 'easy', n: 'normal', x: 'hard' };
 // (the development mode) each building in two letters, a resource in one
-const BLD = { aqueduct: 'aq', granary: 'gr', market: 'mk', shipyard: 'sy', guild: 'gu', barracks: 'br', wall: 'wl', mercenaries: 'mc', adventurers: 'ad', post: 'po', camp: 'ca', academy: 'ac', press: 'pr', gardens: 'hg', lighthouse: 'lh', greatWall: 'gw', royalRoad: 'rr', library: 'lb' };
+// (the buildings, and the basic cards a blueprint holds: road, settlement, city, development card)
+const BLD = { aqueduct: 'aq', granary: 'gr', market: 'mk', shipyard: 'sy', guild: 'gu', barracks: 'br', wall: 'wl', mercenaries: 'mc', adventurers: 'ad', post: 'po', camp: 'ca', academy: 'ac', press: 'pr', gardens: 'hg', lighthouse: 'lh', greatWall: 'gw', royalRoad: 'rr', library: 'lb', road: 'rd', settlement: 'st', city: 'ct', dev: 'dv' };
 const BLD_R = Object.fromEntries(Object.entries(BLD).map(([k, v]) => [v, k]));
 const RCH = 'wblgo';
 const rch = (r) => RCH[RES.indexOf(r)];
 const rOf = (c) => RES[RCH.indexOf(c)];
-// a blueprint as one string (a pair of letters a building, seven at most), and back (null when it is
-// not a valid one; '' is a blueprint with no cards)
+// a blueprint as one string (a pair of letters a card, seven at most), and back (null when it is not a
+// valid one; '' is a blueprint with no cards)
 export const bpCode = (bp) => (Array.isArray(bp) ? bp.map((k) => BLD[k] || '').join('') : '');
 export function bpDecode(code) {
   if (typeof code !== 'string' || code.length % 2 || code.length > 14) return null;

@@ -12,8 +12,9 @@ from playwright.async_api import async_playwright
 SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
 os.makedirs(SP, exist_ok=True)
 results = {}
-# a player who owns every card, with a blueprint of seven (one wonder: the royal road)
-DECK = ['market', 'shipyard', 'granary', 'post', 'camp', 'wall', 'royalRoad']
+# a player who owns every card, with a blueprint of seven: the four basic cards, two buildings and a
+# wonder (the royal road)
+DECK = ['road', 'settlement', 'city', 'dev', 'market', 'wall', 'royalRoad']
 ALL = ['aqueduct', 'granary', 'market', 'shipyard', 'guild', 'barracks', 'wall', 'mercenaries', 'adventurers', 'post', 'camp', 'academy', 'press', 'gardens', 'lighthouse', 'greatWall', 'royalRoad', 'library']
 def check(name, ok, info=''):
     results[name] = bool(ok)
@@ -94,7 +95,7 @@ async def main():
         await page.keyboard.press('b')
         await page.wait_for_timeout(400)
         rows = await page.evaluate("() => [...document.querySelectorAll('.build-menu .bm-row')].filter((r) => !r.hidden).map((r) => r.dataset.k)")
-        check('the build menu has the development and the blueprint', 'develop' in rows and len([r for r in rows if r.startswith('bp:')]) == 7, rows)
+        check('the build menu has the development and the blueprint', 'develop' in rows and [r for r in rows if r.startswith('bp:')] == ['bp:market', 'bp:wall', 'bp:royalRoad'], rows)
         await page.screenshot(path=f'{SP}/ui7-build.png')
 
         # a development: the row, a hex on the map, the resource
@@ -195,10 +196,15 @@ async def main():
         check('the campaign carries on after a reload', again['map'] == 'dev-4' and again['plots'] >= 1 and again['wonders'] >= 1 and again['built'] >= 1, again)
 
         # and the computer plays it on a while
+        # (SwiftShader is slow and its speed varies, so wait for the turns rather than a fixed time; a
+        # stuck game still fails, and shows where it stands)
         await page.evaluate('() => { window.__autoHuman = true; window.__game.schedule(); }')
-        await page.wait_for_timeout(20000)
-        t = await page.evaluate("() => __game.state.turn")
-        check('the campaign goes on', t > 5, t)
+        try:
+            await page.wait_for_function("() => __game.state.turn > 5", timeout=90000)
+        except Exception:
+            pass
+        t = await page.evaluate("() => { const s = __game.state; return { turn: s.turn, current: s.current, rolled: s.rolled, pending: s.pending && s.pending.type, over: s.phase === 'over' }; }")
+        check('the campaign goes on', t['turn'] > 5 or t['over'], t)
 
         errors = [l for l in logs if 'pageerror' in l or '[error]' in l]
         check('no page errors', not errors, errors[:5])

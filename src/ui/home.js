@@ -397,8 +397,10 @@ export function showHome(app, opts) {
         ${card('single', 'gold', t('單人遊戲'), 'single', t('單人遊戲§short'))}${card('create', 'bronze', t('建立房間'), 'create', t('建立房間§short'))}${card('join', 'verdigris', t('加入房間'), 'join', t('加入房間§short'))}${card('workshop', 'bronze', t('地圖工坊'), 'workshop', t('地圖工坊§short'))}${card('continue', 'silver', t('繼續上一局'), 'resume', t('繼續上一局§short'))}
       </nav>
     </main>
-    <button class="hm-tab left" type="button" data-k="cards" title="${t('卡牌：建築卡與藍圖（發展模式）')}" aria-label="${t('卡牌：建築卡與藍圖（發展模式）')}">${emblemSvg('cards', 36)}<span class="lbl">${t('卡牌')}</span><i class="hm-badge new" hidden></i></button>
-    <button class="hm-tab right" type="button" data-k="shop" title="${t('抽卡・商店・任務')}" aria-label="${t('抽卡・商店・任務')}">${emblemSvg('shop', 36)}<span class="lbl">${t('商店')}</span><span class="hm-purse num"></span><i class="hm-badge" hidden></i></button>
+    <div class="hm-tabs">
+      <button class="hm-tab" type="button" data-k="cards" title="${t('卡牌：建築卡與藍圖（發展模式）')}" aria-label="${t('卡牌：建築卡與藍圖（發展模式）')}">${emblemSvg('cards', 36)}<span class="lbl">${t('卡牌')}</span><i class="hm-badge new" hidden></i></button>
+      <button class="hm-tab" type="button" data-k="shop" title="${t('抽卡・商店・任務')}" aria-label="${t('抽卡・商店・任務')}">${emblemSvg('shop', 36)}<span class="lbl">${t('商店')}</span><span class="hm-purse num"></span><i class="hm-badge" hidden></i></button>
+    </div>
     <div class="hm-medals">
       <button class="hm-medal narrow" type="button" data-k="cards" title="${t('卡牌：建築卡與藍圖（發展模式）')}" aria-label="${t('卡牌：建築卡與藍圖（發展模式）')}">${emblemSvg('cards', 40)}<span>${t('卡牌')}</span><i class="hm-badge new" hidden></i></button>
       <button class="hm-medal narrow" type="button" data-k="shop" title="${t('抽卡・商店・任務')}" aria-label="${t('抽卡・商店・任務')}">${emblemSvg('shop', 40)}<span>${t('商店')}</span><i class="hm-badge" hidden></i></button>

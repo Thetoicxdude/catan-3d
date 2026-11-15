@@ -1,7 +1,7 @@
 // The development mode's interface pieces (the rules are in engine/develop.js): what each building does
-// in words, its card (the Cards page's detail, cards-ui.js), the strip of a nation's blueprint in the
-// nations' panel, and the dialogs of a turn.
-import { BUILDINGS, BUILDING_NAMES, DIR_NAMES, PRESETS, PRESET_IDS, PRESET_NAMES, isWonder, validBlueprint, WONDER_VP, SCORE_VP, PLOT_COST } from '../engine/develop.js';
+// in words (the Cards page shows it: cards-ui.js), the strip of a nation's blueprint in the nations'
+// panel, and the dialogs of a turn.
+import { BUILDINGS, BUILDING_NAMES, DIR_NAMES, PRESETS, PRESET_IDS, PRESET_NAMES, BASIC, BASIC_NAMES, isWonder, validBlueprint, specialsOf, WONDER_VP, SCORE_VP, PLOT_COST } from '../engine/develop.js';
 import { buildingIcon, icon, resIcon, RES_NAMES } from './icons.js';
 import { t, N_ } from '../i18n/index.js';
 
@@ -51,32 +51,12 @@ export function costHtml(cost, size = 18) {
     .join('');
 }
 
-// A building's card: its direction's frame, the figure, name, points, cost (a wonder's three stages),
-// condition and effect. state: 'on' (in the blueprint), 'built', or a wonder's progress ('1/3').
-export function buildingCard(k, { state = '', tag = 'div', extra = '' } = {}) {
-  const b = BUILDINGS[k];
-  const cost = b.kind === 'wonder' ? b.stages.map((c, i) => `<span class="bp-stage"><i>${i + 1}</i>${costHtml(c, 16)}</span>`).join('') : costHtml(b.cost, 16);
-  const tx = BUILDING_TEXT[k];
-  const kind = b.kind === 'wonder' ? t('世界奇觀') : b.kind === 'score' ? t('計分建築') : t('功能建築');
-  return `<${tag} class="bp-card d-${b.dir} k-${b.kind}${state ? ' s-' + state.replace('/', '-') : ''}" data-k="${k}" style="--dc:${DIR_COLOR[b.dir]}"${tag === 'button' ? ' type="button"' : ''}${extra}>
-    <span class="bp-top"><span class="bp-ico">${buildingIcon(k, 26)}</span><span class="bp-title"><b>${esc(buildingName(k))}</b><small>${esc(t(DIR_NAMES[b.dir]))}・${esc(kind)}</small></span><span class="bp-pts">${esc(pointsText(k))}</span></span>
-    <span class="bp-cost">${cost}</span>
-    <span class="bp-cond"><i>${t('條件')}</i>${esc(t(tx.cond))}</span>
-    <span class="bp-fx">${esc(t(tx.fx))}</span>
-  </${tag}>`;
-}
-
 // the name of a blueprint: a ready-made one's, or "your own"
 export function blueprintName(bp) {
   if (!validBlueprint(bp)) return t('未完成的藍圖');
   const k = PRESET_IDS.find((id) => PRESETS[id].length === bp.length && PRESETS[id].every((x) => bp.includes(x)));
   return k ? t(PRESET_NAMES[k]) : t('自訂藍圖');
 }
-// a blueprint as a row of small figures (in its order)
-export function blueprintIcons(bp, size = 18) {
-  return `<span class="bp-icons">${(bp || []).map((k) => `<span class="bp-mini" style="--dc:${DIR_COLOR[BUILDINGS[k].dir]}" title="${esc(buildingName(k))}">${buildingIcon(k, size)}</span>`).join('')}</span>`;
-}
-
 // What a nation has of its blueprint, for the nations' panel: each building lit when built, the
 // wonder with its stages.
 export function nationStrip(v, p) {
@@ -84,7 +64,9 @@ export function nationStrip(v, p) {
   if (!pl.bp) return '';
   const built = pl.built || {};
   const w = (v.wonders || []).find((x) => x.p === p);
-  const items = pl.bp.map((k) => {
+  // (the basic cards it left out, crossed: it cannot pay for those this game)
+  const missing = v.rules && v.rules.cards ? BASIC.filter((k) => !pl.bp.includes(k)).map((k) => `<span class="bp-mini nobasic" title="${esc(t('沒帶{name}卡', { name: t(BASIC_NAMES[k]) }))}">${icon(BASIC_ICON[k], 14)}</span>`) : [];
+  const items = specialsOf(pl.bp).map((k) => {
     let cls = 'bp-mini';
     let mark = '';
     let title = buildingName(k);
@@ -100,8 +82,10 @@ export function nationStrip(v, p) {
     }
     return `<span class="${cls}" style="--dc:${DIR_COLOR[BUILDINGS[k].dir]}" title="${esc(title)}">${buildingIcon(k, 14)}${mark}</span>`;
   });
-  return `<div class="bp-strip">${items.join('')}</div>`;
+  return `<div class="bp-strip">${[...items, ...missing].join('')}</div>`;
 }
+// the basic cards' figures (icons.js)
+const BASIC_ICON = { road: 'road', settlement: 'settlement', city: 'city', dev: 'devbuy' };
 
 // the development's cost for a hex and a resource, as words for a choice
 export function plotCostHtml(level, local, r) {

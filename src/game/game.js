@@ -23,7 +23,7 @@ import {
   freeRoad,
   canAfford,
 } from '../engine/engine.js';
-import { developOn, plotSpots, plotCost, specialHosts, wonderSpots, wonderOf, isWonder, hasBuilt, wonderDone, robberSpots, PRESETS, BUILDINGS, BUILDING_NAMES } from '../engine/develop.js';
+import { developOn, plotSpots, plotCost, specialHosts, wonderSpots, wonderOf, isWonder, hasBuilt, wonderDone, robberSpots, PRESETS, BUILDINGS, BUILDING_NAMES, upgradeCards } from '../engine/develop.js';
 import { developDialog, shipyardDialog, buyDevDialog, pickDevDialog, defendDialog, marketDialog } from '../ui/develop-ui.js';
 import { devCard } from '../ui/icons.js';
 import { GEO } from '../engine/geometry.js';
@@ -95,7 +95,8 @@ export class Game {
       this.state = net.view;
       this.mem = [];
     } else if (saved) {
-      this.state = saved.state;
+      // (a development-mode game saved before the basic cards: everyone keeps all four)
+      this.state = upgradeCards(saved.state);
       this.mem = saved.mem || this.state.players.map(() => ({}));
       if (!net) {
         // an online campaign resumed offline: absent players become computer players

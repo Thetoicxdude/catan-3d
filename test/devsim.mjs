@@ -2,7 +2,7 @@
 //   node test/devsim.mjs [games] [--bp=random|presets|ai] [--level=hard] [--players=4] [--base]
 // --bp=presets (default): every seat a ready-made blueprint at random → each blueprint's win rate
 //   [25% ± 5% at four players]
-// --bp=random: every seat 7 buildings at random (one wonder at most) → each building's win rate with
+// --bp=random: every seat the 4 basic cards and 3 buildings at random (one wonder at most) → each building's win rate with
 //   and without it [no more than 5 points apart]
 // --bp=ai: the computer players choose, as in a game
 // Always: game length against the standard game [1.5–1.8×], wonders completed once begun [40–60%] and
@@ -12,7 +12,7 @@ import { createGame, applyAction, makeView, actorsNow, RuleError, totalVP, publi
 import { aiAct, chooseBlueprint } from '../src/ai/ai.js';
 import { makeRng } from '../src/engine/rng.js';
 import { developMap } from '../src/engine/maps.js';
-import { PRESETS, PRESET_IDS, BUILDING_IDS, isWonder, developScore } from '../src/engine/develop.js';
+import { PRESETS, PRESET_IDS, BUILDING_IDS, BASIC, isWonder, developScore } from '../src/engine/develop.js';
 
 const args = process.argv.slice(2);
 const flag = (k, d) => (args.find((a) => a.startsWith(`--${k}=`)) || `=${d}`).split('=')[1];
@@ -27,7 +27,8 @@ const VPADJ = Number(flag('vp', 0));
 function randomBlueprint(rnd) {
   const wonders = BUILDING_IDS.filter(isWonder);
   const others = BUILDING_IDS.filter((k) => !isWonder(k));
-  const bp = [];
+  // the four basic cards, then three buildings
+  const bp = [...BASIC];
   // a wonder in most blueprints (as the presets have)
   if (rnd() < 0.8) bp.push(wonders[Math.floor(rnd() * wonders.length)]);
   while (bp.length < 7) {
