@@ -24,7 +24,7 @@ const res = await build({
 const js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 // (kit.css and theme2.css: the clean interface, on when <html> has ui2; kit3.css and theme3.css: the map
 // table, on when <html> has ui3; lang-en.css: the type in English, on when <html lang="en">)
-const css = ['src/ui/styles.css', 'src/ui/map.css', 'src/ui/cards.css', 'src/ui/home.css', 'src/ui/theme.css', 'src/ui/kit.css', 'src/ui/theme2.css', 'src/ui/kit3.css', 'src/ui/theme3.css', 'src/ui/lang-en.css']
+const css = ['src/ui/styles.css', 'src/ui/map.css', 'src/ui/cards.css', 'src/ui/home.css', 'src/ui/theme.css', 'src/ui/kit.css', 'src/ui/theme2.css', 'src/ui/kit3.css', 'src/ui/theme3.css', 'src/ui/develop.css', 'src/ui/lang-en.css']
   .map((f) => {
     try {
       return readFileSync(f, 'utf8');

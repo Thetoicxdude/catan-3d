@@ -397,6 +397,7 @@ export function showHome(app, opts) {
       </nav>
     </main>
     <div class="hm-medals">
+      <button class="hm-medal" type="button" data-k="blueprints" title="${t('藍圖（發展模式）')}" aria-label="${t('藍圖（發展模式）')}">${emblemSvg('blueprint', 40)}<span>${t('藍圖')}</span></button>
       <button class="hm-medal" type="button" data-k="rules" title="${t('規則說明')}" aria-label="${t('規則說明')}">${emblemSvg('rules', 40)}<span>${t('規則')}</span></button>
       <button class="hm-medal" type="button" data-k="settings" title="${t('設定')}" aria-label="${t('設定')}">${emblemSvg('settings', 40)}<span>${t('設定')}</span></button>
     </div>
@@ -454,7 +455,7 @@ export function showHome(app, opts) {
   const account = opts.dialogs ? mountAccount(scr.querySelector('.hm-who'), opts.dialogs) : null;
 
   // ── actions ──
-  const handlers = { single: opts.onSingle, create: opts.onCreate, join: opts.onJoin, workshop: opts.onEditor, continue: opts.onContinue, rules: opts.onRules, settings: opts.onSettings, match: opts.onMatch };
+  const handlers = { single: opts.onSingle, create: opts.onCreate, join: opts.onJoin, workshop: opts.onEditor, continue: opts.onContinue, rules: opts.onRules, settings: opts.onSettings, blueprints: opts.onBlueprints, match: opts.onMatch };
   const act = (k) => handlers[k] && handlers[k]();
   scr.querySelectorAll('button[data-k]').forEach((b) => b.addEventListener('click', () => act(b.dataset.k)));
   const boardEl = scr.querySelector('.ho-board');

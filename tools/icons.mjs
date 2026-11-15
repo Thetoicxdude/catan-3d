@@ -14,6 +14,10 @@ const USED = [
   'sailboat', 'ship-wheel', 'pirate-flag', 'gold-nuggets', 'island',
   // the map workshop
   'treasure-map',
+  // the development mode: developments, the blueprint, the special buildings and the wonders
+  'windmill', 'pencil-ruler', 'greek-temple', 'crane',
+  'aqueduct', 'granary', 'shop', 'cargo-ship', 'scales', 'barracks-tent', 'brick-wall', 'swords-emblem', 'compass',
+  'horse-head', 'camping-tent', 'graduate-cap', 'quill-ink', 'flowers', 'lighthouse', 'defensive-wall', 'horizon-road', 'bookshelf',
 ];
 
 const src = JSON.parse(readFileSync(process.argv[2], 'utf8'));

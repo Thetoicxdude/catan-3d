@@ -11,6 +11,29 @@ import { mapDef, isBuiltIn, DEFAULT_MAP } from './maps.js';
 import { rngInt, shuffle, seedState } from './rng.js';
 import { fill, N_ } from '../i18n/fill.js';
 import { seaInfo, roadEdge, shipEdge, shipLegal, legalShipEdges, movableShips, shipTargets, pirateVictims, pirateEdges, tradeRouteFor, SHIP_COST, SHIPS } from './seafarers.js';
+import {
+  developOn,
+  blueprintOf,
+  plotWhy,
+  plotCost,
+  specialWhy,
+  hostWhy,
+  isSpecial,
+  BUILDINGS,
+  hasBuilt,
+  walled,
+  wonderAt,
+  wonderOf,
+  wonderDone,
+  wonderWhy,
+  bpWonder,
+  robberWhy,
+  robberSpots,
+  developVP,
+  GRANARY_EXTRA,
+  scarcest,
+  mostOf,
+} from './develop.js';
 
 export { RES, TERRAIN_RES, pips };
 
@@ -51,6 +74,8 @@ const emptyRes = () => ({ wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 });
 export const handSize = (res) => res.wood + res.brick + res.wool + res.grain + res.ore;
 // a 7 takes half the hand of every player holding more cards than this (a room may raise it)
 export const handLimit = (st) => (st && st.rules && st.rules.discard) || 7;
+// p's own limit: (the development mode) a granary raises it by three
+export const handLimitOf = (st, p) => handLimit(st) + (developOn(st) && hasBuilt(st, p, 'granary') ? GRANARY_EXTRA : 0);
 export function canAfford(res, cost) {
   for (const k in cost) if ((res[k] || 0) < cost[k]) return false;
   return true;
@@ -158,6 +183,17 @@ export function createGame(opts) {
     // (the fog islands) what the fog hides: drawn one by one as hexes are discovered
     if (def.fog) st.fog = { pool: Object.entries(def.fog.pool).flatMap(([t, c]) => new Array(c).fill(t)), numbers: board.mix === 'rich' ? richNumbers(def.fog.numbers) : def.fog.numbers.slice() };
   }
+  // the development mode (develop.js): developments, each seat's blueprint and buildings, the wonders
+  if (rules.develop) {
+    st.plots = new Array(GEO.hexes.length).fill(null);
+    st.wonders = [];
+    st.used = {};
+    st.players.forEach((pl, i) => {
+      pl.bp = blueprintOf(opts.players[i].bp);
+      pl.built = {};
+      pl.bought = 0;
+    });
+  }
   return st;
 }
 
@@ -223,6 +259,7 @@ export function publicVP(st, p) {
   for (const b of st.vertices) if (b && b.p === p) vp += b.t === 'c' ? 2 : 1;
   if (st.longestRoad === p) vp += 2;
   if (st.largestArmy === p) vp += 2;
+  if (developOn(st)) vp += developVP(st, p);
   return vp + (st.players[p].chits || 0);
 }
 export function hiddenVP(st, p) {
@@ -313,6 +350,8 @@ export function tradeRatio(st, p, res) {
     if (h === 'any') best = Math.min(best, 3);
     else if (h === res) best = 2;
   });
+  // (the development mode) the shipyard's resource, and every resource with the great lighthouse
+  if (developOn(st) && (st.players[p].yard === res || wonderDone(st, p, 'lighthouse'))) best = 2;
   return best;
 }
 export function tradeRatios(st, p) {
@@ -323,9 +362,11 @@ export function tradeRatios(st, p) {
 
 export function robberVictims(st, hex, p) {
   const set = new Set();
+  // (the development mode: never for a settlement with a wall)
+  const dv = developOn(st);
   for (const v of GEO.hexes[hex].vertices) {
     const b = st.vertices[v];
-    if (b && b.p !== p) set.add(b.p);
+    if (b && b.p !== p && !(dv && walled(st, v))) set.add(b.p);
   }
   return [...set].filter((q) => playerHandSize(st, q) > 0).sort((a, b) => a - b);
 }
@@ -336,13 +377,16 @@ export function playerHandSize(st, p) {
   return pl.resCount || 0; // redacted view
 }
 
+// a card in p's hand may be played: bought before this turn (or, with a printing house, this turn too)
+export const devReady = (st, p, c) => c.turn < st.turn || (developOn(st) && hasBuilt(st, p, 'press'));
+
 export function playableDev(st, p) {
   // Dev card types this player could play right now (ignores the extra parameters).
   const pl = st.players[p];
   if (st.phase !== 'play' || st.current !== p || st.devPlayed || st.pending || st.trade || !pl.dev || inSub(st, 'sbp')) return [];
   const out = new Set();
   for (const c of pl.dev) {
-    if (c.type === 'victoryPoint' || c.turn >= st.turn) continue;
+    if (c.type === 'victoryPoint' || !devReady(st, p, c)) continue;
     if (c.type === 'roadBuilding' && !canBuildPaths(st, p)) continue;
     out.add(c.type);
   }
@@ -381,6 +425,8 @@ export function actorsNow(st) {
   if (st.phase === 'over') return [];
   // (a pick owed — even in the opening, for gold found in the fog — comes first)
   if (st.pending && (st.pending.type === 'discard' || st.pending.type === 'gold')) return Object.keys(st.pending.amounts).map(Number);
+  // (the development mode) the owner of the wonder the robber came to: defend it or not
+  if (st.pending && st.pending.type === 'defend') return [st.pending.p];
   if (st.phase === 'setup') return [st.setup.order[st.setup.i]];
   if (st.trade) {
     const waiting = Object.keys(st.trade.resp)
@@ -446,6 +492,7 @@ function produce(st, sum, ev) {
   const claims = [];
   const gold = {};
   let blocked = -1;
+  const dv = developOn(st);
   for (const hex of GEO.hexes) {
     const H = st.board.hexes[hex.id];
     if (H.number !== sum) continue;
@@ -463,17 +510,30 @@ function produce(st, sum, ev) {
     }
     const res = TERRAIN_RES[H.terrain];
     if (!res) continue;
-    if (st.board.robber === hex.id) {
+    const robbed = st.board.robber === hex.id;
+    if (robbed) {
       if (hex.vertices.some((v) => st.vertices[v])) blocked = hex.id;
-      continue;
+      // (the development mode: a settlement with a wall produces all the same)
+      if (!dv) continue;
     }
     for (const v of hex.vertices) {
       const b = st.vertices[v];
-      if (!b) continue;
+      if (!b || (robbed && !walled(st, v))) continue;
       const amt = b.t === 'c' ? 2 : 1;
       owed[res] = owed[res] || {};
       owed[res][b.p] = (owed[res][b.p] || 0) + amt;
       claims.push({ hex: hex.id, vertex: v, p: b.p, res, amt });
+    }
+    // (the development mode) the development here: a card of each level's resource for its developer,
+    // and one more of the first level's with the hanging gardens; never while the robber is here
+    const plot = dv && !robbed && st.plots[hex.id];
+    if (plot) {
+      const extra = wonderDone(st, plot.p, 'gardens') ? [...plot.r, plot.r[0]] : plot.r;
+      for (const r of extra) {
+        owed[r] = owed[r] || {};
+        owed[r][plot.p] = (owed[r][plot.p] || 0) + 1;
+        claims.push({ hex: hex.id, vertex: null, p: plot.p, res: r, amt: 1, plot: true });
+      }
     }
   }
   const paid = [];
@@ -512,6 +572,19 @@ function produce(st, sum, ev) {
     st.pending = { type: 'gold', amounts: gold };
   }
   ev.push(e);
+  // (the development mode) an aqueduct's owner who got nothing takes one of the scarcest resource in
+  // hand, while the bank has it
+  if (dv) {
+    const got = new Set(paid.filter((c) => c.amt > 0).map((c) => c.p));
+    for (const pl of st.players) {
+      if (got.has(pl.id) || !hasBuilt(st, pl.id, 'aqueduct')) continue;
+      const r = scarcest(pl.res);
+      if (st.bank[r] <= 0) continue;
+      st.bank[r]--;
+      pl.res[r]++;
+      ev.push({ type: 'aqueduct', p: pl.id, res: r });
+    }
+  }
 }
 
 function nextSetupStep(st, ev) {
@@ -558,6 +631,8 @@ function pendingMsg(pd) {
   if (pd.type === 'robber') return N_('請先移動強盜');
   if (pd.type === 'steal') return N_('請先選擇要搶奪的玩家');
   if (pd.type === 'roadBuilding') return N_('請先放置道路建設的道路');
+  if (pd.type === 'defend') return N_('等待奇觀的主人決定是否防衛');
+  if (pd.type === 'pick') return N_('請先選擇要留下的發展卡');
   return N_('請先完成目前的動作');
 }
 
@@ -639,6 +714,20 @@ H.settlement = (st, a, ev) => {
       ev.push({ type: 'isleBonus', p, vertex: v, vp: bonus });
     }
   }
+  // (the development mode) a frontier camp: a card from each hex beside a new village, as the second
+  // opening settlement brings
+  if (developOn(st) && hasBuilt(st, p, 'camp')) {
+    const gains = emptyRes();
+    for (const h of GEO.vertices[v].hexes) {
+      const res = TERRAIN_RES[st.board.hexes[h].terrain];
+      if (res && st.bank[res] > 0) {
+        st.bank[res]--;
+        pl.res[res]++;
+        gains[res]++;
+      }
+    }
+    ev.push({ type: 'startingResources', p, vertex: v, gains, camp: true });
+  }
   updateLongestRoad(st, ev);
 };
 
@@ -666,17 +755,21 @@ H.road = (st, a, ev) => {
   need(st.phase === 'play', '遊戲已結束');
   need(p === st.current, '還沒輪到你');
   const free = st.pending && st.pending.type === 'roadBuilding';
+  // (the development mode) the royal road: a road a turn for nothing
+  let royal = false;
   if (!free) {
     requireMainTurn(st, p);
-    need(canAfford(pl.res, COSTS.road), '資源不足：道路需要 木材、磚塊 各 1');
+    royal = freeRoad(st, p);
+    if (!royal) need(canAfford(pl.res, COSTS.road), '資源不足：道路需要 木材、磚塊 各 1');
   }
   need(pl.pieces.roads > 0, '道路已經用完了');
   need(st.edges[e] === -1, '這條路已有道路');
   need(roadLegal(st, p, e), '道路必須連接你的道路、村莊或城市');
-  if (!free) pay(st, pl, COSTS.road);
+  if (!free && !royal) pay(st, pl, COSTS.road);
+  if (royal) st.used.road = true;
   st.edges[e] = p;
   pl.pieces.roads--;
-  ev.push({ type: 'build', what: 'road', p, edge: e, free });
+  ev.push(royal ? { type: 'build', what: 'road', p, edge: e, free: true, royal } : { type: 'build', what: 'road', p, edge: e, free });
   discover(st, p, GEO.edges[e].v, ev);
   updateLongestRoad(st, ev);
   if (free) freeBuilt(st, p, ev);
@@ -797,16 +890,54 @@ H.city = (st, a, ev) => {
   ev.push({ type: 'build', what: 'city', p, vertex: v });
 };
 
+// (the development mode) a.lib: paid with that one resource (the great library, once a turn);
+// a.how: 'knight' (the barracks: the deck's top knight) or 'pick' (the academy: two drawn, one kept,
+// pickDev)
 H.buyDev = (st, a, ev) => {
   const p = a.p;
   const pl = st.players[p];
   requireMainTurn(st, p);
   need(st.devDeck.length > 0, '發展卡已經賣完了');
-  need(canAfford(pl.res, COSTS.dev), '資源不足：發展卡需要 羊毛、小麥、礦石 各 1');
-  pay(st, pl, COSTS.dev);
-  const card = st.devDeck.pop();
+  let cost = COSTS.dev;
+  if (a.lib !== undefined) {
+    need(wonderDone(st, p, 'library'), '你沒有完工的大圖書館');
+    need(!st.used.library, '大圖書館每回合只能用一次');
+    need(RES.includes(a.lib), '請選擇一種資源');
+    cost = { [a.lib]: 1 };
+    need(pl.res[a.lib] > 0, '你沒有那種資源');
+  } else need(canAfford(pl.res, COSTS.dev), '資源不足：發展卡需要 羊毛、小麥、礦石 各 1');
+  need(a.how === undefined || a.how === 'knight' || a.how === 'pick', '無效的動作');
+  if (a.how === 'knight') need(developOn(st) && hasBuilt(st, p, 'barracks'), '你沒有兵營');
+  if (a.how === 'pick') need(developOn(st) && hasBuilt(st, p, 'academy'), '你沒有學院');
+  pay(st, pl, cost);
+  if (a.lib !== undefined) st.used.library = true;
+  if (developOn(st)) pl.bought = (pl.bought || 0) + 1;
+  const extra = a.lib !== undefined ? { cost: { ...cost } } : {};
+  if (a.how === 'pick' && st.devDeck.length >= 2) {
+    pl.pick = [st.devDeck.pop(), st.devDeck.pop()];
+    st.pending = { type: 'pick', p };
+    ev.push({ type: 'devDraw', p, cards: pl.pick.slice(), left: st.devDeck.length, ...extra });
+    return;
+  }
+  let card;
+  if (a.how === 'knight' && st.devDeck.includes('knight')) card = st.devDeck.splice(st.devDeck.lastIndexOf('knight'), 1)[0];
+  else card = st.devDeck.pop();
   pl.dev.push({ type: card, turn: st.turn });
-  ev.push({ type: 'buyDev', p, card, left: st.devDeck.length });
+  ev.push(a.how || a.lib !== undefined ? { type: 'buyDev', p, card, left: st.devDeck.length, how: a.how, ...extra } : { type: 'buyDev', p, card, left: st.devDeck.length });
+};
+
+// (the development mode, the academy) keep one of the two cards drawn; the other goes under the deck
+H.pickDev = (st, a, ev) => {
+  const pd = st.pending;
+  need(pd && pd.type === 'pick' && pd.p === a.p, '現在不需要選發展卡');
+  need(a.i === 0 || a.i === 1, '請選擇要留下的發展卡');
+  const pl = st.players[a.p];
+  const card = pl.pick[a.i];
+  st.devDeck.unshift(pl.pick[1 - a.i]);
+  delete pl.pick;
+  pl.dev.push({ type: card, turn: st.turn });
+  st.pending = null;
+  ev.push({ type: 'buyDev', p: a.p, card, left: st.devDeck.length, how: 'pick', paid: true });
 };
 
 // The dice deck (a room's choice, like the event cards): the 36 ways two dice can fall, a card each,
@@ -840,10 +971,9 @@ H.roll = (st, a, ev) => {
   ev.push({ type: 'roll', p, dice: [d1, d2], sum });
   if (sum === 7) {
     const amounts = {};
-    const limit = handLimit(st);
     for (const pl of st.players) {
       const t = handSize(pl.res);
-      if (t > limit) amounts[pl.id] = Math.floor(t / 2);
+      if (t > handLimitOf(st, pl.id)) amounts[pl.id] = Math.floor(t / 2);
     }
     if (Object.keys(amounts).length) {
       st.pending = { type: 'discard', amounts };
@@ -898,15 +1028,62 @@ H.robber = (st, a, ev) => {
     return;
   }
   need(hex !== st.board.robber, '強盜必須移動到另一塊地形');
+  // (the development mode: not onto one's own wonder, nor next to a great wall's owner)
+  if (developOn(st)) {
+    const why = robberWhy(st, p, hex);
+    need(!why || robberSpots(st, p).includes(hex), why);
+  }
   const from = st.board.robber;
   st.board.robber = hex;
-  ev.push({ type: 'robber', p, from, to: hex, reason: st.pending.reason });
+  const reason = st.pending.reason;
+  ev.push({ type: 'robber', p, from, to: hex, reason });
+  // a wonder here: its owner may play a knight to save it, before anyone is robbed
+  const w = developOn(st) && wonderAt(st, hex);
+  if (w && w.p !== p) {
+    st.pending = { type: 'defend', p: w.p, hex, by: p, reason };
+    ev.push({ type: 'siege', p: w.p, by: p, hex, k: w.k });
+    return;
+  }
+  robberSteal(st, p, hex, ev);
+};
+
+// The robber is on hex: p robs a player with a settlement beside it (choosing when there are several;
+// with a mercenary camp, every one of them).
+function robberSteal(st, p, hex, ev) {
   const victims = robberVictims(st, hex, p);
   if (victims.length === 0) st.pending = null;
-  else if (victims.length === 1) {
+  else if (victims.length > 1 && developOn(st) && hasBuilt(st, p, 'mercenaries')) {
+    st.pending = null;
+    for (const q of victims) stealFrom(st, p, q, ev);
+  } else if (victims.length === 1) {
     st.pending = null;
     stealFrom(st, p, victims[0], ev);
   } else st.pending = { type: 'steal', hex, victims };
+}
+
+// (the development mode) the wonder the robber came to: its owner plays a knight from hand to keep it
+// (the knight counts toward the largest army; no limit of one card a turn), or it is lost. The robber
+// stays, and the one who moved it robs as usual.
+H.defend = (st, a, ev) => {
+  const pd = st.pending;
+  need(pd && pd.type === 'defend', '現在不需要防衛奇觀');
+  need(a.p === pd.p, '這不是你的奇觀');
+  const pl = st.players[a.p];
+  const w = wonderAt(st, pd.hex);
+  if (a.yes) {
+    const i = pl.dev.findIndex((c) => c.type === 'knight');
+    need(i >= 0, '你手上沒有騎士');
+    pl.dev.splice(i, 1);
+    pl.played.knight++;
+    pl.knights++;
+    ev.push({ type: 'defend', p: a.p, by: pd.by, hex: pd.hex, k: w.k, knights: pl.knights });
+    updateLargestArmy(st, a.p, ev);
+  } else {
+    st.wonders = st.wonders.filter((x) => x !== w);
+    ev.push({ type: 'wonderLost', p: a.p, by: pd.by, hex: pd.hex, k: w.k, stage: w.s, done: w.done });
+  }
+  st.pending = null;
+  robberSteal(st, pd.by, pd.hex, ev);
 };
 
 H.steal = (st, a, ev) => {
@@ -928,7 +1105,7 @@ H.playDev = (st, a, ev) => {
   need(!st.trade, '請先處理目前的交易提議');
   need(!st.devPlayed, '每回合只能使用一張發展卡');
   need(a.card !== 'victoryPoint', '分數卡不需要使用，會自動計分');
-  const idx = pl.dev.findIndex((c) => c.type === a.card && c.turn < st.turn);
+  const idx = pl.dev.findIndex((c) => c.type === a.card && devReady(st, p, c));
   need(idx >= 0, pl.dev.some((c) => c.type === a.card) ? '本回合買的發展卡要下回合才能使用' : '你沒有這張發展卡');
 
   if (a.card === 'roadBuilding') {
@@ -1054,6 +1231,23 @@ H.acceptOffer = (st, a, ev) => {
   }
   ev.push({ type: 'trade', from: t.from, to: q, give: { ...t.give }, get: { ...t.get } });
   st.trade = null;
+  // (the development mode) the merchant guild: when its owner trades with a player, both take one
+  // more of what they received from the bank (of what they received most), once a turn
+  if (developOn(st) && !st.used.guild && (hasBuilt(st, t.from, 'guild') || hasBuilt(st, q, 'guild'))) {
+    st.used.guild = true;
+    const bonus = {};
+    for (const [who, got] of [
+      [t.from, t.get],
+      [q, t.give],
+    ]) {
+      const r = mostOf(got);
+      if (!r || st.bank[r] <= 0) continue;
+      st.bank[r]--;
+      st.players[who].res[r]++;
+      bonus[who] = r;
+    }
+    ev.push({ type: 'guildBonus', from: t.from, to: q, bonus });
+  }
 };
 
 H.cancelOffer = (st, a, ev) => {
@@ -1106,6 +1300,107 @@ H.endTurn = (st, a, ev) => {
   st.dice = null;
   st.devPlayed = false;
   ev.push({ type: 'turnStart', p: st.current, turn: st.turn });
+  // (the development mode) a new turn: the once-a-turn things are back, and a wonder whose last stage
+  // was paid is complete (before the dice: its owner may win now)
+  if (developOn(st)) {
+    st.used = {};
+    for (const w of st.wonders) {
+      if (w.p !== st.current || w.done || w.s < 3) continue;
+      w.done = true;
+      ev.push({ type: 'wonderDone', p: w.p, hex: w.h, k: w.k });
+    }
+  }
+};
+
+// ── the development mode (develop.js) ──
+
+// p's free road this turn (a complete royal road)
+export const freeRoad = (st, p) => developOn(st) && wonderDone(st, p, 'royalRoad') && !st.used.road;
+
+// a development on hex `hex`, or its second level: an extra card of resource `res` each time it
+// produces (one card cheaper when res is the hex's own)
+H.develop = (st, a, ev) => {
+  const p = a.p;
+  const pl = st.players[p];
+  need(developOn(st), '這個模式不能開發地塊');
+  requireMainTurn(st, p);
+  const h = a.hex;
+  need(Number.isInteger(h) && h >= 0 && h < GEO.hexes.length, '無效的地形');
+  need(RES.includes(a.res), '請選擇一種資源');
+  const why = plotWhy(st, p, h);
+  need(!why, why);
+  const cost = plotCost(st, h, a.res);
+  need(canAfford(pl.res, cost), '資源不足');
+  pay(st, pl, cost);
+  if (st.plots[h]) st.plots[h].r.push(a.res);
+  else st.plots[h] = { p, r: [a.res] };
+  ev.push({ type: 'develop', p, hex: h, res: a.res, level: st.plots[h].r.length, cost: { ...cost } });
+};
+
+// a special building of p's blueprint beside p's settlement at `vertex` (res: the shipyard's resource)
+H.special = (st, a, ev) => {
+  const p = a.p;
+  const pl = st.players[p];
+  need(developOn(st), '這個模式沒有特殊建築');
+  requireMainTurn(st, p);
+  const k = a.k;
+  need(isSpecial(k), '沒有這種建築');
+  const v = a.vertex;
+  need(Number.isInteger(v) && v >= 0 && v < GEO.vertices.length, '無效的位置');
+  const why = specialWhy(st, p, k) || hostWhy(st, p, k, v);
+  need(!why, why);
+  if (k === 'shipyard') need(RES.includes(a.res), '請選擇造船廠的資源');
+  const cost = BUILDINGS[k].cost;
+  need(canAfford(pl.res, cost), '資源不足');
+  pay(st, pl, cost);
+  pl.built[k] = v;
+  if (k === 'shipyard') pl.yard = a.res;
+  ev.push(k === 'shipyard' ? { type: 'special', p, k, vertex: v, res: a.res } : { type: 'special', p, k, vertex: v });
+};
+
+// a stage of p's wonder: the first one on desert `hex` (which locks that wonder for everyone else),
+// the next ones on later turns of p's; complete at the start of p's turn after the third
+H.wonder = (st, a, ev) => {
+  const p = a.p;
+  const pl = st.players[p];
+  need(developOn(st), '這個模式沒有世界奇觀');
+  requireMainTurn(st, p);
+  const h = a.hex;
+  need(Number.isInteger(h) && h >= 0 && h < GEO.hexes.length, '無效的地形');
+  const why = wonderWhy(st, p, h);
+  need(!why, why);
+  const k = bpWonder(st, p);
+  let w = wonderOf(st, p);
+  const cost = BUILDINGS[k].stages[w ? w.s : 0];
+  need(canAfford(pl.res, cost), '資源不足');
+  pay(st, pl, cost);
+  if (w) {
+    w.s++;
+    w.t = st.turn;
+  } else {
+    w = { h, k, p, s: 1, t: st.turn, done: false };
+    st.wonders.push(w);
+  }
+  ev.push({ type: 'wonder', p, k, hex: h, stage: w.s });
+};
+
+// the market: two of a kind for one of any other from the bank, once a turn
+H.market = (st, a, ev) => {
+  const p = a.p;
+  const pl = st.players[p];
+  requireMainTurn(st, p);
+  need(developOn(st) && hasBuilt(st, p, 'market'), '你沒有市集');
+  need(!st.used.market, '市集每回合只能用一次');
+  need(RES.includes(a.give) && RES.includes(a.get), '無效的交易');
+  need(a.give !== a.get, '不能用相同的資源交換');
+  need(pl.res[a.give] >= 2, '需要 {n} 張相同資源', { n: 2 });
+  need(st.bank[a.get] > 0, '銀行已沒有這種資源');
+  pl.res[a.give] -= 2;
+  st.bank[a.give] += 2;
+  pl.res[a.get]++;
+  st.bank[a.get]--;
+  st.used.market = true;
+  ev.push({ type: 'market', p, give: a.give, get: a.get });
 };
 
 export const ACTION_TYPES = Object.keys(H);
@@ -1167,6 +1462,8 @@ export function makeView(st, viewer) {
     } else {
       base.res = null;
       base.dev = null;
+      // (the development mode, the academy) the two cards drawn are the player's secret
+      if (pl.pick) base.pick = null;
     }
     return base;
   });
@@ -1179,6 +1476,7 @@ export function makeView(st, viewer) {
 
 export function redactEvent(e, viewer) {
   if (e.type === 'buyDev' && e.p !== viewer) return { ...e, card: null };
+  if (e.type === 'devDraw' && e.p !== viewer) return { ...e, cards: null };
   if (e.type === 'steal' && e.p !== viewer && e.from !== viewer) return { ...e, res: null };
   return e;
 }

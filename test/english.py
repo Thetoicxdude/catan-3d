@@ -1,7 +1,8 @@
 # The page in English (the default: no language saved): no Chinese anywhere on it. Walks the home screen,
 # its settings and rules, the campaign setup, a campaign the computer plays for the human seat (the log,
 # banners, hints, toasts and the dialogs on the way), a Seafarers campaign (ships, the pirate, gold), the
-# map workshop and the online screens; every text node and every title / aria-label / placeholder is
+# development mode (the blueprint editor, the setup's decks, a campaign and its build menu), the map
+# workshop and the online screens; every text node and every title / aria-label / placeholder is
 # checked, and any "[i18n] no English for" warning fails the run. The language row in the settings is the
 # one exception: 中文 is the name of the language, marked lang="zh-Hant".
 #
@@ -155,6 +156,45 @@ async def main():
                 await page.wait_for_timeout(400)
                 await sweep('seafarers tooltip')
         print('seafarers', await page.evaluate("() => ({ phase: __game.state.phase, turn: __game.state.turn })"))
+
+        # the development mode: the blueprint editor, the setup with its decks, a campaign with the build
+        # menu's blueprint, played a while by the computer
+        await page.evaluate("() => { const k = 'catan3d-settings-v1'; const s = JSON.parse(localStorage.getItem(k)); s.mode = 'develop'; s.opponents = 3; localStorage.setItem(k, JSON.stringify(s)); localStorage.removeItem('catan3d-save-v1'); }")
+        await page.goto('http://127.0.0.1:8765/dist/index.test.html', timeout=120000)
+        await page.wait_for_selector('.menu-screen.home', timeout=60000)
+        await page.click('.hm-medal[data-k="blueprints"]')
+        await page.wait_for_timeout(600)
+        await sweep('blueprint editor', 'blueprints')
+        await close_dialog()
+        await page.click('[data-k="single"]')
+        await page.wait_for_timeout(1500)
+        await sweep('development setup', 'dev-setup')
+        await page.click('text=Start Campaign')
+        await page.wait_for_function('window.__game && window.__game.state', timeout=60000)
+        await page.wait_for_timeout(2000)
+        await page.evaluate('() => { window.__autoHuman = true; window.__game.schedule(); }')
+        for i in range(45):
+            await page.wait_for_timeout(1500)
+            await sweep('development campaign')
+            if i % 15 == 10:
+                await page.evaluate("() => { window.__autoHuman = false; const g = __game, s = g.state; s.current = 0; s.rolled = true; s.pending = null; s.trade = null; for (const r of ['wood','brick','wool','grain','ore']) s.players[0].res[r] = 6; g.hud.toggleBuild(true); g.refresh(); }")
+                await page.wait_for_timeout(600)
+                await sweep('development build menu', 'dev-build' if i < 20 else None)
+                await page.evaluate("() => { const g = __game; g.hud.toggleBuild(false); g.onButton('develop'); }")
+                await page.wait_for_timeout(400)
+                await sweep('development: choosing a hex')
+                await page.evaluate("() => { const g = __game; const it = g.map.interaction; if (it && it.ids.length) it.onPick(it.ids[0]); }")
+                await page.wait_for_timeout(500)
+                await sweep('development: its resource')
+                await close_dialog()
+                await page.evaluate('() => { window.__autoHuman = true; window.__game.mode = null; window.__game.schedule(); }')
+            if i % 10 == 5:
+                await page.mouse.move(W / 2 + (i % 3 - 1) * 90, H / 2 - 40)
+                await page.wait_for_timeout(400)
+                await sweep('development tooltip')
+        print('development', await page.evaluate("() => ({ phase: __game.state.phase, turn: __game.state.turn, built: __game.state.players.map((p) => Object.keys(p.built).length), wonders: __game.state.wonders.length })"))
+        await page.evaluate('() => { window.__autoHuman = false; }')
+        await page.evaluate("() => { const k = 'catan3d-settings-v1'; const s = JSON.parse(localStorage.getItem(k)); s.mode = 'standard'; localStorage.setItem(k, JSON.stringify(s)); }")
 
         # the map workshop and the online screens
         await page.evaluate("() => localStorage.removeItem('catan3d-save-v1')")

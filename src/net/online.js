@@ -12,7 +12,9 @@ import { randomState } from '../engine/rng.js';
 import { flagURL } from '../ui/flags.js';
 import { esc } from '../ui/text.js';
 import { icon } from '../ui/icons.js';
-import { PALETTE, AI_NAMES, clipName, localName, fitSettings, gameSetup, mapTable, targetFor, officialSettings, houseRuleRows, houseRulesText } from '../ui/menu.js';
+import { PALETTE, AI_NAMES, clipName, localName, fitSettings, gameSetup, mapTable, targetFor, officialSettings, houseRuleRows, houseRulesText, developing, myBlueprint } from '../ui/menu.js';
+import { DEFAULT_PRESET, PRESETS } from '../engine/develop.js';
+import { deckChooser } from '../ui/develop-ui.js';
 import { mapDef, MAP_LIST, DEFAULT_MAP, isBuiltIn, knownMap } from '../engine/maps.js';
 import { mapsAvailable, publishedCode, loadPublished, cleanCode, CODE_RE } from './maps.js';
 import { openMapBrowser } from '../ui/maps-ui.js';
@@ -424,6 +426,12 @@ export class HostSession {
           Object.assign(s, { name, color, key: pr.k });
           changed = true;
         }
+        // (the development mode) the blueprint the player brings, if it is a valid one
+        const bp = C.bpDecode(pr.bp);
+        if ((bp || []).join() !== (s.bp || []).join()) {
+          s.bp = bp;
+          changed = true;
+        }
       }
       if (i >= 0 && this.phase === 'play' && this.game && !this.handing) this.takeIntents(i, p);
     }
@@ -489,8 +497,9 @@ export class HostSession {
   setLayout(mapId, count, turns) {
     if (this.phase !== 'lobby' || this.official) return;
     const def = mapDef(mapId);
-    const lo = Math.max(3, def.players[0]);
-    count = Math.min(def.players[1], Math.max(lo, count));
+    // (the development mode: two to four, its island following the number)
+    const [lo, hi] = developing(this.settings) ? [2, 4] : [Math.max(3, def.players[0]), def.players[1]];
+    count = Math.min(hi, Math.max(lo, count));
     const people = this.seats.filter((s) => s.kind === 'host' || s.kind === 'remote').length;
     if (people > count) {
       this.toast(t('席位不夠'), t('房間裡已經有 {n} 位玩家，請先移除玩家再減少席位', { n: people }), 'people');
@@ -518,11 +527,22 @@ export class HostSession {
     const out = { mp: null, ru: null, hr: null };
     if (this.official) return out;
     // a running campaign says it itself (this page may have taken it over from another)
-    const g = this.state ? { map: this.state.map || DEFAULT_MAP, rules: this.state.rules } : gameSetup(this.settings);
+    const g = this.state ? { map: this.state.map || DEFAULT_MAP, rules: this.state.rules } : gameSetup(this.settings, this.seats.length);
     if (g.map !== DEFAULT_MAP) out.mp = g.map;
     if (g.rules && g.rules.turns) out.ru = g.rules.turns === 'sbp' ? 's' : 'p';
     if (!this.state) out.hr = houseCode(this.settings);
     return out;
+  }
+
+  // the mode (a custom room, before the campaign starts): the development mode seats two to four
+  setMode(mode) {
+    if (this.phase !== 'lobby' || this.official || this.settings.mode === mode) return;
+    this.settings.mode = mode;
+    fitSettings(this.settings);
+    const map = mapDef(this.settings.map);
+    this.setLayout(map.id, mode === 'develop' ? Math.min(4, this.seats.length) : Math.max(this.seats.length, Math.max(3, map.players[0])), this.settings.turns);
+    this.ui && this.ui.render && this.ui.render();
+    this.publish();
   }
 
   // one of the house rules (a custom room, before the campaign starts)
@@ -548,6 +568,14 @@ export class HostSession {
     const players = this.seats.map((s) =>
       s.kind === 'host' ? { name: s.name, color: s.color, kind: 'human' } : s.kind === 'remote' ? { name: s.name, color: s.color, kind: 'remote' } : { name: s.name, color: s.color, kind: 'ai', ai: { level: s.level || 'normal' } },
     );
+    // (the development mode) the blueprints: the host's own, each player's from their page (checked
+    // when it came: C.bpDecode), a ready-made one otherwise; the computer players choose when the
+    // island is laid out (game.js)
+    if (developing(this.settings))
+      this.seats.forEach((s, i) => {
+        if (s.kind === 'host') players[i].bp = myBlueprint(this.settings);
+        else if (s.kind === 'remote') players[i].bp = s.bp ? s.bp.slice() : PRESETS[DEFAULT_PRESET].slice();
+      });
     this.phase = 'play';
     if (this.ui) this.ui.close();
     this.ui = null;
@@ -839,13 +867,25 @@ export class HostSession {
         row.appendChild(seg);
         lay.appendChild(row);
       };
+      // the mode: the development mode brings its own island (by the number of seats)
+      const dev = developing(this.settings);
+      segRow(
+        t('模式'),
+        [
+          ['standard', t('標準')],
+          ['develop', t('發展模式')],
+        ],
+        dev ? 'develop' : 'standard',
+        (m) => this.setMode(m),
+        'modes',
+      );
       const mapRow = el('div', 'layout-row');
       mapRow.appendChild(el('span', 'row-label', t('地圖')));
       const pickMap = (id) => this.setLayout(id, mapDef(id).players[1], this.settings.turns);
       mapRow.appendChild(mapTable(cur.id, pickMap, publishedCode(cur.id) ? [cur] : []));
-      lay.appendChild(mapRow);
+      if (!dev) lay.appendChild(mapRow);
       // a map players published (the self-hosted site): by its code, or from the public list
-      if (mapsAvailable()) {
+      if (mapsAvailable() && !dev) {
         const row = el('div', 'layout-row');
         row.appendChild(el('span', 'row-label', t('玩家地圖')));
         const box = el('div', 'mb-code');
@@ -873,11 +913,11 @@ export class HostSession {
         row.appendChild(box);
         lay.appendChild(row);
       }
-      const lo = Math.max(3, cur.players[0]);
+      const [lo, hi] = dev ? [2, 4] : [Math.max(3, cur.players[0]), cur.players[1]];
       const counts = [];
-      for (let n = lo; n <= cur.players[1]; n++) counts.push([n, t('{n} 席', { n })]);
+      for (let n = lo; n <= hi; n++) counts.push([n, t('{n} 席', { n })]);
       segRow(t('人數'), counts, this.seats.length, (n) => this.setLayout(cur.id, n, this.settings.turns));
-      if (cur.rules && cur.rules.turns)
+      if (cur.rules && cur.rules.turns && !dev)
         segRow(
           t('回合規則'),
           [
@@ -893,6 +933,17 @@ export class HostSession {
         (label, key, opts) => segRow(label, opts, this.settings[key], (v) => this.setRule(key, v)),
         (html) => lay.appendChild(el('p', 'form-note', html)),
       );
+      // (last, below the room's terms) the host's blueprint, chosen like a deck before a match (each
+      // player chooses theirs on their own page; everyone's is shown when the campaign starts)
+      if (dev) {
+        const row = el('div', 'layout-row');
+        row.appendChild(el('span', 'row-label', t('藍圖')));
+        const col = el('div', 'bp-col');
+        col.appendChild(deckChooser(this.settings, { onPick: (k) => ((this.settings.bpCur = k), render()) }));
+        col.appendChild(el('p', 'form-note', t('每位玩家在自己的畫面挑一套藍圖，開局時公開；電腦對手開局時挑一套。')));
+        row.appendChild(col);
+        lay.appendChild(row);
+      }
       const box = body.querySelector('.code-box');
       const link = selfHosted();
       const copy = btn(link ? t('複製邀請連結') : t('複製代碼'), 'ghost', () => {
@@ -992,7 +1043,8 @@ export class ClientSession {
     }
     this.sid = makeCode() + makeCode();
     this.perf = perfScore();
-    const pres = { app: APP, v: V, role: 'player', name: cleanName(this.settings.name, t('玩家')), color: this.settings.color, k: this.keys.pubB64, sid: this.sid, out: [], perf: this.perf, vis: pageVisible() ? 1 : 0 };
+    // (bp: the blueprint this player brings, should the room play the development mode)
+    const pres = { app: APP, v: V, role: 'player', name: cleanName(this.settings.name, t('玩家')), color: this.settings.color, k: this.keys.pubB64, sid: this.sid, out: [], perf: this.perf, vis: pageVisible() ? 1 : 0, bp: C.bpCode(myBlueprint(this.settings)) };
     if (this.attach) for (const k of HOST_KEYS) pres[k] = null; // this page hosted until now
     await this.ch.presence(pres);
     rememberRoom(this.code, 'client');
@@ -1385,6 +1437,10 @@ export class ClientSession {
     const list = scr.querySelector('.seat-list');
     const termsEl = el('p', 'lead room-terms');
     list.before(termsEl);
+    // (the development mode) this player's blueprint for the campaign, chosen here before it starts
+    const deckEl = el('div', 'room-deck');
+    list.after(deckEl);
+    let deckFor = '';
     this.ui = {
       render: (seats, seat, lay = {}) => {
         // before the host has seen us arrive there may still be open seats: we are about to get one
@@ -1392,6 +1448,23 @@ export class ClientSession {
         statusEl.textContent = seat >= 0 ? t('你坐在第 {n} 席，等待主持人開始戰役…', { n: seat + 1 }) : open ? t('正在取得席位…') : t('席位已滿，目前在旁觀望。');
         termsEl.innerHTML = roomTerms(lay.mp, lay.ru, seats.length, lay.tv, lay.hr);
         list.innerHTML = seatRows(seats, this.me());
+        const dev = !!(lay.mp && knownMap(lay.mp) && (mapDef(lay.mp).rules || {}).develop) && seat >= 0;
+        const key = dev ? String(this.settings.bpCur) + this.settings.bps.map((b) => b.join()).join('|') : '';
+        if (key === deckFor) return;
+        deckFor = key;
+        deckEl.innerHTML = '';
+        if (!dev) return;
+        deckEl.appendChild(el('div', 'row-label', t('你的藍圖')));
+        deckEl.appendChild(
+          deckChooser(this.settings, {
+            onPick: (k) => {
+              this.settings.bpCur = k;
+              this.ch.presence({ bp: C.bpCode(myBlueprint(this.settings)) }).catch(() => {});
+              this.ui.render(seats, seat, lay);
+            },
+          }),
+        );
+        deckEl.appendChild(el('p', 'form-note', t('開局前可以換；所有人的藍圖在開局時公開。')));
       },
       status: (t) => (statusEl.textContent = t),
       close: () => scr.remove(),

@@ -20,16 +20,23 @@ import {
   movableShips,
   shipTargets,
   seaInfo,
+  freeRoad,
+  canAfford,
 } from '../engine/engine.js';
+import { developOn, plotSpots, plotCost, specialHosts, wonderSpots, wonderOf, isWonder, hasBuilt, wonderDone, robberSpots, PRESETS, BUILDINGS, BUILDING_NAMES } from '../engine/develop.js';
+import { developDialog, shipyardDialog, buyDevDialog, pickDevDialog, defendDialog, marketDialog } from '../ui/develop-ui.js';
+import { devCard } from '../ui/icons.js';
 import { GEO } from '../engine/geometry.js';
-import { aiAct } from '../ai/ai.js';
+import { aiAct, chooseBlueprint } from '../ai/ai.js';
+// (the development mode: the robber's answer at a wonder waits this long online)
+const DEFEND_SECONDS = 15;
 import { makeRng } from '../engine/rng.js';
 import { Hud } from '../ui/hud.js';
 import { Dialogs } from '../ui/dialogs.js';
 import { describe, hexTooltip, esc, DEV_INFO } from '../ui/text.js';
 import { sfx, setSfx } from '../ui/sfx.js';
 import { TERRAIN_RES } from '../engine/board.js';
-import { turnKey, turnLimit, timeoutAction } from './clock.js';
+import { turnKey, turnLimit, timeoutAction, DEFEND_MS } from './clock.js';
 import { gameSetup } from '../ui/menu.js';
 import { t, terr, cap, list, low, msg } from '../i18n/index.js';
 import { placeName } from '../i18n/places.js';
@@ -100,8 +107,15 @@ export class Game {
         }
       }
     } else {
-      this.state = createGame({ seed, players, ...gameSetup(settings), entropy: net && net.entropy ? net.entropy : undefined });
+      this.state = createGame({ seed, players, ...gameSetup(settings, players.length), entropy: net && net.entropy ? net.entropy : undefined });
       this.mem = players.map(() => ({}));
+      // (the development mode) the computer players choose their blueprints on the island laid out
+      if (developOn(this.state)) {
+        const rnd = makeRng((seed ^ 0x2545f491) >>> 0);
+        this.state.players.forEach((pl, i) => {
+          if (pl.kind === 'ai') pl.bp = PRESETS[chooseBlueprint(this.state, i, (pl.ai && pl.ai.level) || 'normal', rnd)].slice();
+        });
+      }
     }
     ensureMap(this.state);
     this.players = this.state.players.map((p) => ({ name: p.name, color: p.color, kind: p.kind, ai: p.ai }));
@@ -301,6 +315,18 @@ export class Game {
       this.discardKey = key;
       this.deadline = Math.max(this.deadline, Date.now() + DISCARD_MS);
     }
+    // (the development mode) the robber at a wonder: its owner has a short while to answer; then the
+    // turn's own clock goes on where it stopped
+    const defending = !!(st.pending && st.pending.type === 'defend');
+    if (defending && this.defendFrom == null) {
+      this.defendFrom = Date.now();
+      this.turnDeadline = this.deadline;
+      this.deadline = Date.now() + DEFEND_MS;
+    } else if (!defending && this.defendFrom != null) {
+      this.deadline = (this.turnDeadline || Date.now()) + (Date.now() - this.defendFrom);
+      this.defendFrom = null;
+      this.turnDeadline = null;
+    }
   }
 
   clockLeft() {
@@ -499,11 +525,38 @@ export class Game {
         for (const [q, n] of Object.entries(e.taken)) for (let i = 0; i < n; i++) list.push({ res: e.res, p: e.p, from: this.hud.nationPoint(+q) });
         fx.cards(this.planCards(list, me)());
       } else if (e.type === 'buyDev') {
-        this.payBank(e.p, COSTS.dev, me);
+        // (the academy's card was paid for when the two were drawn; the great library takes one card)
+        if (!e.paid) this.payBank(e.p, e.cost || COSTS.dev, me);
         if (e.p !== me || !e.card || !DEV_INFO[e.card]) continue;
         const info = DEV_INFO[e.card];
-        const note = e.card === 'victoryPoint' ? t('已秘密計入你的分數') : t('下回合起可以使用（可在擲骰前打出）');
+        const press = developOn(view) && hasBuilt(view, e.p, 'press');
+        const note = e.card === 'victoryPoint' ? t('已秘密計入你的分數') : press ? t('印刷坊：這回合就可以使用') : t('下回合起可以使用（可在擲骰前打出）');
         fx.devReveal({ type: e.card, name: info.name, desc: info.desc, note }, this.hud.top.querySelector('.stat.devs'));
+      } else if (e.type === 'devDraw') {
+        this.payBank(e.p, e.cost || COSTS.dev, me);
+        // ── the development mode: what was paid goes to the bank, what was earned comes from it ──
+      } else if (e.type === 'develop') {
+        sfx.build('settlement');
+        this.payBank(e.p, e.cost, me);
+      } else if (e.type === 'special') {
+        sfx.build('city');
+        this.payBank(e.p, BUILDINGS[e.k].cost, me);
+        if (BUILDINGS[e.k].kind === 'func') setTimeout(() => fx.medal(this.hud.vpTarget(e.p, me), '+1'), 260);
+      } else if (e.type === 'wonder') {
+        sfx.build('city');
+        this.payBank(e.p, BUILDINGS[e.k].stages[e.stage - 1], me);
+      } else if (e.type === 'wonderDone') {
+        sfx.fanfare(e.p === me);
+        setTimeout(() => fx.medal(this.hud.vpTarget(e.p, me), '+5'), 260);
+      } else if (e.type === 'market') {
+        this.payBank(e.p, { [e.give]: 2 }, me);
+        const get = this.planCards([{ res: e.get, p: e.p, from: this.hud.bankPoint(e.get) }], me);
+        setTimeout(() => !this.destroyed && fx.cards(get()), 500);
+      } else if (e.type === 'aqueduct') {
+        fx.cards(this.planCards([{ res: e.res, p: e.p, from: this.hud.bankPoint(e.res) }], me)());
+      } else if (e.type === 'guildBonus') {
+        const list = Object.entries(e.bonus || {}).map(([q, res]) => ({ res, p: +q, from: this.hud.bankPoint(res) }));
+        if (list.length) setTimeout(() => !this.destroyed && fx.cards(this.planCards(list, me)()), 500);
       } else if (e.type === 'turnStart' && e.p === me && e.sub !== 'sbp') sfx.turn();
       else if (e.type === 'gameOver') sfx.fanfare(true);
     }
@@ -617,7 +670,11 @@ export class Game {
     const v = this.view();
     const me = this.viewer;
     if (v.phase !== 'play' || v.current !== me || v.pending || v.trade || !v.rolled) return false;
-    if (this.mode === 'road') return legalRoadEdges(v, me).length > 0 && v.players[me].res.wood > 0 && v.players[me].res.brick > 0 && v.players[me].pieces.roads > 0;
+    if (this.mode === 'road') return legalRoadEdges(v, me).length > 0 && ((v.players[me].res.wood > 0 && v.players[me].res.brick > 0) || freeRoad(v, me)) && v.players[me].pieces.roads > 0;
+    // (the development mode) a development, a building of the blueprint, a wonder
+    if (this.mode === 'develop') return plotSpots(v, me).length > 0;
+    if (this.mode === 'wonder') return wonderSpots(v, me).length > 0;
+    if (this.mode && this.mode.startsWith('bp:')) return specialHosts(v, me, this.mode.slice(3)).length > 0;
     if (this.mode === 'settlement') return legalSettlementSpots(v, me).length > 0;
     if (this.mode === 'city') return legalCitySpots(v, me).length > 0;
     // (Seafarers)
@@ -652,7 +709,10 @@ export class Game {
         break;
       case 'dev':
         this.mode = null;
-        this.dispatch({ type: 'buyDev', p: me });
+        this.buyDev();
+        break;
+      case 'develop':
+        this.setMode('develop');
         break;
       case 'ship':
         this.setMode('ship');
@@ -679,7 +739,120 @@ export class Game {
         if (v.trade && v.trade.from === me) this.dispatch({ type: 'cancelOffer', p: me }, { quiet: true });
         this.dispatch({ type: 'endTurn', p: me });
         break;
+      default:
+        // (the development mode) a building of the blueprint
+        if (k.startsWith('bp:')) this.blueprintButton(k.slice(3));
     }
+  }
+
+  // ── the development mode ──
+
+  // a row of the blueprint: a wonder's next stage (its first: on a desert picked on the map), the market
+  // once it stands (its trade), any other building: beside a settlement picked on the map
+  blueprintButton(k) {
+    const v = this.view();
+    const me = this.viewer;
+    if (isWonder(k)) {
+      const w = wonderOf(v, me);
+      if (w) {
+        this.mode = null;
+        this.dispatch({ type: 'wonder', p: me, hex: w.h });
+        return;
+      }
+      this.setMode('wonder');
+      return;
+    }
+    if (k === 'market' && hasBuilt(v, me, 'market')) {
+      this.mode = null;
+      marketDialog(this.dialogs, { res: v.players[me].res, bank: v.bank }, (give, get) => {
+        if (this.dispatch({ type: 'market', p: me, give, get })) this.dialogs.close(true);
+      });
+      return;
+    }
+    this.setMode('bp:' + k);
+  }
+
+  // a development card: straight away, unless a building changes how (the barracks, the academy, the
+  // great library): then a choice first
+  buyDev() {
+    const v = this.view();
+    const me = this.viewer;
+    const pl = v.players[me];
+    const opts = developOn(v)
+      ? {
+          barracks: hasBuilt(v, me, 'barracks'),
+          academy: hasBuilt(v, me, 'academy') && v.devDeckCount > 1,
+          library: wonderDone(v, me, 'library') && !v.used.library && RES.some((r) => pl.res[r] > 0),
+          normal: canAfford(pl.res, COSTS.dev),
+          res: pl.res,
+        }
+      : null;
+    if (!opts || !(opts.barracks || opts.academy || opts.library)) {
+      this.dispatch({ type: 'buyDev', p: me });
+      return;
+    }
+    buyDevDialog(this.dialogs, opts, (choice) => {
+      this.dialogs.close(true);
+      const a = { type: 'buyDev', p: me };
+      if (choice.how) a.how = choice.how;
+      if (choice.lib) a.lib = choice.lib;
+      this.dispatch(a);
+    });
+  }
+
+  // a development on hex h: which resource (the hex's own is cheaper)
+  developAt(h) {
+    const v = this.view();
+    const me = this.viewer;
+    const plot = v.plots[h];
+    this.mode = null;
+    developDialog(this.dialogs, { res: v.players[me].res, level: plot ? plot.r.length : 0, local: TERRAIN_RES[v.board.hexes[h].terrain], place: placeName(v.board.hexes[h]) }, (res) => {
+      if (this.dispatch({ type: 'develop', p: me, hex: h, res })) this.dialogs.close(true);
+    });
+    this.refresh();
+  }
+
+  // the map's part in the development mode's builds: where (hexes or settlements), and what to say
+  developInteraction(v, me) {
+    const cancel = () => {
+      this.mode = null;
+      this.refresh();
+    };
+    if (this.mode === 'develop') {
+      return {
+        inter: { kind: 'hex', ids: plotSpots(v, me), player: me, onPick: (id) => this.developAt(id), onCancel: cancel },
+        banner: { html: t('選擇要<b>開發</b>的地塊（你有聚落、沒有別人開發的地塊）'), buttons: [{ label: t('取消'), onClick: cancel }] },
+        hint: { text: t('點選有白色圓圈的地塊（右鍵或 Esc 取消）') },
+      };
+    }
+    if (this.mode === 'wonder') {
+      return {
+        inter: { kind: 'hex', ids: wonderSpots(v, me), player: me, onPick: (id) => ((this.mode = null), this.dispatch({ type: 'wonder', p: me, hex: id })), onCancel: cancel },
+        banner: { html: t('選擇蓋<b>世界奇觀</b>的沙漠（路口上要有你的聚落）'), buttons: [{ label: t('取消'), onClick: cancel }] },
+        hint: { text: t('點選有白色圓圈的沙漠（右鍵或 Esc 取消）') },
+      };
+    }
+    const k = this.mode.slice(3);
+    const name = t(BUILDING_NAMES[k]);
+    return {
+      inter: {
+        kind: 'vertex',
+        ids: specialHosts(v, me, k),
+        player: me,
+        onPick: (id) => {
+          this.mode = null;
+          if (k === 'shipyard') {
+            shipyardDialog(this.dialogs, (res) => {
+              if (this.dispatch({ type: 'special', p: me, k, vertex: id, res })) this.dialogs.close(true);
+            });
+            this.refresh();
+          } else this.dispatch({ type: 'special', p: me, k, vertex: id });
+        },
+        onCancel: cancel,
+      },
+      banner: { html: t('選擇<b>{what}</b>要附在哪一座聚落旁', { what: name }), buttons: [{ label: t('取消'), onClick: cancel }] },
+      hint: { text: t('點選白色圓點：符合條件、還有空位的聚落（右鍵或 Esc 取消）') },
+    };
   }
 
   playDev(card) {
@@ -778,7 +951,8 @@ export class Game {
       return;
     }
     if (this.dialogs.kind && !['m'].includes(k)) return;
-    const map = { r: 'roll', b: 'build', 1: 'road', 2: 'settlement', 3: 'city', 4: 'dev', 5: 'ship', 6: 'moveShip', t: 'trade', c: 'cards', ' ': 'end', enter: 'end' };
+    // (5: a ship on maps with the sea, a development in the development mode)
+    const map = { r: 'roll', b: 'build', 1: 'road', 2: 'settlement', 3: 'city', 4: 'dev', 5: developOn(this.state) ? 'develop' : 'ship', 6: 'moveShip', t: 'trade', c: 'cards', ' ': 'end', enter: 'end' };
     if (k === 'm') {
       const i = MAP_MODES.indexOf(this.mapMode);
       this.setMapMode(MAP_MODES[(i + 1) % MAP_MODES.length]);
@@ -875,6 +1049,21 @@ export class Game {
           hint = { text: t('點選白色條紋放置道路') };
         }
       } else banner = { html: cap(t('{who} 正在選擇開局位置…', { who: P(p) })), wait: true };
+    } else if (v.pending && v.pending.type === 'defend') {
+      // (the development mode) the robber came to a wonder: its owner answers
+      const pd = v.pending;
+      const w = (v.wonders || []).find((x) => x.h === pd.hex);
+      const wname = w ? t(BUILDING_NAMES[w.k]) : '';
+      if (pd.p === me) {
+        wantDialog.kind = 'defend';
+        banner = { html: t('強盜來到你的<b>{wonder}</b>：要打出騎士防衛嗎？', { wonder: esc(wname) }), urgent: true };
+        hint = { text: t('決定是否防衛奇觀'), urgent: true };
+      } else banner = { html: cap(t('{who} 正在決定是否防衛{wonder}…', { who: P(pd.p), wonder: esc(wname) })), wait: true };
+    } else if (v.pending && v.pending.type === 'pick') {
+      if (v.current === me) {
+        wantDialog.kind = 'pickdev';
+        hint = { text: t('選一張發展卡留下'), urgent: true };
+      } else banner = { html: cap(t('{who} 正在挑選發展卡…', { who: P(v.current) })), wait: true };
     } else if (v.pending && v.pending.type === 'discard') {
       if (v.pending.amounts[me] !== undefined) {
         wantDialog.kind = 'discard';
@@ -885,7 +1074,8 @@ export class Game {
       if (v.current === me) {
         // (Seafarers: a sea hex moves the pirate instead)
         const land = v.ships ? seaInfo(v.board).land : null;
-        const ids = GEO.hexes.map((h) => h.id).filter((h) => v.board.hexes[h].terrain !== 'fog' && (land && !land[h] ? h !== v.board.pirate : h !== v.board.robber));
+        // (the development mode: never onto your own wonder, nor beside a great wall's owner)
+        const ids = developOn(v) ? robberSpots(v, me) : GEO.hexes.map((h) => h.id).filter((h) => v.board.hexes[h].terrain !== 'fog' && (land && !land[h] ? h !== v.board.pirate : h !== v.board.robber));
         inter = { kind: 'hex', ids, player: me, onPick: (id) => this.dispatch({ type: 'robber', p: me, hex: id }) };
         const why = v.pending.reason === 'knight' ? t('騎士出征') : t('擲出 7，強盜出沒');
         banner = { html: land ? t('{why}：點選<b>有白色圓圈的地形</b>安置強盜，或點選<b>海域</b>移動海盜（搶奪旁邊有船的國家）', { why }) : t('{why}：點選一塊<b>有白色圓圈的地形</b>安置強盜，並搶奪旁邊國家的一張牌', { why }), urgent: true };
@@ -961,6 +1151,8 @@ export class Game {
         };
         banner = { html: picking ? t('選擇要移動的<b>船</b>（航線末端的船）') : t('選擇船要開往的<b>航道</b>'), buttons: [{ label: t('取消'), onClick: () => inter.onCancel() }] };
         hint = { text: picking ? t('點選要移動的船') : t('點選白色條紋，船會移到那裡') };
+      } else if (this.mode === 'develop' || this.mode === 'wonder' || (this.mode && this.mode.startsWith('bp:'))) {
+        ({ inter, banner, hint } = this.developInteraction(v, me));
       } else if (this.mode) {
         const ids = this.mode === 'road' ? legalRoadEdges(v, me) : this.mode === 'ship' ? legalShips(v, me) : this.mode === 'settlement' ? legalSettlementSpots(v, me) : legalCitySpots(v, me);
         const name = { road: t('道路'), settlement: t('村莊'), city: t('城市'), ship: t('船') }[this.mode];
@@ -1017,6 +1209,18 @@ export class Game {
         this.dialogs.close(true);
         this.dispatch({ type: 'steal', p: me, target: q });
       });
+    } else if (wantDialog.kind === 'defend' && dk !== 'defend') {
+      const pd = v.pending;
+      const w = (v.wonders || []).find((x) => x.h === pd.hex);
+      const knights = v.players[me].dev.filter((c) => c.type === 'knight').length;
+      defendDialog(this.dialogs, { who: P(pd.by), wonder: w ? t(BUILDING_NAMES[w.k]) : '', stage: w ? w.s : 0, done: !!(w && w.done), knights, seconds: this.net ? DEFEND_SECONDS : 0 }, (yes) => {
+        this.dialogs.close(true);
+        if (this.state.pending && this.state.pending.type === 'defend') this.dispatch({ type: 'defend', p: me, yes: !!yes && knights > 0 });
+      });
+    } else if (wantDialog.kind === 'pickdev' && dk !== 'dev') {
+      pickDevDialog(this.dialogs, v.players[me].pick || [], devCard, (i) => {
+        if (this.dispatch({ type: 'pickDev', p: me, i })) this.dialogs.close(true);
+      });
     } else if (wantDialog.kind === 'incoming' && dk !== 'incoming') {
       const tid = v.trade.id;
       this.dialogs.incoming(this.ctx(), (accept) => {
@@ -1025,7 +1229,7 @@ export class Game {
       });
     } else {
       if (dk === 'trade' && (v.current !== me || v.phase !== 'play')) this.dialogs.close(true);
-      if ((dk === 'discard' && wantDialog.kind !== 'discard') || (dk === 'gold' && wantDialog.kind !== 'gold') || (dk === 'steal' && wantDialog.kind !== 'steal') || (dk === 'incoming' && wantDialog.kind !== 'incoming')) this.dialogs.close(true);
+      if ((dk === 'discard' && wantDialog.kind !== 'discard') || (dk === 'gold' && wantDialog.kind !== 'gold') || (dk === 'steal' && wantDialog.kind !== 'steal') || (dk === 'incoming' && wantDialog.kind !== 'incoming') || (dk === 'defend' && wantDialog.kind !== 'defend')) this.dialogs.close(true);
       this.dialogs.refresh(this.ctx());
     }
   }

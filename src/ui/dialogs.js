@@ -1,6 +1,7 @@
 // Modal dialogs: discard, steal, trade (bank & players), incoming offers, development cards,
 // Year of Plenty / Monopoly pickers, game over, rules and settings.
 import { RES, tradeRatios, playableDev, handSize, publicVP, legalRoadEdges } from '../engine/engine.js';
+import { developOn, developScore } from '../engine/develop.js';
 import { resIcon, resCard, devCard, icon, RES_NAMES } from './icons.js';
 import { flagURL } from './flags.js';
 import { esc, cardsHtml, DEV_INFO, rulesHtml } from './text.js';
@@ -471,8 +472,10 @@ export class Dialogs {
           if (b && b.p === p.id) b.t === 'c' ? c++ : s++;
         });
         const vpCards = p.dev ? p.dev.filter((d) => d.type === 'victoryPoint').length : 0;
-        const tot = s + c * 2 + (v.longestRoad === p.id ? 2 : 0) + (v.largestArmy === p.id ? 2 : 0) + vpCards;
-        return { p, s, c, vpCards, tot };
+        // (Seafarers: the islands' points; the development mode: buildings, the +3s, wonders)
+        const dv = developOn(v) ? developScore(v, p.id) : null;
+        const tot = s + c * 2 + (v.longestRoad === p.id ? 2 : 0) + (v.largestArmy === p.id ? 2 : 0) + vpCards + (p.chits || 0) + (dv ? dv.buildings + dv.adventurers + dv.post + dv.wonder : 0);
+        return { p, s, c, vpCards, tot, dv };
       })
       .sort((a, b) => (b.p.id === v.winner) - (a.p.id === v.winner) || b.tot - a.tot);
     const body = el('div');
@@ -485,6 +488,11 @@ export class Dialogs {
       if (v.longestRoad === r.p.id) parts.push(t('最長道路 2'));
       if (v.largestArmy === r.p.id) parts.push(t('最大騎士團 2'));
       if (r.vpCards) parts.push(t('分數卡 {n}', { n: r.vpCards }));
+      if (r.p.chits) parts.push(t('島嶼 +{n}', { n: r.p.chits }));
+      if (r.dv && r.dv.buildings) parts.push(t('建築 {n}', { n: r.dv.buildings }));
+      if (r.dv && r.dv.adventurers) parts.push(t('冒險者公會 {n}', { n: r.dv.adventurers }));
+      if (r.dv && r.dv.post) parts.push(t('驛站 {n}', { n: r.dv.post }));
+      if (r.dv && r.dv.wonder) parts.push(t('奇觀 {n}', { n: r.dv.wonder }));
       const row = el('div', 'standing' + (r.p.id === v.winner ? ' win' : ''));
       row.innerHTML = `<span class="rk">${i + 1}</span><img class="flag sm" alt="" src="${flagURL(P.color, r.p.id)}"><div><b style="color:${P.color}">${esc(P.name)}</b><div class="bd">${parts.join(' · ')}</div></div><span class="tot num">${r.tot}</span>`;
       st.appendChild(row);

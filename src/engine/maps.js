@@ -392,7 +392,53 @@ export const SEA9_6 = Object.freeze({
   rules: { seafarers: true, turns: 'paired' },
 });
 
-export const MAPS = Object.fromEntries([BASE4, BASE6, SEA1, SEA2, SEA3, SEA9, SEA1_6, SEA2_6, SEA3_6, SEA9_6].map((d) => [d.id, d]));
+// The development mode (develop.js): a larger island for longer games — 37 hexes at four players (the
+// standard island with one more ring round it), 30 at two or three (the 5–6 player island's shape) —
+// with three or two deserts for the world wonders, more pieces, a larger bank and deck, 18 points.
+//   layout   { apart: deserts never touch, inland: at least this many deserts off the outer ring,
+//            clump: no terrain in a patch of more than this many hexes }
+//   robber   { anyDesert: true }: the robber starts on one of the deserts, as the dice fall
+// A harbor type 'random' is a 2:1 harbor of a resource the dice pick.
+const DEVELOP = {
+  bank: 30,
+  dev: { knight: 20, victoryPoint: 6, roadBuilding: 3, yearOfPlenty: 3, monopoly: 3 },
+  pieces: { roads: 25, settlements: 7, cities: 5 },
+  vp: 18,
+  robber: { anyDesert: true },
+  rules: { develop: true },
+};
+export const DEV4 = Object.freeze({
+  ...DEVELOP,
+  id: 'dev-4',
+  name: N_('發展模式（4 人）'),
+  short: N_('發展模式'),
+  players: [4, 4],
+  radius: 3,
+  tiles: hexagon(3),
+  pool: { forest: 7, hills: 7, pasture: 7, fields: 7, mountains: 6, desert: 3 },
+  numbers: [2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12],
+  harbors: {
+    types: ['any', 'any', 'any', 'any', 'any', 'any', 'wood', 'brick', 'wool', 'grain', 'ore', 'random'],
+    gaps: [4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3],
+  },
+  layout: { apart: true, inland: 2, clump: 3 },
+});
+export const DEV3 = Object.freeze({
+  ...DEVELOP,
+  id: 'dev-3',
+  name: N_('發展模式（2–3 人）'),
+  short: N_('發展模式'),
+  players: [2, 3],
+  tiles: BASE6.tiles,
+  pool: { forest: 6, hills: 5, pasture: 6, fields: 6, mountains: 5, desert: 2 },
+  numbers: [2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12],
+  harbors: BASE6.harbors,
+  layout: { apart: true, inland: 1, clump: 3 },
+});
+// the development mode's island for a number of players
+export const developMap = (n) => (n >= 4 ? DEV4 : DEV3);
+
+export const MAPS = Object.fromEntries([BASE4, BASE6, SEA1, SEA2, SEA3, SEA9, SEA1_6, SEA2_6, SEA3_6, SEA9_6, DEV4, DEV3].map((d) => [d.id, d]));
 export const DEFAULT_MAP = BASE4.id;
 // The maps a game can be started on, as the menus show them: by kind, the 3–4 player map beside the
 // 5–6 player one.

@@ -14,7 +14,9 @@ import {
   RuleError,
   legalRoadEdges,
 } from '../src/engine/engine.js';
-import { aiAct } from '../src/ai/ai.js';
+import { aiAct, chooseBlueprint } from '../src/ai/ai.js';
+import { BUILDINGS, PRESETS, annexAt } from '../src/engine/develop.js';
+import { TERRAIN_RES } from '../src/engine/board.js';
 import { makeRng } from '../src/engine/rng.js';
 
 const args = process.argv.slice(2);
@@ -34,6 +36,7 @@ const DEF = mapDef(MAP);
 const BANK = DEF.bank || 19;
 const DECK = Object.values(DEF.dev || { k: 25 }).reduce((s, x) => s + x, 0);
 const [MIN_P, MAX_P] = DEF.players;
+const PIECES = DEF.pieces || { roads: 15, settlements: 5, cities: 4 };
 const LEVELS = ['easy', 'normal', 'hard'];
 
 function check(st, where) {
@@ -51,7 +54,7 @@ function check(st, where) {
   }
   let devTotal = st.devDeck.length;
   for (const pl of st.players) {
-    devTotal += pl.dev.length + pl.played.knight + pl.played.roadBuilding + pl.played.yearOfPlenty + pl.played.monopoly;
+    devTotal += pl.dev.length + pl.played.knight + pl.played.roadBuilding + pl.played.yearOfPlenty + pl.played.monopoly + (pl.pick ? pl.pick.length : 0);
     if (pl.played.knight !== pl.knights) fail('knight count mismatch');
   }
   if (devTotal !== DECK) fail(`dev total ${devTotal}`);
@@ -78,9 +81,9 @@ function check(st, where) {
     if (st.pending && st.pending.type === 'gold' && !Object.keys(st.pending.amounts).length) fail('empty gold choice');
   }
   st.players.forEach((pl, i) => {
-    if (cnt[i].s + pl.pieces.settlements !== 5) fail(`settlement pieces p${i}`);
-    if (cnt[i].c + pl.pieces.cities !== 4) fail(`city pieces p${i}`);
-    if (cnt[i].r + pl.pieces.roads !== 15) fail(`road pieces p${i}`);
+    if (cnt[i].s + pl.pieces.settlements !== PIECES.settlements) fail(`settlement pieces p${i}`);
+    if (cnt[i].c + pl.pieces.cities !== PIECES.cities) fail(`city pieces p${i}`);
+    if (cnt[i].r + pl.pieces.roads !== PIECES.roads) fail(`road pieces p${i}`);
   });
   const L = st.roadLen;
   const max = Math.max(...L);
@@ -94,6 +97,32 @@ function check(st, where) {
     for (const pl of st.players) if (pl.knights > k) fail('largest army not max');
   } else if (st.players.some((pl) => pl.knights >= 3)) fail('largest army unassigned');
   if (st.phase === 'over' && totalVP(st, st.winner) < st.targetVP) fail('winner below target');
+  // the development mode: buildings beside their owner's settlements, within the room there is; one
+  // wonder of a kind, one to a desert; developments beside their developer's settlements
+  if (st.rules && st.rules.develop) {
+    st.players.forEach((pl, i) => {
+      for (const [k, v] of Object.entries(pl.built)) {
+        const b = st.vertices[v];
+        if (!b || b.p !== i) fail(`${k} of p${i} beside nobody's settlement`);
+        if (annexAt(st, v).length > (b.t === 'c' ? 2 : 1)) fail(`too many buildings beside ${v}`);
+        if (!pl.bp.includes(k)) fail(`${k} not in the blueprint of p${i}`);
+      }
+    });
+    const kinds = new Set();
+    const sites = new Set();
+    for (const w of st.wonders) {
+      if (kinds.has(w.k) || sites.has(w.h)) fail('two wonders of a kind or on one desert');
+      kinds.add(w.k);
+      sites.add(w.h);
+      if (st.board.hexes[w.h].terrain !== 'desert' || w.s < 1 || w.s > 3 || (w.done && w.s !== 3)) fail('a wonder out of shape');
+      if (BUILDINGS[w.k].kind !== 'wonder' || !st.players[w.p].bp.includes(w.k)) fail('a wonder not in its blueprint');
+    }
+    st.plots.forEach((pt, h) => {
+      if (!pt) return;
+      if (!TERRAIN_RES[st.board.hexes[h].terrain] || pt.r.length < 1 || pt.r.length > 2) fail(`development on ${h} out of shape`);
+      if (!GEO.hexes[h].vertices.some((v) => st.vertices[v] && st.vertices[v].p === pt.p)) fail(`development on ${h} with no settlement of its developer`);
+    });
+  }
   // 5–6 players: the second player is three seats on; nobody trades with players outside a main turn
   if (st.sub) {
     const n = st.players.length;
@@ -120,6 +149,8 @@ for (let g = 0; g < GAMES; g++) {
     board: HOUSE ? { mix: 'rich' } : { numbers: g % 2 ? 'spiral' : 'balanced' },
     vpAdj: HOUSE && g % 2 ? 2 : 0,
   });
+  // (the development mode) the computer players' blueprints
+  if (st.rules && st.rules.develop) st.players.forEach((pl, i) => (pl.bp = PRESETS[chooseBlueprint(st, i, pl.ai.level, rnd)].slice()));
   check(st, 'start');
   const mem = players.map(() => ({}));
   let steps = 0;
@@ -147,6 +178,7 @@ for (let g = 0; g < GAMES; g++) {
           if (e.type === 'isleBonus') stats.isles = (stats.isles || 0) + 1;
           if (e.type === 'pirate') stats.pirate = (stats.pirate || 0) + 1;
           if (e.type === 'discover') stats.discover = (stats.discover || 0) + 1;
+          if (['develop', 'special', 'wonder', 'wonderDone', 'wonderLost', 'defend', 'market', 'guildBonus', 'aqueduct', 'devDraw'].includes(e.type)) stats.dv = { ...(stats.dv || {}), [e.type]: ((stats.dv || {})[e.type] || 0) + 1 };
         }
       } catch (err) {
         if (!(err instanceof RuleError)) throw err;
@@ -198,6 +230,7 @@ console.log(
       isleBonuses: stats.isles || 0,
       pirateMoves: stats.pirate || 0,
       discoveries: stats.discover || 0,
+      development: stats.dv,
       avgRounds: MAP === 'base-4' ? +(avg / 3.8).toFixed(1) : undefined,
       avgTurns: +avg.toFixed(1),
       medianTurns: stats.turns[Math.floor(stats.turns.length / 2)],

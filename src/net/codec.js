@@ -7,6 +7,7 @@ import { generateBoard, provinceName } from '../engine/board.js';
 import { seedState } from '../engine/rng.js';
 import { DEFAULT_MAP, mapDef, isBuiltIn } from '../engine/maps.js';
 import { N_ } from '../i18n/fill.js';
+import { BUILDING_IDS, validBlueprint } from '../engine/develop.js';
 
 const TER = { forest: 'f', hills: 'h', pasture: 'p', fields: 'g', mountains: 'm', desert: 'd', sea: 's', gold: 'o', fog: 'x' };
 const TER_R = Object.fromEntries(Object.entries(TER).map(([k, v]) => [v, k]));
@@ -18,6 +19,21 @@ const KIND = { human: 'h', ai: 'a', remote: 'r' };
 const KIND_R = { h: 'human', a: 'ai', r: 'remote' };
 const LVL = { easy: 'e', normal: 'n', hard: 'x' };
 const LVL_R = { e: 'easy', n: 'normal', x: 'hard' };
+// (the development mode) each building in two letters, a resource in one
+const BLD = { aqueduct: 'aq', granary: 'gr', market: 'mk', shipyard: 'sy', guild: 'gu', barracks: 'br', wall: 'wl', mercenaries: 'mc', adventurers: 'ad', post: 'po', camp: 'ca', academy: 'ac', press: 'pr', gardens: 'hg', lighthouse: 'lh', greatWall: 'gw', royalRoad: 'rr', library: 'lb' };
+const BLD_R = Object.fromEntries(Object.entries(BLD).map(([k, v]) => [v, k]));
+const RCH = 'wblgo';
+const rch = (r) => RCH[RES.indexOf(r)];
+const rOf = (c) => RES[RCH.indexOf(c)];
+// a blueprint as one string (seven pairs of letters), and back (null when it is not a valid one)
+export const bpCode = (bp) => (Array.isArray(bp) ? bp.map((k) => BLD[k] || '').join('') : '');
+export function bpDecode(code) {
+  if (typeof code !== 'string' || code.length !== 14) return null;
+  const bp = code.match(/../g).map((c) => BLD_R[c]);
+  return validBlueprint(bp) ? bp : null;
+}
+const USED = { market: 'm', guild: 'g', road: 'r', library: 'l' };
+const USED_R = Object.fromEntries(Object.entries(USED).map(([k, v]) => [v, k]));
 
 const resStr = (m) => RES.map((r) => (m && m[r]) || 0).join('.');
 const resObj = (s) => {
@@ -127,11 +143,16 @@ export function decodeBoard(b, robber) {
   if (b.x) out.mix = 'rich';
   return out;
 }
+// (the development mode: each seat's blueprint too)
 export function encodeSeats(st) {
-  return st.players.map((p) => [p.name, p.color, KIND[p.kind] || 'a', p.ai ? LVL[p.ai.level] || 'n' : '']);
+  return st.players.map((p) => (p.bp ? [p.name, p.color, KIND[p.kind] || 'a', p.ai ? LVL[p.ai.level] || 'n' : '', bpCode(p.bp)] : [p.name, p.color, KIND[p.kind] || 'a', p.ai ? LVL[p.ai.level] || 'n' : '']));
 }
 export function decodeSeats(a) {
-  return a.map(([name, color, k, l]) => ({ name, color, kind: KIND_R[k] || 'ai', ai: k === 'a' ? { level: LVL_R[l] || 'normal' } : null }));
+  return a.map(([name, color, k, l, bp]) => {
+    const s = { name, color, kind: KIND_R[k] || 'ai', ai: k === 'a' ? { level: LVL_R[l] || 'normal' } : null };
+    if (bp) s.bp = bp.match(/../g).map((c) => BLD_R[c]);
+    return s;
+  });
 }
 
 // ── events ──
@@ -140,9 +161,10 @@ export function encodeEvent(e) {
     case 'roll':
       return ['R', e.p, e.dice[0], e.dice[1]];
     case 'produce':
-      return ['P', e.sum, e.blocked, e.paid.map((c) => `${c.hex}.${c.vertex}.${c.p}.${RES.indexOf(c.res)}.${c.amt}`).join(','), e.shortages.map((s) => `${RES.indexOf(s.res)}.${s.partial ? 1 : 0}.${s.p ?? -1}.${s.got ?? 0}`).join(','), ...(e.gold ? [amountsStr(e.gold)] : [])];
+      // (the development mode: a development's card comes from its hex, not an intersection)
+      return ['P', e.sum, e.blocked, e.paid.map((c) => `${c.hex}.${c.vertex ?? -1}.${c.p}.${RES.indexOf(c.res)}.${c.amt}${c.plot ? '.1' : ''}`).join(','), e.shortages.map((s) => `${RES.indexOf(s.res)}.${s.partial ? 1 : 0}.${s.p ?? -1}.${s.got ?? 0}`).join(','), ...(e.gold ? [amountsStr(e.gold)] : [])];
     case 'build':
-      return ['B', e.p, e.what === 'ship' ? 'h' : e.what[0], e.vertex ?? e.edge, (e.setup ? 1 : 0) + (e.free ? 2 : 0)];
+      return ['B', e.p, e.what === 'ship' ? 'h' : e.what[0], e.vertex ?? e.edge, (e.setup ? 1 : 0) + (e.free ? 2 : 0) + (e.royal ? 4 : 0)];
     case 'moveShip':
       return ['V', e.p, e.from, e.to];
     case 'pirate':
@@ -154,9 +176,32 @@ export function encodeEvent(e) {
     case 'discover':
       return ['f', e.p, e.hex, TER[e.terrain], e.number, e.res ? RES.indexOf(e.res) : -1];
     case 'startingResources':
-      return ['S', e.p, e.vertex, resStr(e.gains)];
+      return e.camp ? ['S', e.p, e.vertex, resStr(e.gains), 1] : ['S', e.p, e.vertex, resStr(e.gains)];
     case 'buyDev':
-      return ['D', e.p, e.left];
+      return e.how || e.cost ? ['D', e.p, e.left, e.how === 'knight' ? 'k' : e.how === 'pick' ? 'p' : '', e.cost ? resStr(e.cost) : ''] : ['D', e.p, e.left];
+    // ── the development mode ──
+    case 'develop':
+      return ['dv', e.p, e.hex, rch(e.res), e.level, resStr(e.cost)];
+    case 'special':
+      return ['sp', e.p, BLD[e.k], e.vertex, e.res ? rch(e.res) : ''];
+    case 'wonder':
+      return ['wn', e.p, BLD[e.k], e.hex, e.stage];
+    case 'wonderDone':
+      return ['wd', e.p, BLD[e.k], e.hex];
+    case 'siege':
+      return ['sg', e.p, e.by, e.hex, BLD[e.k]];
+    case 'defend':
+      return ['df', e.p, e.by, e.hex, BLD[e.k], e.knights];
+    case 'wonderLost':
+      return ['wx', e.p, e.by, e.hex, BLD[e.k], e.stage, e.done ? 1 : 0];
+    case 'market':
+      return ['mk', e.p, rch(e.give), rch(e.get)];
+    case 'guildBonus':
+      return ['gb', e.from, e.to, Object.entries(e.bonus || {}).map(([q, r]) => q + rch(r)).join('.')];
+    case 'aqueduct':
+      return ['aq', e.p, rch(e.res)];
+    case 'devDraw':
+      return ['dd', e.p, e.left, e.cost ? resStr(e.cost) : ''];
     case 'playDev':
       if (e.card === 'knight') return ['K', e.p, e.knights];
       if (e.card === 'roadBuilding') return ['W', e.p];
@@ -205,8 +250,8 @@ export function decodeEvent(a) {
     case 'P': {
       const paid = a[3]
         ? a[3].split(',').map((x) => {
-            const [hex, vertex, p, r, amt] = x.split('.').map(Number);
-            return { hex, vertex, p, res: RES[r], amt };
+            const [hex, vertex, p, r, amt, plot] = x.split('.').map(Number);
+            return plot ? { hex, vertex: null, p, res: RES[r], amt, plot: true } : { hex, vertex, p, res: RES[r], amt };
           })
         : [];
       const shortages = a[4]
@@ -222,6 +267,7 @@ export function decodeEvent(a) {
     case 'B': {
       const what = { r: 'road', s: 'settlement', c: 'city', h: 'ship' }[a[2]];
       const e = { type: 'build', what, p: a[1], setup: !!(a[4] & 1), free: !!(a[4] & 2) };
+      if (a[4] & 4) e.royal = true;
       if (what === 'road' || what === 'ship') e.edge = a[3];
       else e.vertex = a[3];
       return e;
@@ -237,9 +283,41 @@ export function decodeEvent(a) {
     case 'I':
       return { type: 'isleBonus', p: a[1], vertex: a[2], vp: a[3] };
     case 'S':
-      return { type: 'startingResources', p: a[1], vertex: a[2], gains: resFull(a[3]) };
-    case 'D':
-      return { type: 'buyDev', p: a[1], left: a[2], card: null };
+      return a[4] ? { type: 'startingResources', p: a[1], vertex: a[2], gains: resFull(a[3]), camp: true } : { type: 'startingResources', p: a[1], vertex: a[2], gains: resFull(a[3]) };
+    case 'D': {
+      const e = { type: 'buyDev', p: a[1], left: a[2], card: null };
+      if (a[3]) e.how = a[3] === 'k' ? 'knight' : 'pick';
+      if (a[4]) e.cost = resObj(a[4]);
+      return e;
+    }
+    case 'dv':
+      return { type: 'develop', p: a[1], hex: a[2], res: rOf(a[3]), level: a[4], cost: resObj(a[5]) };
+    case 'sp':
+      return a[4] ? { type: 'special', p: a[1], k: BLD_R[a[2]], vertex: a[3], res: rOf(a[4]) } : { type: 'special', p: a[1], k: BLD_R[a[2]], vertex: a[3] };
+    case 'wn':
+      return { type: 'wonder', p: a[1], k: BLD_R[a[2]], hex: a[3], stage: a[4] };
+    case 'wd':
+      return { type: 'wonderDone', p: a[1], k: BLD_R[a[2]], hex: a[3] };
+    case 'sg':
+      return { type: 'siege', p: a[1], by: a[2], hex: a[3], k: BLD_R[a[4]] };
+    case 'df':
+      return { type: 'defend', p: a[1], by: a[2], hex: a[3], k: BLD_R[a[4]], knights: a[5] };
+    case 'wx':
+      return { type: 'wonderLost', p: a[1], by: a[2], hex: a[3], k: BLD_R[a[4]], stage: a[5], done: !!a[6] };
+    case 'mk':
+      return { type: 'market', p: a[1], give: rOf(a[2]), get: rOf(a[3]) };
+    case 'gb': {
+      const bonus = {};
+      if (a[3]) for (const x of String(a[3]).split('.')) bonus[parseInt(x, 10)] = rOf(x.slice(-1));
+      return { type: 'guildBonus', from: a[1], to: a[2], bonus };
+    }
+    case 'aq':
+      return { type: 'aqueduct', p: a[1], res: rOf(a[2]) };
+    case 'dd': {
+      const e = { type: 'devDraw', p: a[1], left: a[2], cards: null };
+      if (a[3]) e.cost = resObj(a[3]);
+      return e;
+    }
     case 'K':
       return { type: 'playDev', p: a[1], card: 'knight', knights: a[2] };
     case 'W':
@@ -300,6 +378,8 @@ export function privateDetails(events, seat) {
   const out = [];
   events.forEach((e, i) => {
     if (e.type === 'buyDev' && e.p === seat) out.push([i, 'D', DEV[e.card]]);
+    // (the academy) the two cards drawn
+    if (e.type === 'devDraw' && e.p === seat && e.cards) out.push([i, 'dd', e.cards.map((c) => DEV[c]).join('')]);
     if (e.type === 'steal' && (e.p === seat || e.from === seat) && e.res) out.push([i, 'T', RES.indexOf(e.res)]);
     if (e.type === 'discard' && e.p === seat) out.push([i, 'd', resStr(e.cards)]);
   });
@@ -316,6 +396,9 @@ export function encodePublic(st) {
     else if (pd.type === 'steal') pend = ['s', pd.hex, pd.victims.join('.')];
     else if (pd.type === 'roadBuilding') pend = pd.gold ? ['b', pd.left, pd.gold] : ['b', pd.left];
     else if (pd.type === 'gold') pend = ['g', amountsStr(pd.amounts)];
+    // (the development mode) a wonder's owner to answer the robber; the academy's choice
+    else if (pd.type === 'defend') pend = ['f', pd.p, pd.hex, pd.by, pd.reason === 'knight' ? 'k' : 's'];
+    else if (pd.type === 'pick') pend = ['k', pd.p];
   }
   const t = st.trade;
   const trade = t ? [t.id, t.from, resStr(t.give), resStr(t.get), Object.entries(t.resp).map(([q, r]) => `${q}${r === 'yes' ? 'y' : r === 'no' ? 'n' : r === 'lack' ? 'l' : 'w'}`).join('.')] : 0;
@@ -359,12 +442,29 @@ export function encodePublic(st) {
   }
   // 5–6 players: the part of the turn after the main player's
   if (st.sub) pub.sb = [st.sub.k === 'sbp' ? 's' : 'p', st.sub.lead, st.sub.rest.join('')];
+  // the development mode: the developments (a hex: '' or its developer and resources), the wonders
+  // (hex.kind.owner.stages.turn.complete), what this turn has used up; each player's buildings
+  // (kind and intersection), shipyard resource and cards bought
+  if (st.plots) {
+    pub.dv = [
+      st.plots.map((pt) => (pt ? pt.p + pt.r.map(rch).join('') : '')).join(','),
+      st.wonders.map((w) => [w.h, BLD[w.k], w.p, w.s, w.t, w.done ? 1 : 0].join('.')).join(','),
+      Object.keys(st.used || {})
+        .filter((k) => st.used[k] && USED[k])
+        .map((k) => USED[k])
+        .join(''),
+    ];
+    pub.db = st.players.map((p) => [Object.entries(p.built || {}).map(([k, v]) => BLD[k] + v).join('.'), p.yard ? rch(p.yard) : '', p.bought || 0]);
+  }
   return pub;
 }
 
 export function encodePrivate(st, seat) {
   const p = st.players[seat];
-  return { r: resStr(p.res), d: p.dev.map((c) => DEV[c.type] + c.turn).join(',') };
+  const out = { r: resStr(p.res), d: p.dev.map((c) => DEV[c.type] + c.turn).join(',') };
+  // (the academy) the two cards to keep one of
+  if (p.pick) out.k = p.pick.map((c) => DEV[c]).join('');
+  return out;
 }
 
 // Build a redacted view (same shape as makeView) for `seat` from public + private parts.
@@ -390,6 +490,8 @@ export function decodeView(board, seats, pub, priv, seat) {
     else if (k === 's') pending = { type: 'steal', hex: a, victims: String(b).split('.').map(Number) };
     else if (k === 'b') pending = b ? { type: 'roadBuilding', left: a, gold: b } : { type: 'roadBuilding', left: a };
     else if (k === 'g') pending = { type: 'gold', amounts: amountsObj(a) };
+    else if (k === 'f') pending = { type: 'defend', p: a, hex: b, by: pub.pd[3], reason: pub.pd[4] === 'k' ? 'knight' : 'seven' };
+    else if (k === 'k') pending = { type: 'pick', p: a };
   }
   let trade = null;
   if (pub.tr) {
@@ -425,6 +527,7 @@ export function decodeView(board, seats, pub, priv, seat) {
       played: { knight: pp[0], roadBuilding: pp[1], yearOfPlenty: pp[2], monopoly: pp[3] },
       pieces: pc.length > 3 ? { roads: pc[0], settlements: pc[1], cities: pc[2], ships: pc[3] } : { roads: pc[0], settlements: pc[1], cities: pc[2] },
       ...(pub.sh != null ? { chits: chits || 0, isles: isles ? String(isles).split('.').map(Number) : [], home: home ? String(home).split('.').map(Number) : [] } : {}),
+      ...(pub.db ? developSeat(s, pub.db[i], mine ? priv : null, i === seat || pub.ph === 'O') : {}),
     };
   });
   const dice = pub.di ? [Math.floor(pub.di / 10), pub.di % 10] : null;
@@ -474,6 +577,22 @@ export function decodeView(board, seats, pub, priv, seat) {
     view.newShips = pub.nw ? String(pub.nw).split('.').map(Number) : [];
     view.shipMoved = !!pub.sm;
     view.board = { ...view.board, pirate: pub.pi };
+  }
+  // (the development mode) the developments, the wonders, what this turn has used up
+  if (pub.dv) {
+    view.plots = String(pub.dv[0])
+      .split(',')
+      .map((x) => (x ? { p: Number(x[0]), r: [...x.slice(1)].map(rOf) } : null));
+    view.wonders = pub.dv[1]
+      ? String(pub.dv[1])
+          .split(',')
+          .map((x) => {
+            const [h, k, p, s, tn, d] = x.split('.');
+            return { h: Number(h), k: BLD_R[k], p: Number(p), s: Number(s), t: Number(tn), done: d === '1' };
+          })
+      : [];
+    view.used = {};
+    for (const c of String(pub.dv[2] || '')) if (USED_R[c]) view.used[USED_R[c]] = true;
   }
   // (the fog islands) the hexes found so far, on this page's own copy of the board
   if (pub.fg != null) {
@@ -540,6 +659,7 @@ export function decodeFull(board, seats, pub, full) {
       knights: p.knights,
       pieces: p.pieces,
       ...(p.chits != null ? { chits: p.chits, isles: p.isles, home: p.home } : {}),
+      ...(p.bp ? { bp: p.bp, built: p.built, bought: p.bought, ...(p.yard ? { yard: p.yard } : {}), ...(pr.k ? { pick: [...pr.k].map((c) => DEV_R[c]) } : {}) } : {}),
     };
   });
   const st = { ...v, players, devDeck: [...String(full.d || '')].map((c) => DEV_R[c]), rng: Array.isArray(full.g) ? full.g.slice() : null, seed: full.sd >>> 0 };
@@ -552,11 +672,23 @@ export function decodeFull(board, seats, pub, full) {
   return st;
 }
 
+// (the development mode) a seat's blueprint (from the seats), buildings, shipyard resource and cards
+// bought; the academy's two cards for their owner (null for the others while they choose)
+function developSeat(s, row, priv, mine) {
+  const [built, yard, bought] = row || ['', '', 0];
+  const out = { bp: s.bp || [], built: {}, bought: Number(bought) || 0 };
+  if (built) for (const x of String(built).split('.')) out.built[BLD_R[x.slice(0, 2)]] = Number(x.slice(2));
+  if (yard) out.yard = rOf(yard);
+  if (priv && priv.k) out.pick = [...priv.k].map((c) => DEV_R[c]);
+  return out;
+}
+
 export function applyPrivateDetails(events, details) {
   for (const [i, k, v] of details || []) {
     const e = events[i];
     if (!e) continue;
     if (k === 'D' && e.type === 'buyDev') e.card = DEV_R[v];
+    if (k === 'dd' && e.type === 'devDraw') e.cards = [...String(v)].map((c) => DEV_R[c]);
     if (k === 'T' && e.type === 'steal') e.res = RES[v];
     if (k === 'd' && e.type === 'discard') e.cards = resObj(v);
   }
@@ -586,10 +718,16 @@ export function sanitizeAction(a, seat, types) {
   else if (Array.isArray(a.res)) out.res = a.res.filter((x) => typeof x === 'string').slice(0, 2);
   else if (a.res && typeof a.res === 'object') out.res = resMap(a.res);
   for (const k of ['give', 'get', 'cards']) if (a[k] && typeof a[k] === 'object') out[k] = resMap(a[k]);
-  if (a.type === 'bankTrade') {
+  if (a.type === 'bankTrade' || a.type === 'market') {
     if (typeof a.give === 'string') out.give = a.give;
     if (typeof a.get === 'string') out.get = a.get;
   }
+  // (the development mode) a building, a wonder's defence, the academy's card, how a card is bought
+  if (typeof a.k === 'string' && BUILDING_IDS.includes(a.k)) out.k = a.k;
+  if (typeof a.yes === 'boolean') out.yes = a.yes;
+  if (a.i === 0 || a.i === 1) out.i = a.i;
+  if (a.how === 'knight' || a.how === 'pick') out.how = a.how;
+  if (typeof a.lib === 'string' && RES_SET.includes(a.lib)) out.lib = a.lib;
   return out;
 }
 

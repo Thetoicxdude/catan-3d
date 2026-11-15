@@ -2,11 +2,16 @@
 // and each later turn 3 minutes; with 5–6 players the second player of a paired turn gets 90 seconds
 // and each step of the special building phase 45. When a player's time runs out the host does the least it can for
 // them: the computer finishes a placement, a discard, a gold field's pick or a robber move, an open offer is withdrawn,
-// the dice are rolled, and the turn ends. Nothing is built or traded on anyone's behalf.
+// the dice are rolled, and the turn ends. Nothing is built or traded on anyone's behalf. (The development mode: a
+// wonder's owner who has a knight in hand defends it — 15 seconds to answer, DEFEND_MS — and the academy's first
+// card is kept.)
 import { actorsNow, makeView } from '../engine/engine.js';
 import { aiAct } from '../ai/ai.js';
 
 export const TURN_LIMITS = { setup: 120000, play: 180000, pair: 90000, sbp: 45000 };
+// (the development mode) the robber at a wonder: its owner answers within this (and a moment for the
+// network)
+export const DEFEND_MS = 17000;
 
 export function limits() {
   const t = typeof window !== 'undefined' && window.__turnMs; // test hook
@@ -34,6 +39,8 @@ export function timeoutAction(st, p, mem, rnd) {
   // (a pick owed comes first, even in the opening: gold found in the fog)
   if (pd && (pd.type === 'discard' || pd.type === 'gold')) return pd.amounts[p] ? ai() : null;
   if (st.phase === 'setup') return st.setup.order[st.setup.i] === p ? ai() : null;
+  // (the development mode) a wonder's owner: a knight in hand saves it
+  if (pd && pd.type === 'defend') return pd.p === p ? { type: 'defend', p, yes: st.players[p].dev.some((c) => c.type === 'knight') } : null;
   if (st.trade) {
     if (st.trade.from === p) return { type: 'cancelOffer', p };
     if (st.trade.resp[p] === null) return { type: 'respond', p, accept: false };
@@ -42,6 +49,7 @@ export function timeoutAction(st, p, mem, rnd) {
   if (st.current !== p) return null;
   if (pd && (pd.type === 'robber' || pd.type === 'steal')) return ai();
   if (pd && pd.type === 'roadBuilding') return { type: 'endRoadBuilding', p };
+  if (pd && pd.type === 'pick') return { type: 'pickDev', p, i: 0 };
   if (!st.rolled) return { type: 'roll', p };
   return { type: 'endTurn', p };
 }

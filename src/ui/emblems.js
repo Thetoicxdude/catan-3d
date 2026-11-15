@@ -17,6 +17,7 @@ const FIGURES = {
   official: 'laurels-trophy',
   chat: 'talk',
   workshop: 'treasure-map', // the map workshop: an island of your own drawing
+  blueprint: 'pencil-ruler', // the development mode's blueprints
 };
 
 export function emblemSvg(name, size = 64) {

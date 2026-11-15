@@ -1,8 +1,10 @@
 // Title & campaign setup screen (sits over a live preview of the island you will play on).
 import { flagURL } from './flags.js';
 import { esc } from './text.js';
-import { mapDef, MAP_TABLE } from '../engine/maps.js';
+import { mapDef, MAP_TABLE, developMap, DEV4 } from '../engine/maps.js';
+import { PRESETS, PRESET_IDS, PRESET_NAMES, validBlueprint, DEFAULT_PRESET, BUILDING_IDS, isWonder } from '../engine/develop.js';
 import { t, tx, untx, N_, getLang } from '../i18n/index.js';
+import { deckChooser } from './develop-ui.js';
 
 // (each colour's name is a key: t(p.name))
 export const PALETTE = [
@@ -66,6 +68,11 @@ export function defaultSettings() {
     color: '#c8372d',
     opponents: 3,
     seats: AI_NAMES.slice(1, 6).map((n) => ({ name: tx(n), kind: 'ai', level: 'normal' })),
+    // 'standard' or 'develop' (the development mode, develop.js: its own island, by the number of players)
+    mode: 'standard',
+    // the development mode: three blueprints saved on this device, and the one in use (bpCur)
+    bps: [PRESETS.port.slice(), PRESETS.order.slice(), PRESETS.scholars.slice()],
+    bpCur: 0,
     // the island (maps.js) and, on the 5–6 player island, how the turn is shared
     map: 'base-4',
     turns: 'paired',
@@ -93,23 +100,36 @@ export function defaultSettings() {
 // map's own: 10 on the standard islands, a scenario's or a drawn map's own), the hand limit for a 7,
 // the dice (or the dice deck: engine.js drawDice), how the numbers are dealt (board.js richNumbers).
 export const VP_ADJ = [-2, 0, 2, 4];
+// (the development mode: 15, 18 or 21)
+export const DEV_VP_ADJ = [-3, 0, 3];
+export const developing = (s) => !!s && s.mode === 'develop';
+const vpAdjs = (s) => (developing(s) ? DEV_VP_ADJ : VP_ADJ);
+// the island a game with these settings is played on, for n players
+export const mapFor = (s, n) => (developing(s) ? developMap(n || (Number(s.opponents) || 3) + 1) : mapDef(s.map));
+// the blueprint in use (the development mode): one of the three saved on this device (bpCur 0–2), or a
+// ready-made one (bpCur its name)
+export function myBlueprint(s) {
+  if (PRESETS[s.bpCur]) return PRESETS[s.bpCur].slice();
+  return (s.bps && validBlueprint(s.bps[s.bpCur]) ? s.bps[s.bpCur] : PRESETS[DEFAULT_PRESET]).slice();
+}
 export const DISCARD = [7, 8, 9, 10];
 export const DICE = ['random', 'deck'];
 export const MIX = ['standard', 'rich'];
 
 // the points to win with these settings
 export function targetFor(s) {
-  return Math.max(3, (mapDef(s.map).vp || 10) + (VP_ADJ.includes(s.vpAdj) ? s.vpAdj : 0));
+  return Math.max(3, (mapFor(s).vp || 10) + (vpAdjs(s).includes(s.vpAdj) ? s.vpAdj : 0));
 }
 
 // what an official room plays: the standard game on the standard island
 export function officialSettings(s) {
-  return { ...s, map: 'base-4', turns: 'paired', numbers: 'balanced', vpAdj: 0, discard: 7, dice: 'random', mix: 'standard' };
+  return { ...s, mode: 'standard', map: 'base-4', turns: 'paired', numbers: 'balanced', vpAdj: 0, discard: 7, dice: 'random', mix: 'standard' };
 }
 
 // the house rules in words, those that differ from the standard game only (for a room's terms)
 export function houseRulesText(s, withTarget = false) {
   const out = [];
+  if (developing(s)) out.push(t('發展模式'));
   if (withTarget) out.push(t('{n} 分勝利', { n: targetFor(s) }));
   if (s.discard !== 7 && DISCARD.includes(s.discard)) out.push(t('手牌超過 {n} 張才棄牌', { n: s.discard }));
   if (s.dice === 'deck') out.push(t('平衡骰'));
@@ -128,12 +148,25 @@ export function houseRulesNotes(s) {
 
 // Settings saved by an older version: five opponent seats, a known map, an opponent count that fits it.
 export function fitSettings(s) {
-  const def = mapDef(s.map);
-  s.map = def.id;
+  s.map = mapDef(s.map).id;
+  if (s.mode !== 'develop') s.mode = 'standard';
+  const def = mapFor(s);
   if (s.turns !== 'sbp') s.turns = 'paired';
   // (the points to win were a number for the standard islands only: 8, 10 or 12)
-  if (!VP_ADJ.includes(s.vpAdj)) s.vpAdj = s.target === 8 ? -2 : s.target === 12 ? 2 : 0;
+  if (!vpAdjs(s).includes(s.vpAdj)) s.vpAdj = s.target === 8 ? -2 : s.target === 12 ? 2 : 0;
+  if (!vpAdjs(s).includes(s.vpAdj)) s.vpAdj = 0;
   delete s.target;
+  // the development mode's blueprints: three, each of known buildings, all different, at most one wonder
+  // (one being put together may have fewer than seven for now: it is kept)
+  if (!Array.isArray(s.bps)) s.bps = [];
+  const spare = [PRESETS.port, PRESETS.order, PRESETS.scholars];
+  for (let i = 0; i < 3; i++) {
+    const bp = s.bps[i];
+    const ok = Array.isArray(bp) && bp.length <= 7 && new Set(bp).size === bp.length && bp.every((k) => BUILDING_IDS.includes(k)) && bp.filter(isWonder).length <= 1;
+    if (!ok) s.bps[i] = spare[i].slice();
+  }
+  s.bps.length = 3;
+  if (![0, 1, 2].includes(s.bpCur) && !PRESET_IDS.includes(s.bpCur)) s.bpCur = 0;
   if (!DISCARD.includes(s.discard)) s.discard = 7;
   if (!DICE.includes(s.dice)) s.dice = 'random';
   if (!MIX.includes(s.mix)) s.mix = 'standard';
@@ -147,16 +180,19 @@ export function fitSettings(s) {
     const names = AI_NAMES.map(tx);
     s.seats.push({ name: names.find((n) => !used.has(n)) || names[i], kind: 'ai', level: 'normal' });
   }
-  const [lo, hi] = def.players;
+  for (const seat of s.seats) if (!PRESET_IDS.includes(seat.bp) && !['s0', 's1', 's2'].includes(seat.bp)) seat.bp = DEFAULT_PRESET;
+  // (the development mode: two to four players, the island following the number)
+  const [lo, hi] = developing(s) ? [2, DEV4.players[1]] : def.players;
   s.opponents = Math.min(hi - 1, Math.max(lo - 1, Number(s.opponents) || hi - 1));
   return s;
 }
 
 // what createGame needs from the settings: the map, how its numbers are dealt, the points to win and
 // the rules (the map's turn rule, the house rules that differ from the standard game)
-export function gameSetup(s) {
-  const def = mapDef(s.map);
-  const out = { map: def.id, targetVP: 10, vpAdj: VP_ADJ.includes(s.vpAdj) ? s.vpAdj : 0, board: { numbers: s.numbers === 'spiral' ? 'spiral' : 'balanced' } };
+// (n: the number of players, which decides the development mode's island)
+export function gameSetup(s, n) {
+  const def = mapFor(s, n);
+  const out = { map: def.id, targetVP: 10, vpAdj: vpAdjs(s).includes(s.vpAdj) ? s.vpAdj : 0, board: { numbers: s.numbers === 'spiral' ? 'spiral' : 'balanced' } };
   if (s.mix === 'rich') out.board.mix = 'rich';
   const rules = {};
   if (def.rules && def.rules.turns) rules.turns = s.turns === 'sbp' ? 'sbp' : 'paired';
@@ -188,6 +224,17 @@ export function playersFromSettings(s) {
       ai: seat.kind === 'human' ? null : { level: seat.level || 'normal' },
     });
   });
+  // (the development mode) the blueprints: this player's own, the one each friend at this device picked
+  // (the computer players choose theirs when the island is laid out: game.js)
+  if (developing(s)) {
+    players[0].bp = myBlueprint(s);
+    s.seats.slice(0, s.opponents).forEach((seat, i) => {
+      if (seat.kind !== 'human') return;
+      // (a ready-made one, or one of the three saved on this device)
+      const own = /^s[0-2]$/.test(seat.bp || '') ? s.bps[Number(seat.bp[1])] : null;
+      players[i + 1].bp = own && validBlueprint(own) ? own.slice() : PRESETS[seat.bp] ? seat.bp : DEFAULT_PRESET;
+    });
+  }
   return players;
 }
 
@@ -213,10 +260,10 @@ export function turnsNote(turns, def) {
 // The house rules as rows of choices (the campaign menu and a custom room): `row(label, key, options,
 // reroll)` adds one (reroll: the island changes with it), and `note(html)` says what the changed ones do.
 export function houseRuleRows(s, row, note) {
-  const def = mapDef(s.map);
+  const def = mapFor(s);
   const base = def.vp || 10;
-  const own = def.vp ? (def.custom ? t('地圖') : t('劇本')) : t('標準');
-  row(t('勝利分數'), 'vpAdj', VP_ADJ.map((d) => [d, d === 0 ? t('{n} 分（{own}）', { n: Math.max(3, base + d), own }) : t('{n} 分', { n: Math.max(3, base + d) })]));
+  const own = developing(s) ? t('發展模式') : def.vp ? (def.custom ? t('地圖') : t('劇本')) : t('標準');
+  row(t('勝利分數'), 'vpAdj', vpAdjs(s).map((d) => [d, d === 0 ? t('{n} 分（{own}）', { n: Math.max(3, base + d), own }) : t('{n} 分', { n: Math.max(3, base + d) })]));
   row(t('棄牌門檻'), 'discard', DISCARD.map((n) => [n, n === 7 ? t('7 張（標準）') : t('{n} 張', { n })]));
   row(t('骰子'), 'dice', [
     ['random', t('隨機（標準）')],
@@ -291,7 +338,7 @@ function buildLabel() {
 }
 
 // The single-player setup: nation, opponents, number layout, victory points and the island.
-export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules, onReroll, onChange, onOnline, onBack, onEditor, onBrowse, customMaps = [] }) {
+export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules, onReroll, onChange, onOnline, onBack, onEditor, onBrowse, onBlueprints, customMaps = [] }) {
   const scr = el('div', 'menu-screen');
   scr.innerHTML = `
     <div class="title-block">
@@ -349,30 +396,74 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
           const changed = settings[key] !== val;
           settings[key] = val;
           onChange(settings, key);
-          if (key === 'numbers' && changed) onReroll(false);
+          // (the development mode's island follows the number of players)
+          if ((key === 'numbers' || (key === 'opponents' && developing(settings))) && changed) onReroll(false);
           render();
         });
         s.appendChild(b);
       }
       g.appendChild(s);
     };
-    // the island first: it decides how many nations can play
-    g.appendChild(el('label', '', t('地圖')));
-    g.appendChild(
-      mapTable(
-        settings.map,
-        (id) => {
-          settings.map = id;
-          settings.opponents = mapDef(id).players[1] - 1;
-          fitSettings(settings);
-          onChange(settings, 'map');
-          onReroll(false);
-          render();
-        },
-        customMaps,
-      ),
-    );
-    if (onEditor || onBrowse) {
+    // the mode first: the development mode brings its own island (by the number of players)
+    g.appendChild(el('label', '', t('模式')));
+    const modes = el('div', 'seg');
+    for (const [val, text] of [
+      ['standard', t('標準')],
+      ['develop', t('發展模式')],
+    ]) {
+      const b = el('button', settings.mode === val ? 'on' : '', text);
+      b.type = 'button';
+      b.dataset.mode = val;
+      b.addEventListener('click', () => {
+        if (settings.mode === val) return;
+        settings.mode = val;
+        // (the development mode: four players unless fewer were chosen; back to the island's own count)
+        settings.opponents = val === 'develop' ? Math.min(3, settings.opponents) : mapDef(settings.map).players[1] - 1;
+        fitSettings(settings);
+        onChange(settings, 'mode');
+        onReroll(false);
+        render();
+      });
+      modes.appendChild(b);
+    }
+    g.appendChild(modes);
+    const dev = developing(settings);
+    if (dev) {
+      g.appendChild(el('span', ''));
+      g.appendChild(el('p', 'form-note', t('發展模式：更大的島（4 人 37 格、2–3 人 30 格）、7 格藍圖、地塊開發與世界奇觀，{n} 分獲勝的長局。', { n: targetFor(settings) })));
+      // the blueprint for this game, chosen before it starts like a deck before a match: one of the
+      // three saved on this device (editable here) or a ready-made one
+      g.appendChild(el('label', '', t('藍圖')));
+      g.appendChild(
+        deckChooser(settings, {
+          onPick: (k) => {
+            settings.bpCur = k;
+            onChange(settings, 'bp');
+            render();
+          },
+          onEdit: onBlueprints ? (i) => onBlueprints(() => render(), i) : null,
+        }),
+      );
+    }
+    // the island: it decides how many nations can play
+    if (!dev) {
+      g.appendChild(el('label', '', t('地圖')));
+      g.appendChild(
+        mapTable(
+          settings.map,
+          (id) => {
+            settings.map = id;
+            settings.opponents = mapDef(id).players[1] - 1;
+            fitSettings(settings);
+            onChange(settings, 'map');
+            onReroll(false);
+            render();
+          },
+          customMaps,
+        ),
+      );
+    }
+    if (!dev && (onEditor || onBrowse)) {
       g.appendChild(el('span', ''));
       const links = el('div', 'map-links');
       if (onBrowse) {
@@ -389,11 +480,11 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
       }
       g.appendChild(links);
     }
-    const big = mapDef(settings.map).players[0] >= 5;
+    const big = !dev && mapDef(settings.map).players[0] >= 5;
     seg(
       t('對手數量'),
       'opponents',
-      (big ? [4, 5] : [2, 3]).map((n) => [n, t('{n} 國（{p} 人局）', { n, p: n + 1 })]),
+      (dev ? [1, 2, 3] : big ? [4, 5] : [2, 3]).map((n) => [n, t('{n} 國（{p} 人局）', { n, p: n + 1 })]),
     );
     if (big) {
       seg(t('回合規則'), 'turns', [
@@ -444,8 +535,34 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
           seat.level = sel.value.split(':')[1];
         }
         onChange(settings);
+        // (a friend at this device picks a blueprint)
+        if (dev) render();
       });
       row.appendChild(sel);
+      // (the development mode) a friend at this device brings a blueprint, like a deck; the computer
+      // players choose theirs when the island is laid out
+      if (dev && seat.kind === 'human') {
+        const bsel = el('select', 'seat-bp');
+        bsel.id = 'seat-bp-' + i;
+        bsel.setAttribute('aria-label', t('藍圖'));
+        bsel.style.cssText = sel.style.cssText;
+        // (the ready-made ones, or one of the three saved on this device)
+        const opts = [...PRESET_IDS.map((id) => [id, t(PRESET_NAMES[id])]), ...[0, 1, 2].filter((i) => validBlueprint(settings.bps[i])).map((i) => ['s' + i, t('藍圖 {n}', { n: i + 1 })])];
+        // (a saved one since taken apart: the game would take the default one, and so does the list)
+        if (!opts.some(([id]) => id === seat.bp)) seat.bp = DEFAULT_PRESET;
+        for (const [id, name] of opts) {
+          const o = el('option', '', t('藍圖：{name}', { name }));
+          o.value = id;
+          if (seat.bp === id) o.selected = true;
+          bsel.appendChild(o);
+        }
+        bsel.addEventListener('change', () => {
+          seat.bp = bsel.value;
+          onChange(settings);
+        });
+        row.appendChild(bsel);
+        row.classList.add('with-bp');
+      }
       seats.appendChild(row);
     });
     body.appendChild(seats);

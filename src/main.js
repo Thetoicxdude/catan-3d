@@ -21,6 +21,7 @@ import { openMapBrowser, showPublished, ratingStars } from './ui/maps-ui.js';
 import { currentUser, loadUser } from './net/account.js';
 import { openSignIn } from './ui/account-ui.js';
 import { setLang, isZh, t, tx, terr } from './i18n/index.js';
+import { openBlueprints } from './ui/develop-ui.js';
 
 const SETTINGS_KEY = 'catan3d-settings-v1';
 const app = document.getElementById('app');
@@ -207,7 +208,7 @@ async function showPreview(reroll) {
     return; // a campaign started meanwhile: never replace its map with a preview
   }
   const players = playersFromSettings(settings);
-  const st = createGame({ seed: previewSeed, players, ...gameSetup(settings) });
+  const st = createGame({ seed: previewSeed, players, ...gameSetup(settings, players.length) });
   try {
     buildMap(st, players, settings.quality);
   } catch (e) {
@@ -331,6 +332,7 @@ function openMenu() {
         else startGame(save);
       }),
     onRules: () => menuDialogs().rules(),
+    onBlueprints: () => openBlueprints(menuDialogs(), settings, (s) => saveSettings(s)),
     onSettings: () =>
       menuDialogs().settings({ ...settings }, (s, key) => {
         // in place: the home screen keeps editing this same object (name, colour)
@@ -354,6 +356,17 @@ function openSetup() {
     onChange: onSettingsChange,
     onReroll: (newSeed) => showPreview(newSeed),
     onRules: () => menuDialogs().rules(),
+    // (the development mode) the blueprints: kept as they change; the setup shows the one in use
+    onBlueprints: (changed, set) =>
+      openBlueprints(
+        menuDialogs(),
+        settings,
+        (s) => {
+          saveSettings(s);
+          changed();
+        },
+        set,
+      ),
     onStart: () => startGame(null),
     onBack: () => openMenu(),
     onEditor: () => openEditor(),
@@ -526,7 +539,7 @@ async function startOnlineHost(players, net, official = false) {
   await nextFrame();
   // official rooms play the standard game (10 points, balanced numbers) on the island they listed
   const gs = official ? officialSettings(settings) : settings;
-  const preview = createGame({ seed: previewSeed, players, ...gameSetup(gs) });
+  const preview = createGame({ seed: previewSeed, players, ...gameSetup(gs, players.length) });
   if (!official) countPlay(preview.map);
   buildMap(preview, players, settings.quality);
   map.onFrame = null;
@@ -639,6 +652,8 @@ function becomeClient(d, from) {
 if (window.__mockRoom || window.__testHooks) {
   window.__sess = () => session;
   window.__mapView = () => map;
+  // (the map in play: the tests find intersections and hexes through it)
+  window.__geo = () => GEO;
   window.__screen = () => menu;
 }
 
@@ -782,7 +797,7 @@ async function startGame(saved) {
     settings = { ...settings, ...(saved.settings || {}), quality: settings.quality };
   } else {
     players = playersFromSettings(settings);
-    state = createGame({ seed: previewSeed, players, ...gameSetup(settings) });
+    state = createGame({ seed: previewSeed, players, ...gameSetup(settings, players.length) });
     countPlay(state.map);
   }
   try {

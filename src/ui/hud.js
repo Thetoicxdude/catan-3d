@@ -16,8 +16,11 @@ import {
   legalShips,
   movableShips,
   shipTargets,
+  freeRoad,
 } from '../engine/engine.js';
-import { resCard, resIcon, icon, dieFace, RES_NAMES, RES_EN } from './icons.js';
+import { developOn, plotSpots, plotCost, specialWhy, specialHosts, hostWhy, slotsAt, wonderSpots, wonderWhy, wonderOf, wonderDone, stageCost, isWonder, hasBuilt, BUILDINGS, BUILDING_NAMES, PLOT_COST } from '../engine/develop.js';
+import { BUILDING_TEXT, DEVELOP_TEXT, DIR_COLOR, nationStrip, pointsText } from './develop-ui.js';
+import { resCard, resIcon, icon, dieFace, RES_NAMES, RES_EN, buildingIcon } from './icons.js';
 import { Fx } from './fx.js';
 import { sfx } from './sfx.js';
 import { flagURL } from './flags.js';
@@ -35,6 +38,8 @@ const BUILD = {
   dev: { name: N_('發展卡'), en: 'Development', fx: N_('抽 1 張：騎士、道路建設、豐收之年、壟斷或分數卡。'), cost: COSTS.dev },
   ship: { name: N_('船'), en: 'Ship', fx: N_('在海上或海岸邊，接在你的船或海邊的村莊、城市旁。船隊能把村莊送到別的島。'), cost: COSTS.ship, piece: 'ships', left: N_('還剩 {n} 艘') },
   moveShip: { name: N_('移船'), en: 'Move ship', fx: N_('每回合一次（擲骰後）：移動航線末端、之前回合建造、不在海盜旁的一艘船。'), cost: null },
+  // (the development mode) a development: the cheapest way shown, the hex's own resource
+  develop: { name: N_('開發'), en: 'Development', fx: DEVELOP_TEXT, cost: PLOT_COST[0].local },
 };
 // the build menu's rows, in order, with their keys and icons (ship and moveShip: maps with the sea)
 const BUILD_ROWS = [
@@ -44,6 +49,7 @@ const BUILD_ROWS = [
   ['dev', '4', 'devbuy'],
   ['ship', '5', 'ship'],
   ['moveShip', '6', 'moveShip'],
+  ['develop', '5', 'develop'],
 ];
 const TERRAIN_HEX = { forest: '#2f6b2f', hills: '#b5532c', pasture: '#8fcf4f', fields: '#e8c547', mountains: '#8d8d96', desert: '#d9c48e', gold: '#f0b62a', fog: '#7d8790' };
 // (the map table: washes of colour on the parchment, which shows through as the sea)
@@ -54,6 +60,23 @@ function el(tag, cls, html) {
   if (cls) e.className = cls;
   if (html != null) e.innerHTML = html;
   return e;
+}
+
+// (the development mode) why a wonder can begin nowhere: what its first desert says (one with a
+// settlement of the player's first)
+function firstWhy(v, me) {
+  const deserts = GEO.hexes.filter((h) => v.board.hexes[h.id].terrain === 'desert').map((h) => h.id);
+  const mine = deserts.filter((h) => GEO.hexes[h].vertices.some((u) => v.vertices[u] && v.vertices[u].p === me));
+  const h = mine.length ? mine[0] : deserts[0];
+  return h == null ? N_('這張地圖沒有沙漠') : wonderWhy(v, me, h);
+}
+// why a building has no settlement to stand beside: no room left, or what the first with room lacks
+function hostReason(v, me, k) {
+  const own = [];
+  v.vertices.forEach((b, u) => b && b.p === me && own.push(u));
+  const roomy = own.filter((u) => slotsAt(v, u) > 0);
+  if (!roomy.length) return t('你的聚落旁都沒有空位了（村莊 1 座、城市 2 座）');
+  return t(hostWhy(v, me, k, roomy[0]));
 }
 
 export class Hud {
@@ -313,6 +336,12 @@ export class Hud {
       this.buildMenu.appendChild(row);
       this.btns[k] = row;
     }
+    // (the development mode) the seven buildings of the blueprint, below the rest
+    this.bpBox = el('div', 'bm-bp');
+    this.bpBox.hidden = true;
+    this.buildMenu.appendChild(this.bpBox);
+    this.bpKeys = [];
+    this.bpSig = '';
     this.bar.appendChild(this.buildMenu);
     // (a click anywhere else closes it)
     this.buildAway = (e) => {
@@ -542,7 +571,7 @@ export class Hud {
             <span title="${t('打出的騎士')}">${icon('knight', 14)}<b>${p.knights}</b></span>
             <span title="${t('最長道路長度')}">${icon('road2', 14)}<b>${v.roadLen[p.id]}</b></span>
             ${badges.join('')}
-          </div>${thinking}
+          </div>${developOn(v) ? nationStrip(v, p.id) : ''}${thinking}
         </div>`;
       })
       .join('');
@@ -582,6 +611,8 @@ export class Hud {
       if (pd.type === 'robber') return v.current === me ? t('請先移動強盜：點選地圖上有白色圓圈的地形') : t('等待對手移動強盜');
       if (pd.type === 'steal') return t('請先選擇要搶奪的國家');
       if (pd.type === 'roadBuilding') return t('請先放置免費道路（或按上方的「不用了」）');
+      if (pd.type === 'defend') return pd.p === me ? t('請先決定是否防衛奇觀') : t('等待奇觀的主人決定是否防衛');
+      if (pd.type === 'pick') return t('請先選擇要留下的發展卡');
       return t('請先完成目前的動作');
     };
     const turnWhy = () => (!pl ? t('你正在觀戰') : v.phase === 'setup' ? t('開局佈置中') : v.phase === 'over' ? t('遊戲已結束') : ctx.locked ? t('正在等待回應') : t('還沒輪到你'));
@@ -598,11 +629,15 @@ export class Hud {
     const roads = free && v.rolled ? legalRoadEdges(v, me).length : 0;
     const setts = free && v.rolled ? legalSettlementSpots(v, me).length : 0;
     const cities = free && v.rolled ? legalCitySpots(v, me).length : 0;
-    const okRoad = free && v.rolled && pl.pieces.roads > 0 && canAfford(pl.res, COSTS.road) && roads > 0;
+    // (the development mode: the royal road's free road)
+    const freeR = !!pl && freeRoad(v, me);
+    const okRoad = free && v.rolled && pl.pieces.roads > 0 && (freeR || canAfford(pl.res, COSTS.road)) && roads > 0;
     const okSet = free && v.rolled && pl.pieces.settlements > 0 && canAfford(pl.res, COSTS.settlement) && setts > 0;
     const okCity = free && v.rolled && pl.pieces.cities > 0 && canAfford(pl.res, COSTS.city) && cities > 0;
-    const okDev = free && v.rolled && canAfford(pl.res, COSTS.dev) && v.devDeckCount > 0;
-    set('road', okRoad, okRoad ? t('建造道路（1）：木材＋磚塊') : why(COSTS.road, roads, pl ? pl.pieces.roads : 1, t('道路已經用完了')), { on: ctx.mode === 'road' });
+    // (the development mode: the great library buys one for any single card)
+    const libCard = !!pl && developOn(v) && wonderDone(v, me, 'library') && !v.used.library && RES.some((r) => pl.res[r] > 0);
+    const okDev = free && v.rolled && (canAfford(pl.res, COSTS.dev) || libCard) && v.devDeckCount > 0;
+    set('road', okRoad, okRoad ? t('建造道路（1）：木材＋磚塊') : why(freeR ? {} : COSTS.road, roads, pl ? pl.pieces.roads : 1, t('道路已經用完了')), { on: ctx.mode === 'road' });
     set('settlement', okSet, okSet ? t('建造村莊（2）：木材＋磚塊＋羊毛＋小麥') : why(COSTS.settlement, setts, pl ? pl.pieces.settlements : 1, t('村莊已經用完了（可先升級城市）')), { on: ctx.mode === 'settlement' });
     set('city', okCity, okCity ? t('升級城市（3）：小麥×2＋礦石×3') : why(COSTS.city, cities, pl ? pl.pieces.cities : 1, t('城市已經用完了')), { on: ctx.mode === 'city' });
     set('dev', okDev, okDev ? t('購買發展卡（4）：羊毛＋小麥＋礦石') : v.devDeckCount === 0 ? t('發展卡已賣完') : why(COSTS.dev, 1, 1, ''));
@@ -617,6 +652,12 @@ export class Hud {
       const movable = free && v.rolled && !v.shipMoved && !(v.sub && v.sub.k === 'sbp') ? movableShips(v, me).filter((e) => shipTargets(v, me, e).length).length : 0;
       set('moveShip', movable > 0, movable ? t('移動一艘船（6）：航線末端、之前回合建造的船，每回合一次') : !myTurn ? turnWhy() : v.pending || v.trade ? pendingWhy() : !v.rolled ? t('請先擲骰') : v.shipMoved ? t('這回合已經移過船了') : t('沒有可以移動的船（只能移動航線末端、之前回合建造、不在海盜旁的船）'), { on: ctx.mode === 'moveShip' || ctx.mode === 'moveShipTo' });
     }
+    // (the development mode) developments and the blueprint's buildings
+    const developing = !!pl && developOn(v);
+    this.btns.develop.hidden = !developing;
+    this.bpBox.hidden = !developing;
+    this.buildMenu.classList.toggle('dev', developing);
+    if (developing) this.renderBlueprint(ctx, { myTurn, free, why, turnWhy, pendingWhy });
     // 5–6 players: the special building phase allows no trading at all; the second player of a paired
     // turn trades with the bank only (the trade dialog shows just that)
     const sbp = !!v.sub && v.sub.k === 'sbp';
@@ -628,13 +669,14 @@ export class Hud {
     set('end', canEnd, canEnd ? (v.sub ? t('結束（Space）') : t('結束回合（Space）')) : !myTurn ? turnWhy() : v.pending ? pendingWhy() : t('請先擲骰'));
     // the build button: open while its menu is, lit while placing what it builds, and how many of its rows
     // can be built now
-    const building = ['road', 'settlement', 'city', 'ship', 'moveShip', 'moveShipTo'].includes(ctx.mode);
-    const ready = myTurn && v.rolled ? BUILD_ROWS.filter(([k]) => !this.btns[k].hidden && !this.btns[k].classList.contains('off')).length : 0;
+    const building = ['road', 'settlement', 'city', 'ship', 'moveShip', 'moveShipTo', 'develop', 'wonder'].includes(ctx.mode) || (!!ctx.mode && ctx.mode.startsWith('bp:'));
+    const rowKeys = [...BUILD_ROWS.map(([k]) => k), ...(developing ? this.bpKeys : [])];
+    const ready = myTurn && v.rolled ? rowKeys.filter((k) => !this.btns[k].hidden && !this.btns[k].classList.contains('off')).length : 0;
     set('build', !!pl, !pl ? turnWhy() : t('建造（B）'), { on: building || this.buildOpen, count: ready || null });
     this.btns.build.classList.toggle('open', !!this.buildOpen);
     this.bar.style.visibility = v.phase === 'over' ? 'hidden' : '';
     if (v.phase === 'over' && this.buildOpen) this.toggleBuild(false);
-    this.buildCtx = { res: pl ? pl.res : null, pieces: pl ? pl.pieces : null, deck: v.devDeckCount };
+    this.buildCtx = { res: pl ? pl.res : null, pieces: pl ? pl.pieces : null, deck: v.devDeckCount, freeRoad: freeR, bp: developing ? this.bpInfo : null };
     if (this.buildOpen) this.paintBuild();
   }
 
@@ -655,7 +697,8 @@ export class Hud {
       const info = BUILD[k];
       const row = this.btns[k];
       if (row.hidden) continue;
-      const cost = info.cost
+      // (the royal road: this turn's road is free)
+      const cost = k === 'road' && c.freeRoad ? `<span class="bm-free">${t('免費（皇家大道）')}</span>` : info.cost
         ? Object.entries(info.cost)
             .map(([r, n]) => {
               const short = c.res && c.res[r] < n;
@@ -669,8 +712,121 @@ export class Hud {
       // (the rule on one line; all of it on the row's tooltip)
       row.title = why ? '' : t(info.fx);
       row.querySelector('.bm-sub').classList.toggle('why', !!why);
-      const left = info.piece && c.pieces ? t(info.left, { n: c.pieces[info.piece] }) : k === 'dev' && c.deck != null ? t('卡堆剩 {n} 張', { n: c.deck }) : '';
+      const left = info.piece && c.pieces ? t(info.left, { n: c.pieces[info.piece] }) : k === 'dev' && c.deck != null ? t('卡堆剩 {n} 張', { n: c.deck }) : k === 'develop' ? t('其他資源多 1 張小麥') : '';
       row.querySelector('.bm-left').textContent = left;
+    }
+    if (c.bp) this.paintBlueprint(c);
+  }
+
+  // ── the development mode: the blueprint's rows ──
+
+  // The seven buildings of the viewer's blueprint, a row each (built when the blueprint changes: a
+  // friend at this device has another); whether each can be built now, and why not.
+  renderBlueprint(ctx, { myTurn, free, why, turnWhy, pendingWhy }) {
+    const { view: v, me } = ctx;
+    const pl = v.players[me];
+    const sig = (pl.bp || []).join(',');
+    if (sig !== this.bpSig) {
+      this.bpSig = sig;
+      for (const k of this.bpKeys) delete this.btns[k];
+      this.bpKeys = [];
+      this.bpBox.innerHTML = `<div class="bm-head"><b>${t('藍圖')}</b><small>${t('每種每人一座；奇觀分三階段')}</small></div>`;
+      // (a phone: the blueprint folds away under its head)
+      this.bpBox.firstChild.addEventListener('click', () => window.innerWidth <= 760 && this.bpBox.classList.toggle('fold'));
+      for (const k of pl.bp || []) {
+        const key = 'bp:' + k;
+        const row = el('button', 'bm-row bm-b' + (isWonder(k) ? ' wonder' : ''));
+        row.type = 'button';
+        row.dataset.k = key;
+        row.style.setProperty('--dc', DIR_COLOR[BUILDINGS[k].dir]);
+        row.setAttribute('role', 'menuitem');
+        row.innerHTML = `<span class="bm-ico">${buildingIcon(k, 24)}</span><b class="bm-name">${t(BUILDING_NAMES[k])}</b><span class="bm-cost"></span><small class="bm-sub"></small><small class="bm-left"></small>`;
+        row.addEventListener('click', () => {
+          if (row.classList.contains('off')) {
+            this.flashHint(row.dataset.why || t('現在不能這樣做'));
+            return;
+          }
+          this.toggleBuild(false);
+          this.h.button(key);
+        });
+        this.bpBox.appendChild(row);
+        this.btns[key] = row;
+        this.bpKeys.push(key);
+      }
+    }
+    const set = (key, ok, whyText, on) => {
+      const b = this.btns[key];
+      b.classList.toggle('off', !ok);
+      b.setAttribute('aria-disabled', ok ? 'false' : 'true');
+      b.dataset.why = ok ? '' : whyText || t('現在不能這樣做');
+      b.classList.toggle('on', !!on);
+    };
+    const open = free && v.rolled;
+    // developments: somewhere to develop, and the hand for one of its ways
+    const spots = open ? plotSpots(v, me) : [];
+    const okPlot = spots.some((h) => ['wood', 'brick', 'wool', 'grain', 'ore'].some((r) => canAfford(pl.res, plotCost(v, h, r))));
+    set('develop', okPlot, !open ? why(PLOT_COST[0].local, 1, 1, '') : !spots.length ? t('目前沒有可以開發的地塊：要在有你聚落的地塊上，沒有別人的開發，也沒有強盜') : why(PLOT_COST[0].local, spots.length, 1, ''), ctx.mode === 'develop');
+    this.bpInfo = {};
+    const w = wonderOf(v, me);
+    for (const key of this.bpKeys) {
+      const k = key.slice(3);
+      const info = { cost: null, status: '', fx: t(BUILDING_TEXT[k].fx) };
+      if (isWonder(k)) {
+        const mine = w && w.k === k ? w : null;
+        info.cost = stageCost(v, me);
+        info.status = mine ? (mine.done ? t('完工') : t('施工中 {s}/3', { s: mine.s })) : '';
+        info.wonder = mine ? mine.s : 0;
+        if (mine && mine.done) set(key, false, t('奇觀已經完工'), false);
+        else if (!open) set(key, false, why(info.cost || {}, 1, 1, ''), false);
+        else {
+          const sites = wonderSpots(v, me);
+          const reason = !sites.length ? (mine ? wonderWhy(v, me, mine.h) : firstWhy(v, me, k)) : '';
+          set(key, !reason && canAfford(pl.res, info.cost), reason ? t(reason) : why(info.cost, sites.length, 1, ''), ctx.mode === 'wonder');
+        }
+      } else if (hasBuilt(v, me, k)) {
+        info.status = t('已建造');
+        // (the market, once it stands: its trade, once a turn)
+        if (k === 'market') {
+          info.cost = null;
+          info.fx = t('每回合一次：2 張同種資源換 1 張任意資源');
+          const can = open && !v.used.market && ['wood', 'brick', 'wool', 'grain', 'ore'].some((r) => pl.res[r] >= 2);
+          set(key, can, !open ? why({}, 1, 1, '') : v.used.market ? t('這回合已經用過市集了') : t('需要 2 張相同的資源'), false);
+          info.use = true;
+        } else set(key, false, t('已建造：每種每人一座'), false);
+      } else {
+        info.cost = BUILDINGS[k].cost;
+        if (!open) set(key, false, why(info.cost, 1, 1, ''), false);
+        else {
+          const cond = specialWhy(v, me, k);
+          const hosts = cond ? [] : specialHosts(v, me, k);
+          const reason = cond ? t(cond) : !hosts.length ? hostReason(v, me, k) : '';
+          set(key, !reason && canAfford(pl.res, info.cost), reason || why(info.cost, hosts.length, 1, ''), ctx.mode === key);
+        }
+      }
+      this.bpInfo[k] = info;
+    }
+  }
+
+  paintBlueprint(c) {
+    for (const key of this.bpKeys) {
+      const k = key.slice(3);
+      const info = c.bp[k];
+      const row = this.btns[key];
+      if (!info || !row) continue;
+      row.querySelector('.bm-cost').innerHTML = info.cost
+        ? Object.entries(info.cost)
+            .map(([r, n]) => `<span class="bm-need${c.res && c.res[r] < n ? ' short' : ''}" title="${esc(RES_NAMES[r])}">${resIcon(r, 22)}<b class="num">${n}</b></span>`)
+            .join('')
+        : info.use
+          ? `<span class="bm-free">${t('使用')}</span>`
+          : '';
+      const why = row.dataset.why;
+      const sub = row.querySelector('.bm-sub');
+      sub.textContent = why || info.fx;
+      sub.classList.toggle('why', !!why && !info.status);
+      row.title = t('{name}：{fx}（{pts}）', { name: t(BUILDING_NAMES[k]), fx: info.fx, pts: pointsText(k) });
+      row.querySelector('.bm-left').textContent = info.status || (isWonder(k) ? t('第 {s} 階段', { s: (info.wonder || 0) + 1 }) : pointsText(k));
+      row.classList.toggle('built', !!info.status && !info.use);
     }
   }
 

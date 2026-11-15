@@ -27,14 +27,19 @@ const DRAWN = ['twin', 'archipelago'].map((k) => registerMap(draftToDef(DRAFTS[k
 // and last, games with a room's house rules (numbers dealt more like the dice fall, a higher hand
 // limit, the dice deck) on the standard island, the large island, Seafarers 1 and the new world
 const HOUSE = [undefined, 'base-6', 'sea-1', 'sea-9'];
-for (let g = 0; g < 116; g++) {
-  const house = g >= 108;
+// and the development mode (developments, blueprints, buildings, wonders): four players on the 37-hex
+// island, two or three on the 30-hex one
+const PRESETS = ['port', 'order', 'farm', 'frontier', 'scholars'];
+let devMax = 0;
+for (let g = 0; g < 124; g++) {
+  const dev = g >= 116;
+  const house = g >= 108 && !dev;
   const big = (g >= 40 && g < 52) || (house && g % 4 === 1);
   const drawn = g >= 104 && g < 108 ? DRAWN[(g - 104) >> 1] : null;
   const sea = (g >= 52 && g < 104) || !!(drawn && drawn.rules && drawn.rules.seafarers) || (house && g % 4 >= 2);
   const sea6 = g >= 88 && g < 104;
-  const players = Array.from({ length: drawn ? drawn.players[1] : big || sea6 ? 5 + (g % 2) : g % 3 ? 4 : 3 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' } }));
-  const map = house ? HOUSE[g % 4] : drawn ? drawn.id : sea6 ? SEA6[(g - 88) >> 2] : big ? 'base-6' : sea ? (g >= 80 ? 'sea-9' : g >= 72 ? 'sea-3' : g >= 64 ? 'sea-2' : 'sea-1') : undefined;
+  const players = Array.from({ length: dev ? (g % 4 === 3 ? 3 - (g % 2) : 4) : drawn ? drawn.players[1] : big || sea6 ? 5 + (g % 2) : g % 3 ? 4 : 3 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' }, bp: dev ? PRESETS[(g + i) % 5] : undefined }));
+  const map = dev ? (players.length === 4 ? 'dev-4' : 'dev-3') : house ? HOUSE[g % 4] : drawn ? drawn.id : sea6 ? SEA6[(g - 88) >> 2] : big ? 'base-6' : sea ? (g >= 80 ? 'sea-9' : g >= 72 ? 'sea-3' : g >= 64 ? 'sea-2' : 'sea-1') : undefined;
   const rules = house ? { discard: 8 + (g % 3), dice: 'deck' } : (big && g >= 46) || (sea6 && g % 4 === 3) ? { turns: 'sbp' } : undefined;
   const st = createGame({ seed: 900 + g, players, entropy: [1, 2, 3, g + 4], map, rules, board: house ? { mix: 'rich' } : undefined });
   if (house) assert.equal(st.board.mix, 'rich');
@@ -86,6 +91,16 @@ for (let g = 0; g < 116; g++) {
       }
       assert.deepEqual(got.rules, want.rules);
       assert.equal(got.map, want.map);
+      if (dev) {
+        assert.deepEqual(got.plots, want.plots, `plots differ (game ${g}, seq ${st.seq})`);
+        assert.deepEqual(got.wonders, want.wonders, `wonders differ (game ${g}, seq ${st.seq})`);
+        assert.deepEqual(got.used, want.used, `used differs (game ${g}, seq ${st.seq})`);
+        got.players.forEach((pl, i) => {
+          const w = want.players[i];
+          assert.deepEqual([pl.bp, pl.built, pl.bought, pl.yard], [w.bp, w.built, w.bought, w.yard], `development seat ${i} differs (game ${g}, seq ${st.seq})`);
+          if (i === seat) assert.deepEqual(pl.pick, w.pick);
+        });
+      }
       assert.deepEqual(got.board.hexes, want.board.hexes);
       assert.deepEqual(got.board.vertexHarbor, want.board.vertexHarbor);
       assert.equal(got.board.robber, want.board.robber);
@@ -128,7 +143,8 @@ for (let g = 0; g < 116; g++) {
     }
     fullMax = Math.max(fullMax, C.utf8Size(full));
     const size = C.utf8Size({ bd: board, ps: C.encodeSeats(st), pub });
-    if (big) bigMax = Math.max(bigMax, size);
+    if (dev) devMax = Math.max(devMax, size);
+    else if (big) bigMax = Math.max(bigMax, size);
     else if (drawn) drawnMax = Math.max(drawnMax, size);
     else if (sea6) sea6Max = Math.max(sea6Max, size);
     else if (sea) seaMax = Math.max(seaMax, size);
@@ -142,4 +158,4 @@ for (let g = 0; g < 116; g++) {
   const bd = { ...C.encodeBoard(st), hk: 'zzzz' };
   assert.throws(() => C.decodeBoard(bd, 0), (e) => e instanceof C.BoardMismatch);
 }
-console.log(`codec ok: ${checked} views compared, largest public snapshot ${maxSize} bytes (5–6 players on the large island: ${bigMax}; Seafarers: ${seaMax}; Seafarers for 5–6: ${sea6Max}; maps players made: ${drawnMax}), largest takeover snapshot ${fullMax} bytes`);
+console.log(`codec ok: ${checked} views compared, largest public snapshot ${maxSize} bytes (5–6 players on the large island: ${bigMax}; Seafarers: ${seaMax}; Seafarers for 5–6: ${sea6Max}; maps players made: ${drawnMax}; the development mode: ${devMax}), largest takeover snapshot ${fullMax} bytes`);

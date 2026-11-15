@@ -13,6 +13,7 @@ import { StrategyCamera, ZOOM_MIN, ZOOM_MAX } from './camera.js';
 import { Markers } from './markers.js';
 import { Labels, screenWidth } from './labels.js';
 import { FogCover } from './fog.js';
+import { DevelopLayer } from './develop.js';
 import { GLSL_NOISE } from './noise.js';
 import { fpsMode, refreshInterval, refreshesPerFrame, pixelRatioCap, Governor } from './pace.js';
 import { resCard, icon, RES_NAMES } from '../ui/icons.js';
@@ -678,6 +679,8 @@ export class MapView {
 
   buildLabels(state) {
     this.tokenLabels = [];
+    // (the development mode) developments, the buildings beside settlements, the wonders
+    this.developLayer = state.rules && state.rules.develop ? new DevelopLayer(this.labels, (x, z) => this.terrain.heightAt(x, z)) : null;
     for (const h of GEO.hexes) {
       const H = state.board.hexes[h.id];
       const y = this.terrain.heightAt(h.x, h.z);
@@ -951,6 +954,7 @@ export class MapView {
     for (const t of this.tokenLabels) this.labels.remove(t.it);
     if (this.robberLabel) this.labels.remove(this.robberLabel);
     for (const hl of this.harborLabels) this.labels.remove(hl.it);
+    if (this.developLayer) this.developLayer.dispose();
     this.buildLabels(state);
     // the pieces already on the board come back without popping in
     this.pieces.sync(state, false);
@@ -987,6 +991,7 @@ export class MapView {
     if (rob) this.terrain.uniforms.uRobber.value.set(rob.q, rob.r);
     else this.terrain.uniforms.uRobber.value.set(99, 99);
     this.showRobber(state.board.robber, animate);
+    if (this.developLayer) this.developLayer.sync(state, this.players);
     if (changed) this.shadowDirty = 2;
   }
 

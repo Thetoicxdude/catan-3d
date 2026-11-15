@@ -96,7 +96,36 @@ const FIGURE = {
   pirate: 'pirate-flag',
   gold: 'gold-nuggets',
   isle: 'island',
+  // the development mode
+  develop: 'windmill',
+  blueprint: 'pencil-ruler',
+  wonder: 'greek-temple',
+  scaffold: 'crane',
 };
+// (the development mode) each building of the blueprints
+const BUILDING_FIGURE = {
+  aqueduct: 'aqueduct',
+  granary: 'granary',
+  market: 'shop',
+  shipyard: 'cargo-ship',
+  guild: 'scales',
+  barracks: 'barracks-tent',
+  wall: 'brick-wall',
+  mercenaries: 'swords-emblem',
+  adventurers: 'compass',
+  post: 'horse-head',
+  camp: 'camping-tent',
+  academy: 'graduate-cap',
+  press: 'quill-ink',
+  gardens: 'flowers',
+  lighthouse: 'lighthouse',
+  greatWall: 'defensive-wall',
+  royalRoad: 'horizon-road',
+  library: 'bookshelf',
+};
+export function buildingIcon(k, size = 20) {
+  return gameIcon(BUILDING_FIGURE[k] || 'greek-temple', size, 'ico gi');
+}
 
 export function icon(name, size = 20) {
   if (FIGURE[name]) return gameIcon(FIGURE[name], size, 'ico gi');

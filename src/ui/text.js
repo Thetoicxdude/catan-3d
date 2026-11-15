@@ -4,6 +4,7 @@ import { seaInfo, homeIslands } from '../engine/engine.js';
 import { GEO } from '../engine/geometry.js';
 import { t, N_, cap, list, low, isZh } from '../i18n/index.js';
 import { placeName } from '../i18n/places.js';
+import { BUILDING_NAMES, WONDER_VP, GRANARY_EXTRA, developOn } from '../engine/develop.js';
 
 // the development cards' names and what they do, in the language of the moment
 const dev = (name, desc, icon) => ({
@@ -85,10 +86,55 @@ function describe0(e, players, me, view) {
     }
     case 'build': {
       const what = low(t(BUILD_NAMES[e.what]));
+      if (e.royal) return { log: t('{who} 用皇家大道免費建造了道路', { who: W(e.p) }), hl: e.p === me };
       return { log: e.setup ? t('{who} 放置了{what}', { who: W(e.p), what }) : e.free ? t('{who} 免費建造了{what}', { who: W(e.p), what }) : t('{who} 建造了{what}', { who: W(e.p), what }), hl: e.p === me };
     }
     case 'startingResources':
+      // (the development mode: a frontier camp's cards for a new village)
+      if (e.camp) return { log: t('拓荒營地：{who} 獲得 {cards}', { who: W(e.p), cards: cardsHtml(e.gains, 14) }), hl: e.p === me };
       return { log: t('{who} 獲得開局資源 {cards}', { who: W(e.p), cards: cardsHtml(e.gains, 14) }), hl: e.p === me };
+    // ── the development mode ──
+    case 'develop':
+      return { log: e.level > 1 ? t('{who} 把 {hex} 的開發升到二級（多產 {res}）', { who: W(e.p), hex: hexName(e.hex), res: R(e.res) }) : t('{who} 開發了 {hex}（多產 {res}）', { who: W(e.p), hex: hexName(e.hex), res: R(e.res) }), hl: e.p === me };
+    case 'special': {
+      const name = t(BUILDING_NAMES[e.k]);
+      return { log: e.res ? t('{who} 蓋了{name}（{res} 2:1）', { who: W(e.p), name, res: R(e.res) }) : t('{who} 蓋了{name}', { who: W(e.p), name }), hl: e.p === me };
+    }
+    case 'wonder': {
+      const p = { who: W(e.p), name: t(BUILDING_NAMES[e.k]), hex: hexName(e.hex), s: e.stage };
+      if (e.stage === 1) return { log: t('{who} 在 {hex} 開工興建{name}（1/3）', p), hl: true, toast: e.p !== me ? { title: t('世界奇觀開工'), text: t('{name}：{owner} 在 {hex} 開工了', { ...p, owner: players[e.p].name }), icon: 'vp' } : null };
+      return { log: e.stage >= 3 ? t('{who} 的{name}付清第 3 階段，下一回合開始時完工', p) : t('{who} 的{name}完成第 {s} 階段（{s}/3）', p), hl: true };
+    }
+    case 'wonderDone': {
+      const name = t(BUILDING_NAMES[e.k]);
+      return {
+        log: t('{who} 的<b>{name}</b>完工了（+{n} 分）', { who: W(e.p), name, n: WONDER_VP }),
+        hl: true,
+        toast: { title: t('世界奇觀完工'), text: e.p === me ? t('你的{name}完工了：+{n} 分', { name, n: WONDER_VP }) : t('{owner} 的{name}完工了', { owner: players[e.p].name, name }), icon: 'vp' },
+      };
+    }
+    case 'siege': {
+      const name = t(BUILDING_NAMES[e.k]);
+      return { log: t('{who} 把強盜派到 {owner} 的{name}', { who: W(e.by), owner: W(e.p), name }), hl: true, toast: e.p === me ? { title: t('奇觀遭到攻擊'), text: t('{name}：打出騎士才保得住', { name }), icon: 'robber' } : null };
+    }
+    case 'defend': {
+      const name = t(BUILDING_NAMES[e.k]);
+      return { log: t('{who} 打出騎士，保住了{name}', { who: W(e.p), name }), hl: true };
+    }
+    case 'wonderLost': {
+      const name = t(BUILDING_NAMES[e.k]);
+      return { log: t('{who} 的{name}被強盜摧毀了', { who: W(e.p), name }), hl: true, toast: { title: t('奇觀被摧毀'), text: e.p === me ? t('你的{name}被摧毀了，已付的資源不退', { name }) : t('{owner} 的{name}被摧毀了', { owner: players[e.p].name, name }), icon: 'robber' } };
+    }
+    case 'market':
+      return { log: t('{who} 在市集交易：2 {give} → 1 {get}', { who: W(e.p), give: R(e.give), get: R(e.get) }), hl: e.p === me };
+    case 'guildBonus': {
+      const lines = Object.entries(e.bonus || {}).map(([q, r]) => t('{who} 多拿 {cards}', { who: W(+q), cards: cardsHtml({ [r]: 1 }, 14) }));
+      return { log: lines.length ? t('商會：{list}', { list: list(lines) }) : null, hl: e.from === me || e.to === me };
+    }
+    case 'aqueduct':
+      return { log: t('水道橋：{who} 拿到 1 張{res}', { who: W(e.p), res: R(e.res) }), hl: e.p === me };
+    case 'devDraw':
+      return { log: e.cards && e.p === me ? t('學院：你抽到 {a} 和 {b}，留下一張', { a: DEV_INFO[e.cards[0]].name, b: DEV_INFO[e.cards[1]].name }) : t('{who} 在學院抽了 2 張發展卡', { who: W(e.p) }), hl: e.p === me };
     case 'buyDev':
       return { log: e.card && e.p === me ? t('{who} 購買了一張發展卡（{card}）', { who: W(e.p), card: DEV_INFO[e.card].name }) : t('{who} 購買了一張發展卡', { who: W(e.p) }), hl: e.p === me };
     case 'playDev': {
@@ -148,7 +194,7 @@ function describe0(e, players, me, view) {
       const mine = e.amounts[me];
       const lim = (view && view.rules && view.rules.discard) || 7;
       return {
-        log: t('擲出 7！手牌超過 {n} 張的玩家必須棄掉一半', { n: lim }),
+        log: developOn(view) ? t('擲出 7！手牌超過 {n} 張的玩家必須棄掉一半（有糧倉的超過 {m} 張）', { n: lim, m: lim + GRANARY_EXTRA }) : t('擲出 7！手牌超過 {n} 張的玩家必須棄掉一半', { n: lim }),
         hl: true,
         toast: { title: t('強盜出沒'), text: mine ? t('你必須棄掉 {n} 張牌', { n: mine }) : t('手牌超過 {n} 張的國家必須棄牌', { n: lim }), icon: 'robber' },
       };
@@ -218,6 +264,14 @@ export function hexTooltip(view, hexId, players) {
   else lines.push(res ? t('<p>{terrain}，產出 <b>{res}</b></p>', { terrain: TERRAIN_NAMES[H.terrain], res: RES_NAMES[res] }) : t('<p>{terrain}，沒有產出</p>', { terrain: TERRAIN_NAMES[H.terrain] }));
   if (H.number) lines.push(t('<p>擲出 <b>{n}</b> 時產出 · 機率 <b>{pip}/36</b>（約 {pct}%）</p>', { n: H.number, pip, pct: Math.round((pip / 36) * 100) }));
   if (view.board.robber === hexId) lines.push(t('<p><b style="color:#e07a6a">強盜佔領中</b>，暫停產出</p>'));
+  // (the development mode) the development here, or the wonder on the desert
+  if (developOn(view)) {
+    const plot = view.plots[hexId];
+    if (plot) lines.push(t('<p>{lv}開發：{who}，每次產出多拿 {res}</p>', { lv: plot.r.length > 1 ? t('二級') : t('一級'), who: players ? who(players, plot.p, view.viewer) : '', res: list(plot.r.map((r) => RES_NAMES[r])) }));
+    const w = (view.wonders || []).find((x) => x.h === hexId);
+    if (w) lines.push(t('<p><b>{name}</b>：{who}，{state}</p>', { name: t(BUILDING_NAMES[w.k]), who: players ? who(players, w.p, view.viewer) : '', state: w.done ? t('已完工') : t('施工中 {s}/3', { s: w.s }) }));
+    else if (H.terrain === 'desert') lines.push(t('<p>奇觀地基：路口上有你的聚落時，可以在這裡蓋世界奇觀</p>'));
+  }
   // (Seafarers) the viewer's home island, or an island where a first settlement earns points
   const me = view.viewer;
   if (view.ships && GEO.def.isleBonus && me != null && me >= 0 && view.players[me]) {
@@ -321,11 +375,21 @@ function rulesZh(c) {
 <li><b>駛向新海岸</b>：主島和大島嶼一樣是 30 塊地形，東邊海峽的南北兩側有 10 塊小島（含 3 塊金礦）。<b>六座島嶼</b>：六座 5–6 塊地形的島，北三座、南三座，規則和四座島嶼相同（只有一座本島的話，外島最多 +10 分）。<b>霧島</b>：上下兩座島共 26 塊地形（含沙漠與 2 塊金礦，強盜從沙漠出發），東邊 25 格在霧裡。<b>新世界</b>：42 塊陸地（含 3 塊沙漠、4 塊金礦）隨機分成 3 到 5 座島。</li>
 <li>配對回合的第二位也可以移動一艘自己的船；特別建造階段不能移船。</li>
 </ul>
+<h4>發展模式</h4>
+<ul>
+<li>給熟悉標準規則的玩家的長局：4 人用 37 格的島（2–3 人 30 格），每人有道路 25、村莊 7、城市 5，銀行每種 30 張，發展卡 35 張（騎士 20、分數卡 6、其他各 3），<b>18 分</b>獲勝（可改 15 或 21）。</li>
+<li><b>藍圖</b>：每人帶 7 種不重複的建築入場（最多 1 座世界奇觀），在主畫面的「藍圖」設定；開局時所有人的藍圖公開，沒放進藍圖的建築整局都不能蓋。</li>
+<li><b>開發</b>：在你有聚落的地塊上蓋產量設施（每塊地只屬於一位開發者，沙漠和強盜所在的地塊不行）。這塊地每次產出時，你多拿 1 張蓋的時候選的資源；可以升到二級再多拿 1 張。一級 ${c({ wood: 1, brick: 1, wool: 1 })}（選其他資源再加 1 張小麥），二級 ${c({ grain: 2, ore: 2 })}（選其他資源再加 1 張羊毛）。強盜在這塊地上時開發也停產。</li>
+<li><b>特殊建築</b>：附在你自己的聚落旁，不佔路口、不截斷道路：村莊旁 1 座、城市旁 2 座。每種每人一座，建設條件只在蓋的時候檢查。功能建築各 1 分；冒險者公會在你持有最大騎士團時 +3，驛站在你持有最長道路時 +3。</li>
+<li><b>世界奇觀</b>：蓋在路口上有你聚落的沙漠，分三階段，每回合付一個階段；付清第三階段後，在你的下一回合開始時完工，得 <b>5 分</b>和加成。每座奇觀全場只有一座，開工就鎖定。</li>
+<li>強盜移到奇觀所在的沙漠時，擁有者可以立刻打出手上 1 張騎士保住它（算進最大騎士團）；不防衛的話奇觀被摧毀，已付的資源不退。你不能把強盜移到自己的奇觀上。</li>
+<li>每座建築的條件、費用和效果，在主畫面的「藍圖」與遊戲中的建造選單都看得到。</li>
+</ul>
 <h4>操作</h4>
 <ul>
 <li>滾輪或雙指縮放，拖曳或 WASD 平移；拉遠會切換成紙本地圖。</li>
 <li>轉動與傾斜：右鍵（或中鍵）拖曳、Q／E 旋轉、Z／X 或 Shift＋滾輪調整斜度、雙指旋轉；小地圖旁的羅盤與滑桿也可以調整，Home 回到預設視角。</li>
-<li>快捷鍵：R 擲骰、1 道路、2 村莊、3 城市、4 發展卡、5 船與 6 移船（航海家）、T 交易、Space 結束回合、M 切換地圖模式、Esc 取消。</li>
+<li>快捷鍵：R 擲骰、1 道路、2 村莊、3 城市、4 發展卡、5 船與 6 移船（航海家）或 5 開發（發展模式）、B 建造選單、T 交易、Space 結束回合、M 切換地圖模式、Esc 取消。</li>
 </ul>
 <h4>素材</h4>
 <p>樹木、灌木、岩石、地表照片材質，以及城堡塔樓、木碼頭、帆船與道具來自 <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>；村莊與城市的中世紀木構房屋來自 <a href="https://www.blendswap.com/blends/view/75519" target="_blank" rel="noopener">Blend Swap 的 Daniel74</a>；有動畫的農場動物來自 <a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a>。皆為 CC0 公眾領域授權。</p>
@@ -414,11 +478,21 @@ function rulesEn(c) {
 <li><b>Heading for New Shores</b>: the home island has 30 hexes like the Large Island, with 10 hexes of small islands north and south of the eastern strait (3 of them gold). <b>The Six Islands</b>: six islands of 5–6 hexes, three in the north and three in the south, with the rules of The Four Islands (with one home island, up to +10 VP from outer islands). <b>The Fog Islands</b>: two islands with 26 hexes between them (a desert and 2 gold fields; the robber starts in the desert), and 25 hexes of fog in the east. <b>New World</b>: 42 land hexes (3 deserts, 4 gold fields) split at random into 3 to 5 islands.</li>
 <li>The paired player may also move one of their own ships; no ships move in the special building phase.</li>
 </ul>
+<h4>Empire Mode</h4>
+<ul>
+<li>A long game for players who know the standard rules: a 37-hex island at four players (30 at two or three), 25 roads, 7 settlements and 5 cities each, 30 cards of each resource in the bank, 35 development cards (20 knights, 6 victory points, 3 of each other), and <b>18 VP</b> to win (15 or 21 if you like).</li>
+<li><b>Blueprint</b>: each player brings 7 different buildings (at most one world wonder), set up under Blueprint on the home screen; everyone's blueprint is shown from the start, and a building left out of yours cannot be built all game.</li>
+<li><b>Improvements</b>: improve a hex where you have a settlement or city (one owner per hex; not the desert, not under the robber). Each time it produces you take 1 more card of the resource you chose when building it, and a second level brings 1 more. Level 1 costs ${c({ wood: 1, brick: 1, wool: 1 })} (another resource: +1 grain), level 2 ${c({ grain: 2, ore: 2 })} (another resource: +1 wool). The robber stops an improvement too.</li>
+<li><b>Special buildings</b> stand beside your own settlements and cities, taking no intersection and cutting no road: one beside a settlement, two beside a city. One of each per player; a building's condition is checked only when it is built. Functional buildings are 1 VP each; the Adventurers' Guild is +3 while you hold the Largest Army, the Post Station +3 while you hold the Longest Road.</li>
+<li><b>World wonders</b> stand on a desert with your settlement or city at a corner, built in three stages, one a turn; after the third stage the wonder is complete at the start of your next turn: <b>5 VP</b> and its bonus. Each wonder exists once, locked for everyone else once begun.</li>
+<li>When the robber is moved to a wonder's desert, its owner may play a knight from hand at once to save it (it counts toward the Largest Army); undefended, the wonder is destroyed and what was paid is not returned. You may not move the robber to your own wonder.</li>
+<li>Each building's condition, cost and effect are on the Blueprint screen and in the game's build menu.</li>
+</ul>
 <h4>Controls</h4>
 <ul>
 <li>Scroll or pinch to zoom, drag or WASD to pan; zooming far out switches to the paper map.</li>
 <li>Turn and tilt: drag with the right (or middle) button, Q / E to turn, Z / X or Shift + scroll to tilt, or turn with two fingers; the compass and slider beside the minimap work too, and Home goes back to the default view.</li>
-<li>Keys: R roll, 1 road, 2 settlement, 3 city, 4 development card, 5 ship and 6 move ship (Seafarers), T trade, Space end turn, M map mode, Esc cancel.</li>
+<li>Keys: R roll, 1 road, 2 settlement, 3 city, 4 development card, 5 ship and 6 move ship (Seafarers) or 5 improve (Empire Mode), B build menu, T trade, Space end turn, M map mode, Esc cancel.</li>
 </ul>
 <h4>Credits</h4>
 <p>Trees, bushes, rocks, the photographic ground textures, the castle towers, wooden pier, sailing ships and props come from <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>; the medieval timber-framed houses of the settlements and cities come from <a href="https://www.blendswap.com/blends/view/75519" target="_blank" rel="noopener">Daniel74 on Blend Swap</a>; the animated farm animals come from <a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a>. All are CC0 (public domain).</p>

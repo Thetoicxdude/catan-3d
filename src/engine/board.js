@@ -130,6 +130,36 @@ function spreadTerrain(holder, terrains, free) {
   }
 }
 
+// The development mode's island (a map's `layout`): deserts never side by side, at least `inland` of
+// them off the outer ring (a hex with all six neighbours on the map), and no terrain in a patch of
+// more than `clump` hexes.
+function layoutOk(terrains, spec) {
+  const H = GEO.hexes;
+  const deserts = H.filter((h) => terrains[h.id] === 'desert');
+  if (spec.apart && deserts.some((h) => h.neighbors.some((n) => terrains[n] === 'desert'))) return false;
+  if (spec.inland && deserts.filter((h) => h.neighbors.length === 6).length < spec.inland) return false;
+  if (spec.clump) {
+    const seen = new Uint8Array(H.length);
+    for (const h of H) {
+      if (seen[h.id] || !terrains[h.id] || terrains[h.id] === 'sea') continue;
+      let size = 0;
+      const stack = [h.id];
+      seen[h.id] = 1;
+      while (stack.length) {
+        const id = stack.pop();
+        size++;
+        for (const n of H[id].neighbors) {
+          if (seen[n] || terrains[n] !== terrains[h.id]) continue;
+          seen[n] = 1;
+          stack.push(n);
+        }
+      }
+      if (size > spec.clump) return false;
+    }
+  }
+  return true;
+}
+
 // Repair shuffled number tokens: swap tokens between land tiles until no 6/8 touch another 6/8 and no
 // two equal numbers touch (or the attempts run out).
 function repairNumbers(holder, numbers, land) {
@@ -238,9 +268,13 @@ export function generateBoard(holder, opts = {}) {
   } else {
     terrains = base.slice();
     for (const [g, ids] of Object.entries(freeBy)) {
-      const drawn = shuffle(holder, g ? expand(groups[g].pool) : pool.slice());
-      ids.forEach((id, i) => (terrains[id] = drawn[i]));
-      spreadTerrain(holder, terrains, ids);
+      // (the development mode's island is drawn again until its deserts and patches fall right)
+      for (let attempt = 0; ; attempt++) {
+        const drawn = shuffle(holder, g ? expand(groups[g].pool) : pool.slice());
+        ids.forEach((id, i) => (terrains[id] = drawn[i]));
+        spreadTerrain(holder, terrains, ids);
+        if (!def.layout || attempt >= 400 || layoutOk(terrains, def.layout)) break;
+      }
     }
   }
 
@@ -287,7 +321,8 @@ export function generateBoard(holder, opts = {}) {
   else {
     const coast = def.harbors.group ? groupCoast(def.harbors.group, terrains) : GEO.coastalEdges;
     const offset = Math.floor(rngFloat(holder) * coast.length);
-    const types = shuffle(holder, def.harbors.types.slice());
+    // ('random': a 2:1 harbor of a resource the dice pick)
+    const types = shuffle(holder, def.harbors.types.map((t) => (t === 'random' ? RES[rngInt(holder, 0, RES.length - 1)] : t)));
     harbors = [];
     let pos = offset;
     for (let i = 0; i < types.length; i++) {
@@ -310,8 +345,13 @@ export function generateBoard(holder, opts = {}) {
     return { terrain, number: numbers[h.id], name: p + s };
   });
 
-  // the robber starts in the desert; on a map without one, on the hex with the number the map names
+  // the robber starts in the desert (on a map of several, one of them as the dice fall); on a map
+  // without one, on the hex with the number the map names
   let robber = hexes.findIndex((h) => h.terrain === 'desert');
+  if (def.robber && def.robber.anyDesert) {
+    const deserts = hexes.map((h, id) => (h.terrain === 'desert' ? id : -1)).filter((id) => id >= 0);
+    if (deserts.length) robber = deserts[rngInt(holder, 0, deserts.length - 1)];
+  }
   if (robber < 0 && def.robber && def.robber.number) robber = hexes.findIndex((h) => h.number === def.robber.number);
   // (or off the board, coming in the first time it is moved: -1)
   if (def.robber && def.robber.off) robber = -1;
