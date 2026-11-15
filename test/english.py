@@ -51,6 +51,8 @@ async def main():
         b = await p.chromium.launch(args=['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
         ctx = await b.new_context(viewport={'width': W, 'height': H})
         page = await ctx.new_page()
+        # (SwiftShader: a click can wait while a frame of the island is drawn)
+        page.set_default_timeout(120000)
         # turbo computers, low quality; no language saved: English
         await page.add_init_script("window.__noAssets = true; window.__mockRoom = true; window.__mapFps = 0.5; if (!localStorage.getItem('catan3d-settings-v1')) localStorage.setItem('catan3d-settings-v1', JSON.stringify({ speed: 'turbo', quality: 'low', qualityPicked: true }));")
         logs = []

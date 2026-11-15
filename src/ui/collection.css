@@ -227,7 +227,8 @@ button.cc:hover, button.cc:focus-visible { transform: translateY(-3px); outline:
 .hm-medal { position: relative; }
 .hm-medal .hm-badge { top: -4px; right: -4px; }
 .hm-medal.narrow { display: none; }
-@media (max-width: 999px) {
+@media (max-width: 999px), (max-aspect-ratio: 1 / 1) {
+  /* (narrow or upright screens: the board takes the whole width, the tabs would cover its frame) */
   .hm-tab { display: none; }
   .hm-medal.narrow { display: flex; }
 }
@@ -235,6 +236,9 @@ button.cc:hover, button.cc:focus-visible { transform: translateY(-3px); outline:
   .hm-medals { gap: 6px; }
   .hm-medal .emblem { width: 37px; height: 37px; padding: 4px; }
 }
+
+/* ── the build menu: a blueprint of fewer than seven cards says where more come from ── */
+.bm-bp-note { margin: 4px 8px 2px; font-size: 11.5px; line-height: 1.45; opacity: 0.75; grid-column: 1 / -1; }
 
 /* ── the blueprint in use: the setup screen and the room lobby ── */
 .deck-line { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; min-width: 0; }

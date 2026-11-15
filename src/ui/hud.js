@@ -18,7 +18,7 @@ import {
   shipTargets,
   freeRoad,
 } from '../engine/engine.js';
-import { developOn, plotSpots, plotCost, specialWhy, specialHosts, hostWhy, slotsAt, wonderSpots, wonderWhy, wonderOf, wonderDone, stageCost, isWonder, hasBuilt, BUILDINGS, BUILDING_NAMES, PLOT_COST } from '../engine/develop.js';
+import { developOn, plotSpots, plotCost, specialWhy, specialHosts, hostWhy, slotsAt, wonderSpots, wonderWhy, wonderOf, wonderDone, stageCost, isWonder, hasBuilt, BUILDINGS, BUILDING_NAMES, PLOT_COST, BLUEPRINT_SIZE } from '../engine/develop.js';
 import { BUILDING_TEXT, DEVELOP_TEXT, DIR_COLOR, nationStrip, pointsText } from './develop-ui.js';
 import { resCard, resIcon, icon, dieFace, RES_NAMES, RES_EN, buildingIcon } from './icons.js';
 import { Fx } from './fx.js';
@@ -753,6 +753,8 @@ export class Hud {
         this.btns[key] = row;
         this.bpKeys.push(key);
       }
+      // (a blueprint of the few cards a new player owns: where the rest come from)
+      if ((pl.bp || []).length < BLUEPRINT_SIZE) this.bpBox.appendChild(el('p', 'bm-bp-note', esc(t('藍圖 {n}/7：更多建築卡從任務、抽卡與商店拿（主畫面）', { n: (pl.bp || []).length }))));
     }
     const set = (key, ok, whyText, on) => {
       const b = this.btns[key];

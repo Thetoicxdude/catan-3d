@@ -1310,4 +1310,5 @@ export const EN = {
   '{n} 張新卡': ({ n: x }) => n(x, '{n} new card', '{n} new cards'),
   '{n} 個任務獎勵可以領取': ({ n: x }) => n(x, '{n} mission reward to collect', '{n} mission rewards to collect'),
   '藍圖 {n}（{c}/7）': 'Blueprint {n} ({c}/7)',
+  '藍圖 {n}/7：更多建築卡從任務、抽卡與商店拿（主畫面）': 'Blueprint {n}/7: more building cards come from missions, draws and the shop (home screen)',
 };
