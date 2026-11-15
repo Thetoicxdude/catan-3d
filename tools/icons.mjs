@@ -18,6 +18,8 @@ const USED = [
   'windmill', 'pencil-ruler', 'greek-temple', 'crane',
   'aqueduct', 'granary', 'shop', 'cargo-ship', 'scales', 'barracks-tent', 'brick-wall', 'swords-emblem', 'compass',
   'horse-head', 'camping-tent', 'graduate-cap', 'quill-ink', 'flowers', 'lighthouse', 'defensive-wall', 'horizon-road', 'bookshelf',
+  // the building cards: the Cards and Draw & Shop pages, coins, shards, missions, locked and new cards
+  'open-treasure-chest', 'two-coins', 'crystal-growth', 'scroll-quill', 'padlock', 'swap-bag', 'sparkles',
 ];
 
 const src = JSON.parse(readFileSync(process.argv[2], 'utf8'));

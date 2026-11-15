@@ -1,6 +1,6 @@
-# The development mode on the page: the blueprint editor on the home screen (a ready-made blueprint, a
-# building out and another in, the one in use), the campaign setup (the mode, the blueprint row, the
-# island by the number of players), then a campaign on the 37-hex island: the build menu's rows for
+# The development mode on the page: the campaign setup (the mode, the blueprint in use shown — it is
+# chosen on the home screen's Cards page, test/ui8.py — the island by the number of players), then a
+# campaign on the 37-hex island: the build menu's rows for
 # developments and the blueprint, a development (hex, then its resource), a special building beside a
 # settlement, a wonder on a desert, buying a card with the barracks, the robber at the wonder and its
 # defence with a knight, the badges on the map, and the campaign carried on after a reload.
@@ -12,6 +12,9 @@ from playwright.async_api import async_playwright
 SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
 os.makedirs(SP, exist_ok=True)
 results = {}
+# a player who owns every card, with a blueprint of seven (one wonder: the royal road)
+DECK = ['market', 'shipyard', 'granary', 'post', 'camp', 'wall', 'royalRoad']
+ALL = ['aqueduct', 'granary', 'market', 'shipyard', 'guild', 'barracks', 'wall', 'mercenaries', 'adventurers', 'post', 'camp', 'academy', 'press', 'gardens', 'lighthouse', 'greatWall', 'royalRoad', 'library']
 def check(name, ok, info=''):
     results[name] = bool(ok)
     print(('PASS ' if ok else 'FAIL ') + name, info)
@@ -46,7 +49,7 @@ async def main():
         ctx = await b.new_context(viewport={'width': 1366, 'height': 820})
         page = await ctx.new_page()
         page.set_default_timeout(120000)
-        await page.add_init_script("window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; if (!localStorage.getItem('catan3d-settings-v1')) localStorage.setItem('catan3d-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: 'low', qualityPicked: true, mode: 'develop', opponents: 3 }));")
+        await page.add_init_script("window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; if (!localStorage.getItem('catan3d-settings-v1')) localStorage.setItem('catan3d-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: 'low', qualityPicked: true, mode: 'develop', opponents: 3, bps: [%s, [], []], bpCur: 0 })); if (!localStorage.getItem('catan3d-cards-v1')) localStorage.setItem('catan3d-cards-v1', JSON.stringify({ own: %s }));" % (json.dumps(DECK), json.dumps(ALL)))
         logs = []
         page.on('console', lambda m: logs.append(f'[{m.type}] {m.text}') if m.type in ('error', 'warning') else None)
         page.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))
@@ -63,40 +66,15 @@ async def main():
         await page.wait_for_selector('.menu-screen.home', timeout=60000)
         await page.wait_for_timeout(1200)
 
-        # ── the blueprint editor ──
-        await page.click('.hm-medal[data-k="blueprints"]')
-        await page.wait_for_selector('.modal[data-kind="blueprint"]')
-        cards = await page.locator('.bp-card[data-k]').count()
-        check('the editor shows the 18 buildings', cards == 18, cards)
-        await page.click('[data-preset="port"]')
-        await page.click('.bp-slot[data-out="guild"]')
-        full = await page.locator('.bp-slot.empty').count()
-        check('a building out leaves a place', full == 1, full)
-        await page.click('.bp-card[data-k="wall"]')
-        # a second wonder takes the first one's place
-        await page.click('.bp-card[data-k="royalRoad"]')
-        bps = await page.evaluate("() => JSON.parse(localStorage.getItem('catan3d-settings-v1')).bps")
-        mine = bps[0]
-        check('the blueprint is kept as it changes', 'wall' in mine and 'guild' not in mine and 'royalRoad' in mine and 'lighthouse' not in mine and len(mine) == 7, mine)
-        await page.screenshot(path=f'{SP}/ui7-blueprints.png')
-        await page.click('.modal-foot .btn:not(.primary)')
-        await page.wait_for_timeout(300)
-
-        # ── the campaign setup ──
+        # ── the campaign setup: the blueprint in use is shown, nothing to choose (the Cards page: ui8.py) ──
+        mine = DECK
         await page.click('[data-k="single"]')
         await page.wait_for_timeout(2000)
         on = await page.locator('[data-mode="develop"].on').count()
         check('the setup shows the development mode', on == 1)
-        # the blueprint is chosen here, before the campaign, like a deck before a match: a ready-made one,
-        # then this device's first one again
-        decks = await page.locator('.deck-chooser .dk-pick').count()
-        check('the setup offers the decks: three of ours, five ready-made', decks == 8, decks)
-        await page.click('.dk-pick[data-deck="order"]')
-        picked = await page.evaluate("() => JSON.parse(localStorage.getItem('catan3d-settings-v1')).bpCur")
-        lit = await page.locator('.deck.on .dk-pick[data-deck="order"]').count()
-        await page.click('.dk-pick[data-deck="0"]')
-        back = await page.evaluate("() => JSON.parse(localStorage.getItem('catan3d-settings-v1')).bpCur")
-        check('a deck is chosen with a click, and stays chosen', picked == 'order' and lit == 1 and back == 0, (picked, lit, back))
+        line = await page.evaluate("() => { const d = document.querySelector('.deck-line'); return d ? { text: d.textContent, cards: d.querySelectorAll('.dk-card:not(.empty)').length } : null; }")
+        chooser = await page.locator('.deck-chooser, .dk-pick').count()
+        check('the setup shows the blueprint in use, nothing to pick', line and line['cards'] == 7 and chooser == 0, (line, chooser))
         await page.screenshot(path=f'{SP}/ui7-setup.png')
         await page.click('text=開始戰役')
         await page.wait_for_function('window.__game && window.__game.state')

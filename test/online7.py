@@ -1,7 +1,7 @@
 # The development mode online: the host picks the mode in the lobby (four seats on the 37-hex island),
 # two players join with blueprints of their own and see the room's terms, the computer takes the last
 # seat. Checks that every page lays out the same island, that each nation brings the blueprint its
-# player chose, that the developments, buildings and wonders reach every page as the host has them,
+# player chose at home (kept to the cards that player owns: the second one owns only a few), that the developments, buildings and wonders reach every page as the host has them,
 # that a player answers the robber at their wonder from their own page (the defence dialog, a knight
 # played), that hands stay right, and that the host's presence stays under the 4 KiB limit.
 #   python3 test/online7.py           (ROOMS=ws: through the real room server, `npm run dev` first)
@@ -17,8 +17,13 @@ PRESETS = {
     'scholars': ['academy', 'press', 'barracks', 'adventurers', 'market', 'granary', 'library'],
 }
 FRONTIER = ['post', 'camp', 'market', 'aqueduct', 'wall', 'shipyard', 'royalRoad']
+ALL = ['aqueduct', 'granary', 'market', 'shipyard', 'guild', 'barracks', 'wall', 'mercenaries', 'adventurers', 'post', 'camp', 'academy', 'press', 'gardens', 'lighthouse', 'greatWall', 'royalRoad', 'library']
+# (the second player owns a few cards only: of the Pioneers' blueprint they bring what they own)
+FEW = ['granary', 'market', 'post', 'camp', 'wall']
+FRONTIER_OWNED = [k for k in FRONTIER if k in FEW]
 INIT = """window.__mapFps = 0.12; window.__mockRoom = true; window.__perf = PERF; window.__keySlot = NAME; window.__noAssets = true;
-localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh', speed:'turbo', follow:false, quality:'low', qualityPicked:true, name: NAME, color: COLOR, opponents: 3, bps: BPS, bpCur: 0}));"""
+localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh', speed:'turbo', follow:false, quality:'low', qualityPicked:true, name: NAME, color: COLOR, opponents: 3, bps: BPS, bpCur: 0}));
+localStorage.setItem('catan3d-cards-v1', JSON.stringify({own: OWN}));"""
 if os.environ.get('ROOMS') == 'ws': INIT = INIT.replace('window.__mockRoom = true;', "window.__rooms = 'ws://127.0.0.1:8787/rooms/';")
 CLIENT_STEP = """(async () => {
   const g = window.__game; if (!g || !g.client) return 'nogame';
@@ -56,18 +61,18 @@ async def main():
             elif 'fonts.g' in u: await r.fulfill(status=200, body='', headers={'content-type': 'text/css'})
             else: await r.continue_()
         await ctx.route('**/*', route)
-        async def page(name, color, perf, bp):
+        async def page(name, color, perf, bp, own=ALL):
             pg = await ctx.new_page()
             pg.set_default_timeout(180000)
             pg.set_default_navigation_timeout(180000)
-            bps = [PRESETS[bp], PRESETS['port'], PRESETS['port']]
-            await pg.add_init_script(INIT.replace('NAME', json.dumps(name)).replace('COLOR', json.dumps(color)).replace('PERF', str(perf)).replace('BPS', json.dumps(bps)))
+            bps = [bp, [], []]
+            await pg.add_init_script(INIT.replace('NAME', json.dumps(name)).replace('COLOR', json.dumps(color)).replace('PERF', str(perf)).replace('BPS', json.dumps(bps)).replace('OWN', json.dumps(own)))
             pg.on('console', lambda m: logs.append(f'[{name} {m.type}] {m.text}') if m.type in ('error', 'warning') else None)
             pg.on('pageerror', lambda e: logs.append(f'[{name} pageerror] {e}'))
             await pg.goto('http://127.0.0.1:8765/dist/index.test.html')
             await pg.wait_for_selector('.menu-screen', timeout=90000)
             return pg
-        host = await page('主持王國', '#c8372d', 900, 'port')
+        host = await page('主持王國', '#c8372d', 900, PRESETS['port'])
         await host.click('[data-k="create"]')
         await host.wait_for_selector('.code-box b', timeout=30000)
         code = (await host.inner_text('.code-box b')).strip()
@@ -78,8 +83,8 @@ async def main():
         check('the host picks the development mode: four seats, no map to pick', '藍圖' in lay and '4 席' in lay and '駛向新海岸' not in lay, lay.replace('\n', ' '))
         await host.screenshot(path=f'{SP}/o7-host-lobby.png', timeout=120000)
         clients = []
-        for name, color, bp in [('小明聯邦', '#2f6fd0', 'order'), ('阿華公國', '#3f9a4a', 'scholars')]:
-            c = await page(name, color, 100, bp)
+        for name, color, bp, own in [('小明聯邦', '#2f6fd0', PRESETS['order'], ALL), ('阿華公國', '#3f9a4a', FRONTIER, FEW)]:
+            c = await page(name, color, 100, bp, own)
             await c.click('[data-k="join"]')
             await c.wait_for_selector('#join-code', timeout=30000)
             await c.fill('#join-code', code)
@@ -88,10 +93,11 @@ async def main():
             clients.append(c)
         for c in clients:
             await c.wait_for_function("document.querySelector('.room-terms') && document.querySelector('.room-terms').textContent.includes('發展模式')", timeout=60000)
-        # a player chooses the blueprint in the lobby, before the campaign: the second one takes the
-        # ready-made Pioneers there
-        await clients[1].wait_for_selector('.room-deck .dk-pick[data-deck="frontier"]', timeout=60000)
-        await clients[1].click('.room-deck .dk-pick[data-deck="frontier"]')
+        # the lobby shows each player the blueprint they bring (chosen at home: nothing to pick here)
+        await clients[1].wait_for_selector('.room-deck .deck-line', timeout=60000)
+        shown = await clients[1].evaluate("() => document.querySelectorAll('.room-deck .deck-line .dk-card:not(.empty)').length")
+        picks = await clients[1].locator('.dk-pick').count()
+        check('the lobby shows the blueprint brought, nothing to pick', shown == len(FRONTIER_OWNED) and picks == 0, (shown, picks))
         await clients[1].screenshot(path=f'{SP}/o7-client-lobby.png', timeout=120000)
         terms = await clients[0].inner_text('.room-terms')
         check('players see the room\'s terms', '發展模式' in terms and '4 席' in terms and '18 分' in terms, terms)
@@ -107,7 +113,8 @@ async def main():
         seats = [await c.evaluate('__game.viewer') for c in clients]
         check('the host plays the development mode', hb['map'] == 'dev-4' and hb['hexes'] == 37 and hb['develop'] and hb['target'] == 18, json.dumps({k: hb[k] for k in ('map', 'hexes', 'develop', 'target')}))
         check('every player lays out the same island', all(cb['map'] == 'dev-4' and cb['hash'] == hb['hash'] and cb['develop'] for cb in cbs), json.dumps([cb['hash'] for cb in cbs]))
-        check('each player brings the blueprint they chose', hb['bps'][0] == PRESETS['port'] and hb['bps'][seats[0]] == PRESETS['order'] and hb['bps'][seats[1]] == FRONTIER and all(len(x) == 7 for x in hb['bps']), hb['bps'])
+        ai_seat = [i for i in range(4) if i not in (0, seats[0], seats[1])][0]
+        check('each player brings the blueprint they chose, of the cards they own', hb['bps'][0] == PRESETS['port'] and hb['bps'][seats[0]] == PRESETS['order'] and hb['bps'][seats[1]] == FRONTIER_OWNED and len(hb['bps'][ai_seat]) == 7, hb['bps'])
         check('every page knows the blueprints', all(cb['bps'] == hb['bps'] for cb in cbs))
 
         # the opening and a few rounds, players' pages acting for themselves

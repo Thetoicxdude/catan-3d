@@ -18,6 +18,8 @@ const FIGURES = {
   chat: 'talk',
   workshop: 'treasure-map', // the map workshop: an island of your own drawing
   blueprint: 'pencil-ruler', // the development mode's blueprints
+  cards: 'card-pick', // the building cards and the blueprints made of them
+  shop: 'open-treasure-chest', // drawing cards, the shop, the missions
 };
 
 export function emblemSvg(name, size = 64) {

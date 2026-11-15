@@ -25,11 +25,12 @@ const BLD_R = Object.fromEntries(Object.entries(BLD).map(([k, v]) => [v, k]));
 const RCH = 'wblgo';
 const rch = (r) => RCH[RES.indexOf(r)];
 const rOf = (c) => RES[RCH.indexOf(c)];
-// a blueprint as one string (seven pairs of letters), and back (null when it is not a valid one)
+// a blueprint as one string (a pair of letters a building, seven at most), and back (null when it is
+// not a valid one; '' is a blueprint with no cards)
 export const bpCode = (bp) => (Array.isArray(bp) ? bp.map((k) => BLD[k] || '').join('') : '');
 export function bpDecode(code) {
-  if (typeof code !== 'string' || code.length !== 14) return null;
-  const bp = code.match(/../g).map((c) => BLD_R[c]);
+  if (typeof code !== 'string' || code.length % 2 || code.length > 14) return null;
+  const bp = (code.match(/../g) || []).map((c) => BLD_R[c]);
   return validBlueprint(bp) ? bp : null;
 }
 const USED = { market: 'm', guild: 'g', road: 'r', library: 'l' };
@@ -150,7 +151,7 @@ export function encodeSeats(st) {
 export function decodeSeats(a) {
   return a.map(([name, color, k, l, bp]) => {
     const s = { name, color, kind: KIND_R[k] || 'ai', ai: k === 'a' ? { level: LVL_R[l] || 'normal' } : null };
-    if (bp) s.bp = bp.match(/../g).map((c) => BLD_R[c]);
+    if (bp) s.bp = (String(bp).match(/../g) || []).map((c) => BLD_R[c]).filter(Boolean);
     return s;
   });
 }

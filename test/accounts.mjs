@@ -140,9 +140,26 @@ if (process.env.API && process.env.KEYS) {
   assert.equal((await call('/api/me')).body.user, null);
   await call('/api/login', { credential: await sign(key, good({ sub })) });
   assert.equal((await call('/api/me')).body.user.games, 2, 'the record is kept across sign-ins');
+  // the building cards: none yet, a copy kept, an older one refused (the newer one comes back)
+  assert.equal((await call('/api/cards')).status, 200);
+  const none = (await call('/api/cards')).body;
+  assert.equal(none.cards, null);
+  assert.match(none.owner, /^u\d+$/);
+  const deck = { own: ['granary', 'market', 'guild', 'nope'], coins: 250, shards: 40, rev: 5 };
+  assert.deepEqual((await call('/api/cards', { cards: deck })).body, { ok: true, owner: none.owner });
+  const kept = (await call('/api/cards')).body.cards;
+  assert.deepEqual([kept.own, kept.coins, kept.shards, kept.rev], [['granary', 'market', 'guild'], 250, 40, 5], 'kept, put right');
+  const stale = (await call('/api/cards', { cards: { ...deck, coins: 9999, rev: 4 } })).body;
+  assert.equal(stale.stale, true);
+  assert.equal(stale.cards.coins, 250, 'an older copy is refused');
+  assert.equal((await call('/api/cards', { cards: 'x' })).status, 400);
+  const big = await fetch(api + '/api/cards', { method: 'POST', headers: { origin: api, 'content-type': 'application/json', cookie }, body: JSON.stringify({ cards: { ...deck, rev: 6, pad: 'x'.repeat(20000) } }) });
+  assert.equal(big.status, 413, 'too big');
   await call('/api/forget', {});
+  assert.equal((await call('/api/cards')).status, 401, 'signed out');
   await call('/api/login', { credential: await sign(key, good({ sub })) });
   assert.equal((await call('/api/me')).body.user.games, 0, 'forgotten');
+  assert.equal((await call('/api/cards')).body.cards, null, 'the cards forgotten too');
   await call('/api/forget', {});
   console.log('server sign-in flow ok');
 

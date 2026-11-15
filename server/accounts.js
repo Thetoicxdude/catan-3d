@@ -3,6 +3,8 @@
 //   POST /api/login   {credential}   a Google ID token from the page → sets the session cookie
 //   GET  /api/me                      the signed-in player and their record (or {user: null})
 //   POST /api/result  {gid, mode, won, vp, place, n, turns}   a finished campaign (once per game)
+//   GET  /api/cards                   the player's building cards (src/meta/collection.js)
+//   POST /api/cards   {cards}         a newer copy of them (kept when its counter is larger)
 //   POST /api/logout                  ends the session
 //   POST /api/forget                  deletes the player's account and record
 //   /api/maps…                        maps players publish from the map workshop (maps.js)
@@ -17,6 +19,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { GOOGLE_CLIENT_ID } from './config.js';
 import { verifyIdToken, googleKeys, TokenError } from './google.js';
 import { handleMaps, MapRows } from './maps.js';
+import { fitCollection } from '../src/meta/collection.js';
 
 const COOKIE = 'cs';
 const SESSION_DAYS = 30;
@@ -139,6 +142,25 @@ export async function handleApi(request, env, url) {
       const out = await store.result(hash, r, Date.now());
       return json(out, out.error ? 401 : 200);
     }
+    if (path === '/api/cards') {
+      if (!hash) return json({ error: 'signed_out' }, 401);
+      if (request.method === 'GET') {
+        const out = await store.cardsGet(hash, Date.now());
+        return json(out, out.error ? 401 : 200);
+      }
+      if (request.method === 'POST') {
+        if (Number(request.headers.get('content-length') || 0) > 16384) return json({ error: 'too_large' }, 413);
+        let body = null;
+        try {
+          body = await request.json();
+        } catch {
+          /* not JSON */
+        }
+        if (!body || !body.cards || typeof body.cards !== 'object') return json({ error: 'bad_cards' }, 400);
+        const out = await store.cardsPut(hash, body.cards, Date.now());
+        return json(out, out.error ? 401 : 200);
+      }
+    }
     if (path === '/api/logout' && request.method === 'POST') {
       if (hash) await store.logout(hash);
       return json({ ok: true }, 200, { 'set-cookie': sessionCookie('', secure, 0) });
@@ -170,6 +192,8 @@ export class Accounts extends DurableObject {
       sub TEXT NOT NULL, gid TEXT NOT NULL, at INTEGER NOT NULL, mode TEXT NOT NULL, won INTEGER NOT NULL, vp INTEGER NOT NULL,
       place INTEGER NOT NULL, n INTEGER NOT NULL, turns INTEGER NOT NULL, PRIMARY KEY (sub, gid))`);
     this.sql.exec('CREATE INDEX IF NOT EXISTS results_recent ON results (sub, at)');
+    // the building cards: one row per player, the whole collection as JSON (about 1 KB)
+    this.sql.exec('CREATE TABLE IF NOT EXISTS cards (sub TEXT PRIMARY KEY, data TEXT NOT NULL, rev INTEGER NOT NULL, at INTEGER NOT NULL, day INTEGER NOT NULL DEFAULT 0, writes INTEGER NOT NULL DEFAULT 0)');
     this.mapsInit();
   }
 
@@ -259,6 +283,44 @@ export class Accounts extends DurableObject {
     return { ok: true, recorded: ins.rowsWritten > 0, user: this.profile(s.sub) };
   }
 
+  // the building cards: who they belong to is said with a short id of the account's row (not its
+  // Google id), so a device can tell one account's copy from another's
+  cardsOwner(sub) {
+    const u = this.one('SELECT rowid AS id FROM users WHERE sub = ?', sub);
+    return u ? 'u' + u.id : '';
+  }
+
+  cardsGet(hash, now) {
+    const s = this.session(hash, now);
+    if (!s) return { error: 'signed_out' };
+    const row = this.one('SELECT data FROM cards WHERE sub = ?', s.sub);
+    return { owner: this.cardsOwner(s.sub), cards: row ? JSON.parse(row.data) : null };
+  }
+
+  // a copy is kept when its counter is past the kept one's (else the kept one goes back); a few hundred
+  // changes a day at most
+  cardsPut(hash, data, now) {
+    const s = this.session(hash, now);
+    if (!s) return { error: 'signed_out' };
+    const owner = this.cardsOwner(s.sub);
+    const c = fitCollection(data);
+    const row = this.one('SELECT data, rev, day, writes FROM cards WHERE sub = ?', s.sub);
+    if (row && c.rev <= row.rev) return { stale: true, cards: JSON.parse(row.data), owner };
+    const day = Math.floor(now / DAY);
+    const writes = row && row.day === day ? row.writes : 0;
+    if (writes >= 400) return { ok: false, why: 'limit', owner };
+    this.run(
+      'INSERT INTO cards (sub, data, rev, at, day, writes) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(sub) DO UPDATE SET data = excluded.data, rev = excluded.rev, at = excluded.at, day = excluded.day, writes = excluded.writes',
+      s.sub,
+      JSON.stringify(c),
+      c.rev,
+      now,
+      day,
+      writes + 1,
+    );
+    return { ok: true, owner };
+  }
+
   logout(hash) {
     this.run('DELETE FROM sessions WHERE hash = ?', hash);
     return true;
@@ -268,6 +330,7 @@ export class Accounts extends DurableObject {
     const s = this.one('SELECT sub FROM sessions WHERE hash = ?', hash);
     if (!s) return false;
     this.run('DELETE FROM results WHERE sub = ?', s.sub);
+    this.run('DELETE FROM cards WHERE sub = ?', s.sub);
     this.run('DELETE FROM sessions WHERE sub = ?', s.sub);
     this.run('DELETE FROM users WHERE sub = ?', s.sub);
     // their maps leave the list (games and links already made on them go on, without their name)

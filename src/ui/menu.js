@@ -2,9 +2,11 @@
 import { flagURL } from './flags.js';
 import { esc } from './text.js';
 import { mapDef, MAP_TABLE, developMap, DEV4 } from '../engine/maps.js';
-import { PRESETS, PRESET_IDS, PRESET_NAMES, validBlueprint, DEFAULT_PRESET, BUILDING_IDS, isWonder } from '../engine/develop.js';
+import { BUILDING_IDS, isWonder, BLUEPRINT_SIZE } from '../engine/develop.js';
+import { STARTER, ownedBlueprint } from '../meta/collection.js';
+import { cards } from '../meta/store.js';
 import { t, tx, untx, N_, getLang } from '../i18n/index.js';
-import { deckChooser } from './develop-ui.js';
+import { deckLine } from './cards-ui.js';
 
 // (each colour's name is a key: t(p.name))
 export const PALETTE = [
@@ -70,8 +72,9 @@ export function defaultSettings() {
     seats: AI_NAMES.slice(1, 6).map((n) => ({ name: tx(n), kind: 'ai', level: 'normal' })),
     // 'standard' or 'develop' (the development mode, develop.js: its own island, by the number of players)
     mode: 'standard',
-    // the development mode: three blueprints saved on this device, and the one in use (bpCur)
-    bps: [PRESETS.port.slice(), PRESETS.order.slice(), PRESETS.scholars.slice()],
+    // the development mode: three blueprints made of this player's building cards (meta/collection.js),
+    // and the one the next game takes (bpCur); chosen on the home screen's Cards page
+    bps: [STARTER.slice(), [], []],
     bpCur: 0,
     // the island (maps.js) and, on the 5–6 player island, how the turn is shared
     map: 'base-4',
@@ -106,11 +109,11 @@ export const developing = (s) => !!s && s.mode === 'develop';
 const vpAdjs = (s) => (developing(s) ? DEV_VP_ADJ : VP_ADJ);
 // the island a game with these settings is played on, for n players
 export const mapFor = (s, n) => (developing(s) ? developMap(n || (Number(s.opponents) || 3) + 1) : mapDef(s.map));
-// the blueprint in use (the development mode): one of the three saved on this device (bpCur 0–2), or a
-// ready-made one (bpCur its name)
-export function myBlueprint(s) {
-  if (PRESETS[s.bpCur]) return PRESETS[s.bpCur].slice();
-  return (s.bps && validBlueprint(s.bps[s.bpCur]) ? s.bps[s.bpCur] : PRESETS[DEFAULT_PRESET]).slice();
+// the blueprint the next game takes (the development mode): the one in use of the three, kept to the
+// cards this player owns (i: another of the three, a friend at this device)
+export function myBlueprint(s, i = s.bpCur) {
+  const n = [0, 1, 2].includes(i) ? i : 0;
+  return ownedBlueprint(cards(), s.bps && s.bps[n]);
 }
 export const DISCARD = [7, 8, 9, 10];
 export const DICE = ['random', 'deck'];
@@ -157,16 +160,15 @@ export function fitSettings(s) {
   if (!vpAdjs(s).includes(s.vpAdj)) s.vpAdj = 0;
   delete s.target;
   // the development mode's blueprints: three, each of known buildings, all different, at most one wonder
-  // (one being put together may have fewer than seven for now: it is kept)
+  // and seven cards (whether the cards are owned is the collection's to say: myBlueprint)
   if (!Array.isArray(s.bps)) s.bps = [];
-  const spare = [PRESETS.port, PRESETS.order, PRESETS.scholars];
   for (let i = 0; i < 3; i++) {
     const bp = s.bps[i];
-    const ok = Array.isArray(bp) && bp.length <= 7 && new Set(bp).size === bp.length && bp.every((k) => BUILDING_IDS.includes(k)) && bp.filter(isWonder).length <= 1;
-    if (!ok) s.bps[i] = spare[i].slice();
+    const ok = Array.isArray(bp) && bp.length <= BLUEPRINT_SIZE && new Set(bp).size === bp.length && bp.every((k) => BUILDING_IDS.includes(k)) && bp.filter(isWonder).length <= 1;
+    if (!ok) s.bps[i] = i ? [] : STARTER.slice();
   }
   s.bps.length = 3;
-  if (![0, 1, 2].includes(s.bpCur) && !PRESET_IDS.includes(s.bpCur)) s.bpCur = 0;
+  if (![0, 1, 2].includes(s.bpCur)) s.bpCur = 0;
   if (!DISCARD.includes(s.discard)) s.discard = 7;
   if (!DICE.includes(s.dice)) s.dice = 'random';
   if (!MIX.includes(s.mix)) s.mix = 'standard';
@@ -180,7 +182,8 @@ export function fitSettings(s) {
     const names = AI_NAMES.map(tx);
     s.seats.push({ name: names.find((n) => !used.has(n)) || names[i], kind: 'ai', level: 'normal' });
   }
-  for (const seat of s.seats) if (!PRESET_IDS.includes(seat.bp) && !['s0', 's1', 's2'].includes(seat.bp)) seat.bp = DEFAULT_PRESET;
+  // (a friend at this device: one of the three blueprints)
+  for (const seat of s.seats) if (!['s0', 's1', 's2'].includes(seat.bp)) seat.bp = 's' + s.bpCur;
   // (the development mode: two to four players, the island following the number)
   const [lo, hi] = developing(s) ? [2, DEV4.players[1]] : def.players;
   s.opponents = Math.min(hi - 1, Math.max(lo - 1, Number(s.opponents) || hi - 1));
@@ -230,9 +233,8 @@ export function playersFromSettings(s) {
     players[0].bp = myBlueprint(s);
     s.seats.slice(0, s.opponents).forEach((seat, i) => {
       if (seat.kind !== 'human') return;
-      // (a ready-made one, or one of the three saved on this device)
-      const own = /^s[0-2]$/.test(seat.bp || '') ? s.bps[Number(seat.bp[1])] : null;
-      players[i + 1].bp = own && validBlueprint(own) ? own.slice() : PRESETS[seat.bp] ? seat.bp : DEFAULT_PRESET;
+      // (one of this device's three: the same cards as the first player's)
+      players[i + 1].bp = myBlueprint(s, /^s[0-2]$/.test(seat.bp || '') ? Number(seat.bp[1]) : s.bpCur);
     });
   }
   return players;
@@ -431,19 +433,10 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
     if (dev) {
       g.appendChild(el('span', ''));
       g.appendChild(el('p', 'form-note', t('發展模式：更大的島（4 人 37 格、2–3 人 30 格）、7 格藍圖、地塊開發與世界奇觀，{n} 分獲勝的長局。', { n: targetFor(settings) })));
-      // the blueprint for this game, chosen before it starts like a deck before a match: one of the
-      // three saved on this device (editable here) or a ready-made one
+      // the blueprint this game takes: chosen on the home screen's Cards page, like a deck before a
+      // match (nothing to choose here; a link there for a change of mind)
       g.appendChild(el('label', '', t('藍圖')));
-      g.appendChild(
-        deckChooser(settings, {
-          onPick: (k) => {
-            settings.bpCur = k;
-            onChange(settings, 'bp');
-            render();
-          },
-          onEdit: onBlueprints ? (i) => onBlueprints(() => render(), i) : null,
-        }),
-      );
+      g.appendChild(deckLine(settings, onBlueprints ? () => onBlueprints(() => render()) : null));
     }
     // the island: it decides how many nations can play
     if (!dev) {
@@ -539,19 +532,17 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
         if (dev) render();
       });
       row.appendChild(sel);
-      // (the development mode) a friend at this device brings a blueprint, like a deck; the computer
+      // (the development mode) a friend at this device brings one of the three blueprints; the computer
       // players choose theirs when the island is laid out
       if (dev && seat.kind === 'human') {
         const bsel = el('select', 'seat-bp');
         bsel.id = 'seat-bp-' + i;
         bsel.setAttribute('aria-label', t('藍圖'));
         bsel.style.cssText = sel.style.cssText;
-        // (the ready-made ones, or one of the three saved on this device)
-        const opts = [...PRESET_IDS.map((id) => [id, t(PRESET_NAMES[id])]), ...[0, 1, 2].filter((i) => validBlueprint(settings.bps[i])).map((i) => ['s' + i, t('藍圖 {n}', { n: i + 1 })])];
-        // (a saved one since taken apart: the game would take the default one, and so does the list)
-        if (!opts.some(([id]) => id === seat.bp)) seat.bp = DEFAULT_PRESET;
+        // (the three of this device: the same cards as the first player's)
+        const opts = [0, 1, 2].map((n) => ['s' + n, t('藍圖 {n}（{c}/7）', { n: n + 1, c: myBlueprint(settings, n).length })]);
         for (const [id, name] of opts) {
-          const o = el('option', '', t('藍圖：{name}', { name }));
+          const o = el('option', '', name);
           o.value = id;
           if (seat.bp === id) o.selected = true;
           bsel.appendChild(o);

@@ -13,8 +13,7 @@ import { flagURL } from '../ui/flags.js';
 import { esc } from '../ui/text.js';
 import { icon } from '../ui/icons.js';
 import { PALETTE, AI_NAMES, clipName, localName, fitSettings, gameSetup, mapTable, targetFor, officialSettings, houseRuleRows, houseRulesText, developing, myBlueprint } from '../ui/menu.js';
-import { DEFAULT_PRESET, PRESETS } from '../engine/develop.js';
-import { deckChooser } from '../ui/develop-ui.js';
+import { deckLine } from '../ui/cards-ui.js';
 import { mapDef, MAP_LIST, DEFAULT_MAP, isBuiltIn, knownMap } from '../engine/maps.js';
 import { mapsAvailable, publishedCode, loadPublished, cleanCode, CODE_RE } from './maps.js';
 import { openMapBrowser } from '../ui/maps-ui.js';
@@ -574,7 +573,7 @@ export class HostSession {
     if (developing(this.settings))
       this.seats.forEach((s, i) => {
         if (s.kind === 'host') players[i].bp = myBlueprint(this.settings);
-        else if (s.kind === 'remote') players[i].bp = s.bp ? s.bp.slice() : PRESETS[DEFAULT_PRESET].slice();
+        else if (s.kind === 'remote') players[i].bp = s.bp ? s.bp.slice() : [];
       });
     this.phase = 'play';
     if (this.ui) this.ui.close();
@@ -933,14 +932,14 @@ export class HostSession {
         (label, key, opts) => segRow(label, opts, this.settings[key], (v) => this.setRule(key, v)),
         (html) => lay.appendChild(el('p', 'form-note', html)),
       );
-      // (last, below the room's terms) the host's blueprint, chosen like a deck before a match (each
-      // player chooses theirs on their own page; everyone's is shown when the campaign starts)
+      // (last, below the room's terms) the host's blueprint: the one in use on the home screen's Cards
+      // page, like a deck brought to a match (every player brings theirs; all are shown when it starts)
       if (dev) {
         const row = el('div', 'layout-row');
         row.appendChild(el('span', 'row-label', t('藍圖')));
         const col = el('div', 'bp-col');
-        col.appendChild(deckChooser(this.settings, { onPick: (k) => ((this.settings.bpCur = k), render()) }));
-        col.appendChild(el('p', 'form-note', t('每位玩家在自己的畫面挑一套藍圖，開局時公開；電腦對手開局時挑一套。')));
+        col.appendChild(deckLine(this.settings));
+        col.appendChild(el('p', 'form-note', t('每位玩家帶自己在主畫面「卡牌」選好的藍圖，開局時公開；電腦對手各帶一套完整的預設藍圖。')));
         row.appendChild(col);
         lay.appendChild(row);
       }
@@ -1437,7 +1436,7 @@ export class ClientSession {
     const list = scr.querySelector('.seat-list');
     const termsEl = el('p', 'lead room-terms');
     list.before(termsEl);
-    // (the development mode) this player's blueprint for the campaign, chosen here before it starts
+    // (the development mode) the blueprint this player brings: the one in use on the home screen
     const deckEl = el('div', 'room-deck');
     list.after(deckEl);
     let deckFor = '';
@@ -1455,16 +1454,8 @@ export class ClientSession {
         deckEl.innerHTML = '';
         if (!dev) return;
         deckEl.appendChild(el('div', 'row-label', t('你的藍圖')));
-        deckEl.appendChild(
-          deckChooser(this.settings, {
-            onPick: (k) => {
-              this.settings.bpCur = k;
-              this.ch.presence({ bp: C.bpCode(myBlueprint(this.settings)) }).catch(() => {});
-              this.ui.render(seats, seat, lay);
-            },
-          }),
-        );
-        deckEl.appendChild(el('p', 'form-note', t('開局前可以換；所有人的藍圖在開局時公開。')));
+        deckEl.appendChild(deckLine(this.settings));
+        deckEl.appendChild(el('p', 'form-note', t('所有人的藍圖在開局時公開。')));
       },
       status: (t) => (statusEl.textContent = t),
       close: () => scr.remove(),

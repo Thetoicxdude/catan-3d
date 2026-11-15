@@ -143,6 +143,17 @@ export async function forgetMe() {
   setUser(null);
 }
 
+// The building cards (meta/store.js): the account's copy → { cards (null: none yet), owner }, and a
+// newer one to keep → { ok } or { stale, cards, owner } (the account has a newer one).
+export async function fetchCards() {
+  if (!accountsAvailable() || !user) return null;
+  return api('cards');
+}
+export async function sendCards(c) {
+  if (!accountsAvailable() || !user) return null;
+  return api('cards', { cards: c });
+}
+
 // a finished campaign (see Game.result): counted once per game on the server
 export async function reportResult(r) {
   if (!accountsAvailable() || !r) return null;

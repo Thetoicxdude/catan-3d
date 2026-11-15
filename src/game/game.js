@@ -441,6 +441,14 @@ export class Game {
       if (d.toast) this.hud.toast(d.toast.title, d.toast.text, d.toast.icon);
     }
     this.presentFx(red, view);
+    // (the building cards' missions done in play: main.js)
+    if (this.onWatch) {
+      try {
+        this.onWatch(view, red);
+      } catch (e) {
+        console.error(e);
+      }
+    }
     if (this.mode && !this.modeValid()) this.mode = null;
     this.save();
     this.refresh();

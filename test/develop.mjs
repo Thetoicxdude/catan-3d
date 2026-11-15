@@ -109,16 +109,21 @@ test('maps: deserts apart, some inland; no patch over three; numbers spread', ()
   }
 });
 
-test('blueprints: seven different, one wonder at most; a preset by name; the default', () => {
+test('blueprints: up to seven different, one wonder at most; a preset by name; what a seat brings', () => {
   assert.ok(Object.values(PRESETS).every(validBlueprint));
-  assert.ok(!validBlueprint(['market', 'market', 'shipyard', 'guild', 'granary', 'post', 'camp']));
-  assert.ok(!validBlueprint(['market', 'gardens', 'shipyard', 'guild', 'granary', 'post', 'library']));
-  assert.ok(!validBlueprint(['market', 'shipyard', 'guild', 'granary', 'post', 'camp']));
+  assert.ok(!validBlueprint(['market', 'market', 'shipyard']));
+  assert.ok(!validBlueprint(['market', 'gardens', 'library']));
+  assert.ok(!validBlueprint([...PRESETS.port, 'wall']));
+  assert.ok(!validBlueprint(['market', 'x']));
+  // (a player brings the cards they own: two at first, none at all is a blueprint too)
+  assert.ok(validBlueprint([]));
+  assert.ok(validBlueprint(['granary', 'market']));
+  assert.ok(validBlueprint(['market', 'shipyard', 'guild', 'granary', 'post', 'camp']));
   assert.ok(validBlueprint(['market', 'shipyard', 'guild', 'granary', 'post', 'camp', 'wall']));
-  const st = createGame({ seed: 1, players: [{ name: 'a', bp: 'order' }, { name: 'b', bp: ['x'] }, { name: 'c' }, { name: 'd', bp: PRESETS.farm }], map: 'dev-4' });
+  const st = createGame({ seed: 1, players: [{ name: 'a', bp: 'order' }, { name: 'b', bp: ['x', 'granary', 'granary', 'gardens', 'library'] }, { name: 'c' }, { name: 'd', bp: PRESETS.farm }], map: 'dev-4' });
   assert.deepEqual(st.players[0].bp, PRESETS.order);
-  assert.deepEqual(st.players[1].bp, PRESETS.port);
-  assert.deepEqual(st.players[2].bp, PRESETS.port);
+  assert.deepEqual(st.players[1].bp, ['granary', 'gardens']);
+  assert.deepEqual(st.players[2].bp, []);
   assert.deepEqual(st.players[3].bp, PRESETS.farm);
   // the standard game has none of it
   const std = createGame({ seed: 1, players: seats(4) });

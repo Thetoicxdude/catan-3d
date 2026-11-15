@@ -21,7 +21,9 @@ import { openMapBrowser, showPublished, ratingStars } from './ui/maps-ui.js';
 import { currentUser, loadUser } from './net/account.js';
 import { openSignIn } from './ui/account-ui.js';
 import { setLang, isZh, t, tx, terr } from './i18n/index.js';
-import { openBlueprints } from './ui/develop-ui.js';
+import { openCards, openShop, rewardsBox } from './ui/cards-ui.js';
+import { cards as collection, commit as commitCards } from './meta/store.js';
+import { gameOver as cardsGameOver, observe as cardsObserve, MISSIONS } from './meta/collection.js';
 
 const SETTINGS_KEY = 'catan3d-settings-v1';
 const app = document.getElementById('app');
@@ -332,7 +334,8 @@ function openMenu() {
         else startGame(save);
       }),
     onRules: () => menuDialogs().rules(),
-    onBlueprints: () => openBlueprints(menuDialogs(), settings, (s) => saveSettings(s)),
+    onCards: () => cardsPage(),
+    onShop: () => shopPage(),
     onSettings: () =>
       menuDialogs().settings({ ...settings }, (s, key) => {
         // in place: the home screen keeps editing this same object (name, colour)
@@ -347,6 +350,15 @@ function openMenu() {
   });
 }
 
+// The home screen's side pages: the building cards and the blueprints made of them; drawing cards, the
+// shop and the missions. after(): once the page is closed (the setup redraws the blueprint in use).
+function cardsPage(after = null) {
+  openCards(menuDialogs(), settings, (s) => saveSettings(s), { onShop: (tab) => shopPage(tab, after), onClose: after });
+}
+function shopPage(tab = 'draw', after = null) {
+  openShop(menuDialogs(), { tab, settings, save: (s) => saveSettings(s), onCards: () => cardsPage(after), onClose: after });
+}
+
 // single player: opponents, numbers, victory points and the island, over the live preview
 function openSetup() {
   closeMenus();
@@ -356,17 +368,8 @@ function openSetup() {
     onChange: onSettingsChange,
     onReroll: (newSeed) => showPreview(newSeed),
     onRules: () => menuDialogs().rules(),
-    // (the development mode) the blueprints: kept as they change; the setup shows the one in use
-    onBlueprints: (changed, set) =>
-      openBlueprints(
-        menuDialogs(),
-        settings,
-        (s) => {
-          saveSettings(s);
-          changed();
-        },
-        set,
-      ),
+    // (the development mode) the blueprint in use is chosen on the Cards page: the setup shows it
+    onBlueprints: (changed) => cardsPage(changed),
     onStart: () => startGame(null),
     onBack: () => openMenu(),
     onEditor: () => openEditor(),
@@ -655,6 +658,8 @@ if (window.__mockRoom || window.__testHooks) {
   // (the map in play: the tests find intersections and hexes through it)
   window.__geo = () => GEO;
   window.__screen = () => menu;
+  // (the building cards: the collection itself, and keeping a change made to it)
+  window.__cards = { get: () => collection(), commit: () => commitCards() };
 }
 
 // official rooms: automatic matchmaking (full room or countdown starts the campaign)
@@ -755,17 +760,37 @@ async function exitOnline() {
 
 function hookGame() {
   const g = game;
-  // a finished campaign goes into the signed-in player's record
+  // the building cards' missions that are done in play (a development, a wonder, a defence): a game that
+  // counts is one player against the computer, or online (not several players at one device)
+  const counts = () => !!g.net || g.players.filter((p) => p.kind === 'human').length === 1;
+  g.onWatch = (view, events) => {
+    if (!counts() || g.viewer < 0) return;
+    const done = cardsObserve(collection(), view, g.viewer, events);
+    if (!done) return;
+    commitCards();
+    for (const id of done) missionToast(g, id);
+  };
+  // a finished campaign: coins and missions for the building cards, and the signed-in player's record
   g.onGameOver = (r) => {
     if (!r) return;
+    const out = cardsGameOver(collection(), r, g.view(), g.viewer, localDay());
+    if (out) {
+      g.rewards = out;
+      commitCards();
+    }
     reportResult(r).then((d) => {
       if (d && d.recorded && d.user && !g.destroyed) g.hud.toast(t('已記入戰績'), t('{name}：{games} 場 · {wins} 勝', { name: tx(d.user.name), games: d.user.games, wins: d.user.wins }), 'vp', 4200);
     });
   };
-  // (a map players published) rating it when the campaign is over
+  // the end-of-game sheet: what the game earned; (a map players published) rating it
   g.overExtra = () => {
+    const box = document.createElement('div');
+    const rw = rewardsBox(g.rewards);
+    if (rw) box.appendChild(rw);
     const code = publishedCode(g.state && g.state.map);
-    return code && mapsAvailable() ? ratingStars(code, toast) : null;
+    const stars = code && mapsAvailable() ? ratingStars(code, toast) : null;
+    if (stars) box.appendChild(stars);
+    return box.childNodes.length ? box : null;
   };
   game.onSettings = (s, key) => {
     // in-game settings never carry a game's own rules back to the menus (an official game plays to 10)
@@ -776,6 +801,17 @@ function hookGame() {
     applyLook(settings);
   };
   window.__game = game;
+}
+
+// the player's own day (the first game of each day earns more coins)
+function localDay() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// a mission done in play: a note in the corner (its reward waits on the home screen)
+function missionToast(g, id) {
+  const m = MISSIONS.find((x) => x.id === id);
+  if (m && !g.destroyed) g.hud.toast(t('任務完成'), t('{m}：到主畫面的「抽卡・商店」領取', { m: t(m.text) }), 'vp', 4200);
 }
 
 async function startGame(saved) {

@@ -1,10 +1,9 @@
 // The development mode's interface pieces (the rules are in engine/develop.js): what each building does
-// in words, its card (the blueprint editor and the build menu), the blueprint editor itself (the home
-// screen's Blueprint medal), and the strip of a nation's blueprint in the nations' panel.
-import { BUILDINGS, BUILDING_IDS, BUILDING_NAMES, DIRS, DIR_NAMES, PRESETS, PRESET_IDS, PRESET_NAMES, DEFAULT_PRESET, isWonder, validBlueprint, BLUEPRINT_SIZE, WONDER_VP, SCORE_VP, PLOT_COST } from '../engine/develop.js';
-// (the deck chooser's ready-made decks are listed in PRESET_IDS order)
+// in words, its card (the Cards page's detail, cards-ui.js), the strip of a nation's blueprint in the
+// nations' panel, and the dialogs of a turn.
+import { BUILDINGS, BUILDING_NAMES, DIR_NAMES, PRESETS, PRESET_IDS, PRESET_NAMES, isWonder, validBlueprint, WONDER_VP, SCORE_VP, PLOT_COST } from '../engine/develop.js';
 import { buildingIcon, icon, resIcon, RES_NAMES } from './icons.js';
-import { t, N_, list } from '../i18n/index.js';
+import { t, N_ } from '../i18n/index.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -108,138 +107,6 @@ export function nationStrip(v, p) {
 export function plotCostHtml(level, local, r) {
   const c = PLOT_COST[level][r === local ? 'local' : 'other'];
   return costHtml(c, 16);
-}
-
-// ── the blueprint editor ──
-
-// The three blueprints saved on this device: 7 places at the top, the 18 buildings below by direction
-// (a click puts one in or takes it out), ready-made ones to start from, and which one to play with.
-// `save(settings)` stores what changed.
-export function openBlueprints(dialogs, settings, save, start = null) {
-  const body = document.createElement('div');
-  body.className = 'bp-editor';
-  let cur = [0, 1, 2].includes(start) ? start : [0, 1, 2].includes(settings.bpCur) ? settings.bpCur : 0;
-  let flash = '';
-  const render = () => {
-    const bp = settings.bps[cur];
-    const full = bp.length >= BLUEPRINT_SIZE;
-    const tabs = [0, 1, 2]
-      .map((i) => `<button type="button" class="bp-tab${i === cur ? ' on' : ''}" data-set="${i}">${t('藍圖 {n}', { n: i + 1 })}${i === settings.bpCur ? `<small>${t('使用中')}</small>` : ''}</button>`)
-      .join('');
-    const slots = Array.from({ length: BLUEPRINT_SIZE }, (_, i) => {
-      const k = bp[i];
-      if (!k) return `<span class="bp-slot empty">${i + 1}</span>`;
-      return `<button type="button" class="bp-slot" data-out="${k}" style="--dc:${DIR_COLOR[BUILDINGS[k].dir]}" title="${esc(t('移出藍圖'))}">${buildingIcon(k, 24)}<b>${esc(buildingName(k))}</b></button>`;
-    }).join('');
-    const groups = DIRS.map((d) => {
-      const cards = BUILDING_IDS.filter((k) => BUILDINGS[k].dir === d)
-        .map((k) => buildingCard(k, { tag: 'button', state: bp.includes(k) ? 'on' : '' }))
-        .join('');
-      return `<section class="bp-group" style="--dc:${DIR_COLOR[d]}"><h4>${esc(t(DIR_NAMES[d]))}</h4><div class="bp-cards">${cards}</div></section>`;
-    }).join('');
-    const presets = PRESET_IDS.map((id) => `<button type="button" class="btn ghost bp-preset" data-preset="${id}" title="${esc(list(PRESETS[id].map(buildingName)))}">${esc(t(PRESET_NAMES[id]))}</button>`).join('');
-    const status = !full ? t('還差 {n} 格', { n: BLUEPRINT_SIZE - bp.length }) : blueprintName(bp);
-    body.innerHTML = `
-      <div class="bp-tabs">${tabs}</div>
-      <p class="bp-lead">${t('每局帶 7 種不重複的建築，其中最多 1 座世界奇觀；沒放進藍圖的建築整局都不能蓋。點一下卡片放入或移出。')}</p>
-      <div class="bp-slots">${slots}<span class="bp-status${full ? '' : ' short'}">${esc(status)}</span></div>
-      <div class="bp-presets"><span>${t('從預設開始：')}</span>${presets}</div>
-      ${flash ? `<p class="bp-flash">${esc(flash)}</p>` : ''}
-      <div class="bp-groups">${groups}</div>`;
-    flash = '';
-    body.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => ((cur = +b.dataset.set), render())));
-    body.querySelectorAll('[data-out]').forEach((b) =>
-      b.addEventListener('click', () => {
-        settings.bps[cur] = bp.filter((x) => x !== b.dataset.out);
-        save(settings);
-        render();
-      }),
-    );
-    body.querySelectorAll('.bp-card[data-k]').forEach((b) =>
-      b.addEventListener('click', () => {
-        const k = b.dataset.k;
-        if (bp.includes(k)) settings.bps[cur] = bp.filter((x) => x !== k);
-        // (one wonder: the new one takes the old one's place, full or not)
-        else if (isWonder(k) && bp.some(isWonder)) settings.bps[cur] = bp.map((x) => (isWonder(x) ? k : x));
-        else if (bp.length >= BLUEPRINT_SIZE) flash = t('藍圖已滿：先移出一座建築');
-        else settings.bps[cur] = [...bp, k];
-        save(settings);
-        render();
-      }),
-    );
-    body.querySelectorAll('[data-preset]').forEach((b) =>
-      b.addEventListener('click', () => {
-        settings.bps[cur] = PRESETS[b.dataset.preset].slice();
-        save(settings);
-        render();
-      }),
-    );
-    if (dialogs.cur) {
-      const use = dialogs.cur.foot.querySelector('[data-use]');
-      if (use) {
-        use.disabled = !full || cur === settings.bpCur;
-        use.textContent = cur === settings.bpCur ? t('使用中') : t('使用這套藍圖');
-      }
-    }
-  };
-  const use = document.createElement('button');
-  use.type = 'button';
-  use.className = 'btn primary';
-  use.dataset.use = '1';
-  use.addEventListener('click', () => {
-    if (settings.bps[cur].length < BLUEPRINT_SIZE) return;
-    settings.bpCur = cur;
-    save(settings);
-    render();
-  });
-  const done = document.createElement('button');
-  done.type = 'button';
-  done.className = 'btn';
-  done.textContent = t('完成');
-  done.addEventListener('click', () => dialogs.close());
-  dialogs.open({ kind: 'blueprint', title: t('藍圖'), body, foot: [done, use], cls: 'wide bp-dialog' });
-  render();
-}
-
-// ── the blueprint for a game, chosen before it starts (like a deck before a match) ──
-
-// how each ready-made blueprint plays (keys)
-export const PRESET_STYLE = {
-  farm: N_('多開發、囤積資源，蓋空中花園'),
-  port: N_('專精一兩種資源，靠港口換其他資源'),
-  order: N_('大量騎士，拿最大騎士團並壓制對手'),
-  frontier: N_('搶路口和最長道路'),
-  scholars: N_('大量發展卡，分數卡與騎士並進'),
-};
-
-// The blueprints to choose from for the next game: this device's three, then the five ready-made ones,
-// each a deck of seven cards, the chosen one lit. onPick(key): 0–2 or a ready-made one's name;
-// onEdit(i): the editor at that one (null: no editing here).
-export function deckChooser(settings, { onPick, onEdit = null }) {
-  const box = document.createElement('div');
-  box.className = 'deck-chooser';
-  const deck = (key, name, bp, sub, own) => {
-    const full = validBlueprint(bp);
-    const on = settings.bpCur === key;
-    const cards = bp.map((k) => `<span class="dk-card" style="--dc:${DIR_COLOR[BUILDINGS[k].dir]}" title="${esc(buildingName(k))}">${buildingIcon(k, 16)}</span>`).join('') + '<span class="dk-card empty"></span>'.repeat(Math.max(0, BLUEPRINT_SIZE - bp.length));
-    const pick = `<button type="button" class="dk-pick" data-deck="${key}"${full ? '' : ' disabled'} aria-pressed="${on}"><span class="dk-name"><b>${esc(name)}</b><small>${esc(sub)}</small></span><span class="dk-cards">${cards}</span></button>`;
-    const edit = own && onEdit ? `<button type="button" class="btn ghost dk-edit" data-edit="${key}" title="${esc(t('編輯這套藍圖'))}">${t('編輯')}</button>` : '';
-    return `<div class="deck${on ? ' on' : ''}${full ? '' : ' short'}">${pick}${edit}</div>`;
-  };
-  const own = [0, 1, 2].map((i) => deck(i, t('藍圖 {n}', { n: i + 1 }), settings.bps[i] || [], settings.bps[i] && settings.bps[i].length >= BLUEPRINT_SIZE ? blueprintName(settings.bps[i]) : t('還差 {n} 格', { n: BLUEPRINT_SIZE - (settings.bps[i] || []).length }), true)).join('');
-  const ready = PRESET_IDS.map((id) => deck(id, t(PRESET_NAMES[id]), PRESETS[id], t(PRESET_STYLE[id]), false)).join('');
-  // (the one in use still being put together: the game takes the default ready-made one)
-  const short = [0, 1, 2].includes(settings.bpCur) && !validBlueprint(settings.bps[settings.bpCur]);
-  const warn = short ? `<p class="dk-warn">${esc(t('選定的藍圖還沒湊滿 7 格，開局會改用預設的「{name}」。', { name: t(PRESET_NAMES[DEFAULT_PRESET]) }))}</p>` : '';
-  box.innerHTML = `${warn}<div class="dk-group"><span class="dk-head">${t('我的藍圖')}</span>${own}</div><div class="dk-group"><span class="dk-head">${t('預設藍圖')}</span>${ready}</div>`;
-  box.querySelectorAll('.dk-pick').forEach((b) =>
-    b.addEventListener('click', () => {
-      const k = b.dataset.deck;
-      onPick(/^\d$/.test(k) ? Number(k) : k);
-    }),
-  );
-  if (onEdit) box.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => onEdit(Number(b.dataset.edit))));
-  return box;
 }
 
 // the five resources to choose one from (a development, the shipyard), each with what it costs

@@ -100,6 +100,14 @@ const FIGURE = {
   develop: 'windmill',
   blueprint: 'pencil-ruler',
   wonder: 'greek-temple',
+  // the building cards (cards-ui.js): coins, shards, missions, a locked card, a new one, the shop
+  coin: 'two-coins',
+  shard: 'crystal-growth',
+  mission: 'scroll-quill',
+  lock: 'padlock',
+  sparkle: 'sparkles',
+  shop: 'swap-bag',
+  chest: 'open-treasure-chest',
   scaffold: 'crane',
 };
 // (the development mode) each building of the blueprints

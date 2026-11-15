@@ -128,16 +128,23 @@ export const PRESET_IDS = Object.keys(PRESETS);
 export const PRESET_NAMES = { farm: N_('穀倉'), port: N_('商港'), order: N_('騎士團§preset'), frontier: N_('拓荒'), scholars: N_('書院') };
 export const DEFAULT_PRESET = 'port';
 
-// 7 different buildings from the pool, at most one of them a wonder
+// Up to 7 different buildings, at most one of them a wonder. (A player brings the cards they own: a new
+// player has two, meta/collection.js; the computer players always bring a full ready-made one.)
 export function validBlueprint(bp) {
-  if (!Array.isArray(bp) || bp.length !== BLUEPRINT_SIZE) return false;
+  if (!Array.isArray(bp) || bp.length > BLUEPRINT_SIZE) return false;
   if (new Set(bp).size !== bp.length || !bp.every((k) => BUILDINGS[k])) return false;
   return bp.filter(isWonder).length <= 1;
 }
-// a blueprint from what a seat brings: the buildings themselves, or a ready-made one's name
+// a blueprint from what a seat brings: a ready-made one's name, or the buildings themselves (kept to
+// a valid blueprint: the first seven different ones, the first wonder)
 export function blueprintOf(x) {
   if (typeof x === 'string' && PRESETS[x]) return PRESETS[x].slice();
-  return validBlueprint(x) ? x.slice() : PRESETS[DEFAULT_PRESET].slice();
+  const out = [];
+  for (const k of Array.isArray(x) ? x : []) {
+    if (!BUILDINGS[k] || out.includes(k) || (isWonder(k) && out.some(isWonder))) continue;
+    if (out.length < BLUEPRINT_SIZE) out.push(k);
+  }
+  return out;
 }
 
 export const developOn = (st) => !!(st && st.rules && st.rules.develop);

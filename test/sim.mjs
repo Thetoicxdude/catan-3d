@@ -149,8 +149,13 @@ for (let g = 0; g < GAMES; g++) {
     board: HOUSE ? { mix: 'rich' } : { numbers: g % 2 ? 'spiral' : 'balanced' },
     vpAdj: HOUSE && g % 2 ? 2 : 0,
   });
-  // (the development mode) the computer players' blueprints
-  if (st.rules && st.rules.develop) st.players.forEach((pl, i) => (pl.bp = PRESETS[chooseBlueprint(st, i, pl.ai.level, rnd)].slice()));
+  // (the development mode) the computer players' blueprints; now and then the first player brings only
+  // a few cards, or none (a new player's: meta/collection.js)
+  if (st.rules && st.rules.develop) {
+    st.players.forEach((pl, i) => (pl.bp = PRESETS[chooseBlueprint(st, i, pl.ai.level, rnd)].slice()));
+    if (g % 5 === 1) st.players[0].bp = ['granary', 'market'];
+    if (g % 5 === 3) st.players[0].bp = [];
+  }
   check(st, 'start');
   const mem = players.map(() => ({}));
   let steps = 0;

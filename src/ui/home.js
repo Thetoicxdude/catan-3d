@@ -11,6 +11,7 @@ import { flagURL } from './flags.js';
 import { esc } from './text.js';
 import { emblemSvg, seatShield } from './emblems.js';
 import { mountAccount } from './account-ui.js';
+import { homeMarks, onCards } from './cards-ui.js';
 import { t } from '../i18n/index.js';
 
 const APP = 'catan3d';
@@ -396,8 +397,11 @@ export function showHome(app, opts) {
         ${card('single', 'gold', t('單人遊戲'), 'single', t('單人遊戲§short'))}${card('create', 'bronze', t('建立房間'), 'create', t('建立房間§short'))}${card('join', 'verdigris', t('加入房間'), 'join', t('加入房間§short'))}${card('workshop', 'bronze', t('地圖工坊'), 'workshop', t('地圖工坊§short'))}${card('continue', 'silver', t('繼續上一局'), 'resume', t('繼續上一局§short'))}
       </nav>
     </main>
+    <button class="hm-tab left" type="button" data-k="cards" title="${t('卡牌：建築卡與藍圖（發展模式）')}" aria-label="${t('卡牌：建築卡與藍圖（發展模式）')}">${emblemSvg('cards', 36)}<span class="lbl">${t('卡牌')}</span><i class="hm-badge new" hidden></i></button>
+    <button class="hm-tab right" type="button" data-k="shop" title="${t('抽卡・商店・任務')}" aria-label="${t('抽卡・商店・任務')}">${emblemSvg('shop', 36)}<span class="lbl">${t('商店')}</span><span class="hm-purse num"></span><i class="hm-badge" hidden></i></button>
     <div class="hm-medals">
-      <button class="hm-medal" type="button" data-k="blueprints" title="${t('藍圖（發展模式）')}" aria-label="${t('藍圖（發展模式）')}">${emblemSvg('blueprint', 40)}<span>${t('藍圖')}</span></button>
+      <button class="hm-medal narrow" type="button" data-k="cards" title="${t('卡牌：建築卡與藍圖（發展模式）')}" aria-label="${t('卡牌：建築卡與藍圖（發展模式）')}">${emblemSvg('cards', 40)}<span>${t('卡牌')}</span><i class="hm-badge new" hidden></i></button>
+      <button class="hm-medal narrow" type="button" data-k="shop" title="${t('抽卡・商店・任務')}" aria-label="${t('抽卡・商店・任務')}">${emblemSvg('shop', 40)}<span>${t('商店')}</span><i class="hm-badge" hidden></i></button>
       <button class="hm-medal" type="button" data-k="rules" title="${t('規則說明')}" aria-label="${t('規則說明')}">${emblemSvg('rules', 40)}<span>${t('規則')}</span></button>
       <button class="hm-medal" type="button" data-k="settings" title="${t('設定')}" aria-label="${t('設定')}">${emblemSvg('settings', 40)}<span>${t('設定')}</span></button>
     </div>
@@ -455,9 +459,27 @@ export function showHome(app, opts) {
   const account = opts.dialogs ? mountAccount(scr.querySelector('.hm-who'), opts.dialogs) : null;
 
   // ── actions ──
-  const handlers = { single: opts.onSingle, create: opts.onCreate, join: opts.onJoin, workshop: opts.onEditor, continue: opts.onContinue, rules: opts.onRules, settings: opts.onSettings, blueprints: opts.onBlueprints, match: opts.onMatch };
+  const handlers = { single: opts.onSingle, create: opts.onCreate, join: opts.onJoin, workshop: opts.onEditor, continue: opts.onContinue, rules: opts.onRules, settings: opts.onSettings, cards: opts.onCards, shop: opts.onShop, match: opts.onMatch };
   const act = (k) => handlers[k] && handlers[k]();
   scr.querySelectorAll('button[data-k]').forEach((b) => b.addEventListener('click', () => act(b.dataset.k)));
+  // ── the building cards: new ones to look at, rewards waiting, the coins ──
+  const paintMarks = () => {
+    const m = homeMarks();
+    scr.querySelectorAll('[data-k="cards"] .hm-badge').forEach((b) => {
+      b.hidden = !m.fresh;
+      b.textContent = m.fresh ? t('新') : '';
+      b.title = m.fresh ? t('{n} 張新卡', { n: m.fresh }) : '';
+    });
+    scr.querySelectorAll('[data-k="shop"] .hm-badge').forEach((b) => {
+      b.hidden = !m.claim;
+      b.textContent = m.claim ? String(m.claim) : '';
+      b.title = m.claim ? t('{n} 個任務獎勵可以領取', { n: m.claim }) : '';
+    });
+    const purse = scr.querySelector('.hm-purse');
+    if (purse) purse.textContent = m.coins.toLocaleString('en-US');
+  };
+  paintMarks();
+  const unCards = onCards(() => !closed && paintMarks());
   const boardEl = scr.querySelector('.ho-board');
   boardEl.addEventListener('click', () => act('match'));
   boardEl.addEventListener('keydown', (e) => {
@@ -666,6 +688,7 @@ export function showHome(app, opts) {
     close() {
       closed = true;
       clearInterval(timer);
+      unCards();
       if (account) account.close();
       for (const u of unsubs) if (u) u();
       if (ro) ro.disconnect();
