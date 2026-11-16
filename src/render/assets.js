@@ -266,6 +266,8 @@ export function loadAssets(quality = 'high') {
       parts: {},
       baked: {},
     };
+    // (the development mode's models stand animals of the pack in their yards: devmesh.js)
+    models.baked = pack.baked;
     // ready-to-instance rock meshes and vertex-animation bakes, one at a time
     for (const [slug, r] of Object.entries(pack.rocks)) {
       await gate();

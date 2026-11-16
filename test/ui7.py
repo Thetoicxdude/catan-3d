@@ -182,8 +182,40 @@ async def main():
         await page.evaluate("() => { const s = __game.state; s.current = 0; s.pending = null; __game.refresh(); }")
         await page.wait_for_timeout(2500)
         lab = await page.evaluate(CHECK)
-        check('the badges are on the map, in place', lab['badges'] >= 2 and not lab['bad'], lab)
+        dev = await page.evaluate("() => { const n = { annex: 0, plot: 0, wonder: 0 }; for (const it of __game.map.developLayer.items.values()) n[it.kind]++; return n; }")
+        check('the models and their badges are on the map, in place', lab['badges'] >= 1 and not lab['bad'] and dev['annex'] >= 1 and dev['plot'] >= 1 and dev['wonder'] >= 1, {**lab, **dev})
         await page.screenshot(path=f'{SP}/ui7-map.png')
+        # a building names itself under the pointer (the game held still meanwhile: the computers' turns
+        # would move things about under it)
+        await page.evaluate('''() => { const g = __game, m = g.map, L = m.developLayer; g.frozen = true; clearTimeout(g.timer);
+          const it = [...L.items.values()].find((i) => i.kind === 'annex');
+          const c = m.camera; c.flyTo(it.anchor.position.x, it.anchor.position.z + 2, 22);
+          // (the camera there and settled at once, its lift over the ground too: at the test's frame rate it
+          // would glide for half a minute)
+          for (let i = 0; i < 80; i++) c.update(0.1);
+          m.poke(); }''')
+        # (the buildings beside settlements grow and shrink with the zoom, once a frame has gone: SwiftShader
+        # draws this map slowly, so look again until the building is where the map's own picking finds it)
+        last = None
+        for _ in range(10):
+            await page.wait_for_timeout(2500)
+            pt = await page.evaluate('''() => { const m = __game.map, c = m.camera, L = m.developLayer, it = [...L.items.values()].find((i) => i.kind === 'annex');
+              c.cam.updateMatrixWorld();
+              const v = it.anchor.position.clone().add(it.obj.position.clone().multiplyScalar(it.anchor.scale.x)); v.y += it.size.h * it.anchor.scale.x * 0.45;
+              const r = c.screenRect(); v.project(c.cam); const pt = [(v.x * 0.5 + 0.5) * r.width + r.left, (-v.y * 0.5 + 0.5) * r.height + r.top];
+              const hit = L.pick(pt[0], pt[1], c); return [pt[0], pt[1], !!(hit && hit.kind === 'annex')]; }''')
+            # (still: the same place twice running)
+            if pt[2] and last and abs(pt[0] - last[0]) < 1 and abs(pt[1] - last[1]) < 1:
+                break
+            last = pt
+        await page.mouse.move(pt[0] - 30, pt[1] - 30)
+        await page.mouse.move(pt[0], pt[1], steps=3)
+        await page.wait_for_timeout(600)
+        tip = await page.evaluate("() => { const t = document.querySelector('.tooltip'); return t && !t.hidden ? t.innerText : ''; }")
+        if '旁' not in tip:
+            print('  hover debug', await page.evaluate("(pt) => { const m = __game.map, c = m.camera; return { pt, cam: [c.target.x, c.target.z, c.h, c.yaw, c.pitch, c.liftY].map((x) => +x.toFixed(3)), pick: m.developLayer.pick(pt[0], pt[1], c) }; }", pt))
+        await page.evaluate('() => { __game.frozen = false; }')
+        check('a building names itself under the pointer', '旁' in tip, tip)
 
         # carried on after a reload
         await page.evaluate("() => __game.save()")
@@ -199,10 +231,12 @@ async def main():
         # (SwiftShader is slow and its speed varies, so wait for the turns rather than a fixed time; a
         # stuck game still fails, and shows where it stands)
         await page.evaluate('() => { window.__autoHuman = true; window.__game.schedule(); }')
-        try:
-            await page.wait_for_function("() => __game.state.turn > 5", timeout=90000)
-        except Exception:
-            pass
+        for _ in range(12):
+            try:
+                await page.wait_for_function("() => __game.state.turn > 5 || __game.state.phase === 'over'", timeout=15000)
+                break
+            except Exception:
+                print('  waiting', await page.evaluate("() => { const g = __game, s = g.state; return { turn: s.turn, current: s.current, rolled: s.rolled, seq: s.seq, thinking: g.thinking, timer: !!g.timer, frozen: !!g.frozen, hold: Math.round((g.fxHold || 0) - performance.now()) }; }"))
         t = await page.evaluate("() => { const s = __game.state; return { turn: s.turn, current: s.current, rolled: s.rolled, pending: s.pending && s.pending.type, over: s.phase === 'over' }; }")
         check('the campaign goes on', t['turn'] > 5 or t['over'], t)
 

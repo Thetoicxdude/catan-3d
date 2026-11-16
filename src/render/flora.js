@@ -635,7 +635,8 @@ export function buildFlora(terrain, board, seed, quality, pack = null, sunDir = 
         const z = s.z + Math.sin(s.a) * wob * 0.45;
         dummy.position.set(x, terrain.heightAt(x, z) - 0.02, z);
         dummy.rotation.set(0, -s.a + (Math.cos(t * s.sp + s.ph) > 0 ? 0 : Math.PI), 0);
-        dummy.scale.setScalar(1);
+        // (a building of the development mode stands where it grazed: clearAround)
+        dummy.scale.setScalar(s.hidden ? 0 : 1);
         dummy.updateMatrix();
         sheepMesh.setMatrixAt(i, dummy.matrix);
       });
@@ -656,10 +657,86 @@ export function buildFlora(terrain, board, seed, quality, pack = null, sunDir = 
     }
   }
 
+  // Hide the scenery within r of (x, z): a building of the development mode stands there now. Trees,
+  // plants, haystacks and rocks are instances (scaled to nothing), the countryside buildings and their
+  // smoke are switched off; the boats and herds move about and are left be.
+  const moving = new Set([...boats.map((b) => b.g), herds && herds.group].filter(Boolean));
+  const m4 = new THREE.Matrix4();
+  const v3 = new THREE.Vector3();
+  const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  function clearAround(x, z, r) {
+    const r2 = r * r;
+    const near = (px, pz) => (px - x) * (px - x) + (pz - z) * (pz - z) < r2;
+    const visit = (o) => {
+      if (moving.has(o)) return;
+      if (o === sheepMesh) {
+        for (const s of sheep) if (near(s.x, s.z)) s.hidden = true;
+        return;
+      }
+      if (o.isInstancedMesh) {
+        let hit = false;
+        for (let i = 0; i < o.count; i++) {
+          o.getMatrixAt(i, m4);
+          v3.setFromMatrixPosition(m4);
+          if (near(v3.x, v3.z)) {
+            o.setMatrixAt(i, zero);
+            hit = true;
+          }
+        }
+        if (hit) o.instanceMatrix.needsUpdate = true;
+        return;
+      }
+      const inst = o.geometry && o.geometry.attributes && o.geometry.attributes.aInst;
+      if (inst) {
+        const sc = o.geometry.attributes.aInst2;
+        let hit = false;
+        for (let i = 0; i < inst.count; i++) {
+          if (near(inst.getX(i), inst.getZ(i))) {
+            sc.setX(i, 0);
+            hit = true;
+          }
+        }
+        if (hit) sc.needsUpdate = true;
+        return;
+      }
+      const base = o.userData && o.userData.base;
+      const px = base ? base.x : o.position.x;
+      const pz = base ? base.z : o.position.z;
+      // (a group at the origin holds others: look inside)
+      if ((o.isGroup || o.type === 'Object3D') && !base && o.position.lengthSq() < 1e-6) {
+        for (const c of o.children) visit(c);
+        return;
+      }
+      if (near(px, pz)) o.visible = false;
+    };
+    for (const c of group.children) visit(c);
+  }
+
+  // The map's own photographed plants, for the development mode's wonders (devmodels.js plant):
+  // list [{ sp, x, y, z, h }] in world coordinates → a group of impostors (empty without the pack).
+  function plantMesh(list) {
+    const g = new THREE.Group();
+    if (!real) return g;
+    const by = {};
+    for (const p of list) {
+      const def = pack.imp[p.sp];
+      if (!def) continue;
+      const hash = Math.abs(Math.sin(p.x * 12.9898 + p.z * 78.233) * 43758.5453) % 1;
+      (by[p.sp] = by[p.sp] || []).push({ x: p.x, y: p.y - 0.03, z: p.z, yaw: hash * Math.PI * 2, s: p.h / def.meta.h, ph: hash * 100, tint: hash });
+    }
+    for (const [sp, pts] of Object.entries(by)) {
+      const def = PLANT_TINT[sp] ? { ...pack.imp[sp], tint: new THREE.Color().setRGB(...PLANT_TINT[sp]) } : pack.imp[sp];
+      g.add(impostorMesh(def, pts, shared, 'dev-plants-' + sp));
+    }
+    return g;
+  }
+
   const plantCount = Object.values(plants).reduce((n, l) => n + l.length, 0);
   return {
     group,
     update,
+    clearAround,
+    plantMesh,
     real,
     counts: { trees: treePts.conifer.length + treePts.broad.length, plants: plantCount, sheep: sheep.length, animals: herds ? herds.count : 0, rocks: rocks.length },
   };

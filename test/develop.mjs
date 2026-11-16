@@ -655,11 +655,17 @@ test('wonders: the robber destroys one unless its owner plays a knight (which co
   const ev3 = act(st, { type: 'defend', p: 0, yes: false });
   assert.ok(ev3.some((e) => e.type === 'wonderLost' && e.k === 'lighthouse'));
   assert.deepEqual(st.wonders, []);
-  // unlocked: it can be begun again
+  // its ruins stay on the desert (the map shows them; everyone's view and the public snapshot carry them)
+  assert.deepEqual(st.ruins, [{ h: d, k: 'lighthouse' }]);
+  assert.deepEqual(makeView(st, 1).ruins, [{ h: d, k: 'lighthouse' }]);
+  // unlocked: it can be begun again, and the ruins are cleared away when it is
   st.current = 0;
   st.pending = null;
   st.board.robber = GEO.hexes.find((h) => terr(st, h.id) !== 'desert').id;
   assert.deepEqual(wonderSpots(st, 0), [d]);
+  give(st, 0, BUILDINGS.lighthouse.stages[0]);
+  act(st, { type: 'wonder', p: 0, hex: d });
+  assert.deepEqual(st.ruins, []);
   assert.ok(v >= 0);
 });
 

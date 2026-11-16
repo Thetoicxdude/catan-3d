@@ -70,7 +70,7 @@ export function cardFace(k, { locked = false, on = false, fresh = false, sel = f
   const pts = ptsShort(k);
   return `<${tag} class="${cls}" data-k="${k}" style="--dc:${cardColor(k)}"${attrs} title="${esc(cardName(k))}">
     ${pts ? `<span class="cc-pts num">${pts}</span>` : ''}
-    <span class="cc-art">${cardIcon(k, small ? 30 : 44)}</span>
+    <span class="cc-art"><span class="cc-pic" style="--pic:url(assets/cards/bld_${k}_s.webp)"></span>${cardIcon(k, small ? 30 : 44)}</span>
     <b class="cc-name">${esc(cardName(k))}</b>
     ${small ? '' : `<small class="cc-kind">${esc(kindLine(k))}</small>`}
     ${fresh && !locked ? `<span class="cc-new">${esc(t('新'))}</span>` : ''}
@@ -97,6 +97,7 @@ export function cardDetail(k, { on = false, locked = false } = {}) {
     ? `<p class="cd-fx">${esc(t(BASIC_TEXT[k]))}</p><p class="cd-note">${esc(t('沒放進藍圖的話，這局就不能花錢蓋（開局照常放村莊和道路）。'))}</p>`
     : `<p class="cd-cond"><b>${esc(t('條件'))}</b>${esc(t(BUILDING_TEXT[k].cond))}</p><p class="cd-fx"><b>${esc(t('效果'))}</b>${esc(t(BUILDING_TEXT[k].fx))}</p>`;
   return `<div class="cd${on ? ' on' : ''}${locked ? ' locked' : ''}" style="--dc:${cardColor(k)}">
+    <div class="cd-pic" style="--pic:url(assets/cards/bld_${k}.webp)" role="img" aria-label="${esc(cardName(k))}"></div>
     <div class="cd-top"><span class="cd-ico">${cardIcon(k, 34)}</span><span class="cd-title"><b>${esc(cardName(k))}</b><small>${esc(kindLine(k))}</small></span>${pts ? `<span class="cd-pts">${esc(pts)}</span>` : ''}</div>
     <div class="cd-cost"><h6>${esc(b && b.kind === 'wonder' ? t('三個階段的花費') : t('花費'))}</h6>${cost}</div>
     ${words}

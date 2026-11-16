@@ -66,6 +66,10 @@ for (const r of ['wood', 'brick', 'wool', 'grain', 'ore']) fs.copyFileSync(path.
 // card faces: the art set into the frame templates (tools/art/frames/make_cards.py)
 const FACES = process.argv[4] || '/home/claude/assetwork/frames/out/cards';
 for (const f of fs.readdirSync(FACES)) if (/^card_.*\.webp$/.test(f)) fs.copyFileSync(path.join(FACES, f), path.join(OUT, 'cards', f));
+// the development mode's building cards: Cycles renders of the map's own models
+// (tools/art/exportobj.mjs → tools/art/cards/bldgcards.py → tools/art/cards/post_bldg.py)
+const BLD = '/home/claude/assetwork/bldgcards/pack';
+if (fs.existsSync(BLD)) for (const f of fs.readdirSync(BLD)) if (/^bld_.*\.webp$/.test(f)) fs.copyFileSync(path.join(BLD, f), path.join(OUT, 'cards', f));
 // home screen art from the same frames (tools/art/frames/make_ui.py)
 const UI = process.argv[5] || '/home/claude/assetwork/frames/out/ui';
 const UI_FILES = ['frame_bronze', 'frame_gold', 'frame_red', 'menu_gold', 'menu_bronze', 'menu_verdigris', 'menu_silver', 'parchment', 'board_bronze', 'board_gold'];

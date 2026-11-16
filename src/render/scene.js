@@ -14,6 +14,7 @@ import { Markers } from './markers.js';
 import { Labels, screenWidth } from './labels.js';
 import { FogCover } from './fog.js';
 import { DevelopLayer } from './develop.js';
+import { devPrewarm } from './devmesh.js';
 import { GLSL_NOISE } from './noise.js';
 import { fpsMode, refreshInterval, refreshesPerFrame, pixelRatioCap, Governor } from './pace.js';
 import { resCard, icon, RES_NAMES } from '../ui/icons.js';
@@ -592,6 +593,8 @@ export class MapView {
     }
     this.precompile(this.pieces.prewarm(this.models, !!(GEO.def.rules && GEO.def.rules.seafarers)));
     this.precompile(this.markers.prewarm(), this.overlay);
+    // (the development mode's buildings, wonders and facilities)
+    if (this.developLayer) this.precompile(devPrewarm(this.models, this.players.map((p) => p.color)));
   }
 
   // realistic asset pack: load in the background, then swap the procedural scenery for it
@@ -657,6 +660,7 @@ export class MapView {
       await this.precompile(harbors.group);
       // (and the settlements, cities and streets as the models draw them)
       await this.precompile(this.pieces.prewarm(this.models, !!(GEO.def.rules && GEO.def.rules.seafarers)));
+      if (this.developLayer) await this.precompile(devPrewarm(this.models, this.players.map((p) => p.color)));
       if (this.disposed) {
         this.applying = false;
         return;
@@ -668,7 +672,10 @@ export class MapView {
       this.harbors = harbors;
       this.scene.add(harbors.group);
       this.pieces.setModels(this.models);
+      if (this.developLayer) this.developLayer.setModels(this.models);
     }
+    // (the new scenery: cleared again under the development mode's models)
+    if (this.developLayer) this.developLayer.reclear();
     this.applying = false;
     this.shadowDirty = 3;
     // (the new textures go up to the card and the shadows are drawn again over the next seconds)
@@ -680,7 +687,17 @@ export class MapView {
   buildLabels(state) {
     this.tokenLabels = [];
     // (the development mode) developments, the buildings beside settlements, the wonders
-    this.developLayer = state.rules && state.rules.develop ? new DevelopLayer(this.labels, (x, z) => this.terrain.heightAt(x, z)) : null;
+    this.developLayer =
+      state.rules && state.rules.develop
+        ? new DevelopLayer(this.labels, (x, z) => this.terrain.heightAt(x, z), {
+            scene: this.scene,
+            models: this.models,
+            // (the scenery under a model goes: trees, haystacks, the desert's old fort)
+            clear: (x, z, r) => this.flora && this.flora.clearAround && this.flora.clearAround(x, z, r),
+            plants: { real: () => !!(this.flora && this.flora.real), make: (pts) => this.flora.plantMesh(pts) },
+            coastAt: (x, z) => this.terrain.coastAt(x, z),
+          })
+        : null;
     for (const h of GEO.hexes) {
       const H = state.board.hexes[h.id];
       const y = this.terrain.heightAt(h.x, h.z);
@@ -864,6 +881,13 @@ export class MapView {
       return;
     }
     if (this.onHexHover) {
+      // (the development mode) a model under the pointer names itself: a building beside a settlement,
+      // or the hex of a development or a wonder (its model may stand out over the next hex)
+      const dev = this.developLayer ? this.developLayer.pick(x, y, this.camera) : null;
+      if (dev) {
+        this.onHexHover(dev.kind === 'annex' ? null : dev.h, x, y, dev.kind === 'annex' ? dev : null);
+        return;
+      }
       const g = this.camera.groundAt(x, y);
       let hex = null;
       if (g) {
@@ -991,8 +1015,8 @@ export class MapView {
     if (rob) this.terrain.uniforms.uRobber.value.set(rob.q, rob.r);
     else this.terrain.uniforms.uRobber.value.set(99, 99);
     this.showRobber(state.board.robber, animate);
-    if (this.developLayer) this.developLayer.sync(state, this.players);
-    if (changed) this.shadowDirty = 2;
+    const devChanged = this.developLayer ? this.developLayer.sync(state, this.players, animate) : false;
+    if (changed || devChanged) this.shadowDirty = 2;
   }
 
   updateTerritory(state) {
@@ -1247,7 +1271,9 @@ export class MapView {
     const s = Math.min(2.4, Math.max(1, 1 + (H - 46) / 78));
     const rw = Math.min(2.1, Math.max(1, 1 + (H - 60) / 100));
     this.pieces.setScale(s, rw, !moving);
-    const busy = this.pieces.update(t, dt);
+    if (this.developLayer) this.developLayer.setScale(s);
+    const devBusy = this.developLayer ? this.developLayer.update(dt) : false;
+    const busy = this.pieces.update(t, dt) || devBusy;
     this.flora.update(t, dt);
     this.harbors.update(t);
     if (this.fog) this.fog.update(t, dt, paper);

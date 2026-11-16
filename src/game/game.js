@@ -33,7 +33,7 @@ const DEFEND_SECONDS = 15;
 import { makeRng } from '../engine/rng.js';
 import { Hud } from '../ui/hud.js';
 import { Dialogs } from '../ui/dialogs.js';
-import { describe, hexTooltip, esc, DEV_INFO } from '../ui/text.js';
+import { describe, hexTooltip, annexTooltip, esc, DEV_INFO } from '../ui/text.js';
 import { sfx, setSfx } from '../ui/sfx.js';
 import { TERRAIN_RES } from '../engine/board.js';
 import { turnKey, turnLimit, timeoutAction, DEFEND_MS } from './clock.js';
@@ -156,8 +156,9 @@ export class Game {
       net.chat.attach(this.chatSink);
     }
 
-    this.map.onHexHover = (hex, x, y) => {
-      if (hex == null) this.hud.showTip(null);
+    this.map.onHexHover = (hex, x, y, annex) => {
+      if (annex) this.hud.showTip(annexTooltip(this.view(), annex, this.players), x, y);
+      else if (hex == null) this.hud.showTip(null);
       else this.hud.showTip(hexTooltip(this.view(), hex, this.players), x, y);
     };
     this.map.canvas.addEventListener('pointerleave', () => this.hud.showTip(null));

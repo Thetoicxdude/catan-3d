@@ -3,7 +3,9 @@
 # the camera coming to rest) and they are counted again: nothing may have been added. (A program
 # compiled on the frame that first needs it is a hitch of a good part of a second on a real driver.)
 #   python3 test/shaders.py           (QUALITY=high ART=1: with the asset pack; MAP=sea-1: Seafarers;
-#                                      MAP=sea-3 TURNS=16: the fog islands, the board rebuilt as the fog lifts)
+#                                      MAP=sea-3 TURNS=16: the fog islands, the board rebuilt as the fog lifts;
+#                                      MODE=develop: the development mode, then every building, facility and
+#                                      wonder stage put on the map, a wonder destroyed in its dust)
 import asyncio, sys, os, json
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
@@ -12,7 +14,44 @@ Q = os.environ.get('QUALITY', 'medium')
 ART = os.environ.get('ART') == '1'
 MAP = os.environ.get('MAP', 'base-4')
 TURNS = int(os.environ.get('TURNS', '4'))
-INIT = "window.__noAssets = %s; window.__testHooks = true; window.__mapFps = 4; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: '%s', qualityPicked: true, opponents: 3 }));" % ('false' if ART else 'true', Q)
+MODE = os.environ.get('MODE', '')
+INIT = "window.__noAssets = %s; window.__testHooks = true; window.__mapFps = 4; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: '%s', qualityPicked: true, opponents: 3%s }));" % ('false' if ART else 'true', Q, ", mode: 'develop'" if MODE == 'develop' else '')
+# (the development mode) every model on the map at once: the buildings beside cities, a facility at both
+# levels on every terrain, the wonders at their stages, then one destroyed and one gone up a stage
+SHOWCASE = r"""() => {
+  const g = __game, s = g.state, G = __geo();
+  const T = (id) => s.board.hexes[id].terrain;
+  const land = G.hexes.filter((h) => !h.sea && T(h.id) !== 'sea');
+  const ok = (v) => !s.vertices[v] && !G.vertices[v].neighbors.some((n) => s.vertices[n]);
+  const ks = ['aqueduct', 'granary', 'market', 'shipyard', 'guild', 'barracks', 'wall', 'mercenaries', 'adventurers', 'post', 'camp', 'academy', 'press'];
+  let i = 0;
+  for (const v of G.vertices) {
+    if (i >= ks.length) break;
+    if (!ok(v.id)) continue;
+    const p = Math.floor(i / 2) % 4;
+    s.vertices[v.id] = { p, t: 'c' };
+    for (const k of ks.slice(i, i + 2)) s.players[p].built[k] = v.id;
+    i += 2;
+  }
+  const res = { fields: 'grain', forest: 'wood', hills: 'brick', pasture: 'wool', mountains: 'ore' };
+  for (const [t, r] of Object.entries(res)) land.filter((h) => T(h.id) === t).slice(0, 2).forEach((h, j) => { s.plots[h.id] = { p: j, r: j ? [r] : [r, r] }; });
+  const D = land.filter((h) => T(h.id) === 'desert');
+  const W = [['lighthouse', 2], ['library', 'done'], ['greatWall', 1]];
+  s.wonders = D.map((d, j) => ({ h: d.id, k: W[j % 3][0], p: j % 4, s: W[j % 3][1] === 'done' ? 3 : W[j % 3][1], t: 1, done: W[j % 3][1] === 'done' }));
+  s.ruins = [];
+  g.map.sync(g.view(), [], true);
+  return { buildings: i, wonders: s.wonders.length };
+}"""
+LATER = r"""() => {
+  const g = __game, s = g.state;
+  // one destroyed (its ruins), one a stage up, and every other wonder's ruin and stages for good measure
+  const [a, b] = s.wonders;
+  s.ruins = [{ h: a.h, k: a.k }];
+  s.wonders = s.wonders.filter((w) => w !== a);
+  if (b) { b.done = false; b.s = 3; }
+  g.map.sync(g.view(), [], true);
+  return true;
+}"""
 PROGS = "(() => { const r = __game.map.renderer; return r.info.programs.map((p) => (p.cacheKey || '').split(',').slice(0, 3).join('/').slice(0, 60) + ':' + p.id); })()"
 
 async def main():
@@ -49,6 +88,12 @@ async def main():
         await page.wait_for_function(f"__game.state.phase === 'over' || (__game.state.phase === 'play' && __game.state.turn >= {TURNS})", timeout=900000, polling=1000)
         await page.evaluate('window.__autoHuman = false; __game.frozen = true')
         await page.wait_for_timeout(5000)
+        if MODE == 'develop':
+            # (the models of the mode all on the map, then a wonder falling and one going up a stage)
+            print('showcase', await page.evaluate(SHOWCASE))
+            await page.wait_for_timeout(4000)
+            await page.evaluate(LATER)
+            await page.wait_for_timeout(4000)
         p1 = await page.evaluate(PROGS)
         new = [x.split(':')[0] for x in p1 if x not in p0]
         rebuilds = await page.evaluate('__game.map.rebuilds || 0')

@@ -455,6 +455,8 @@ export function encodePublic(st) {
         .filter((k) => st.used[k] && USED[k])
         .map((k) => USED[k])
         .join(''),
+      // the ruins of wonders destroyed (hex.kind)
+      (st.ruins || []).map((r) => r.h + '.' + BLD[r.k]).join(','),
     ];
     pub.db = st.players.map((p) => [Object.entries(p.built || {}).map(([k, v]) => BLD[k] + v).join('.'), p.yard ? rch(p.yard) : '', p.bought || 0]);
   }
@@ -595,6 +597,15 @@ export function decodeView(board, seats, pub, priv, seat) {
       : [];
     view.used = {};
     for (const c of String(pub.dv[2] || '')) if (USED_R[c]) view.used[USED_R[c]] = true;
+    view.ruins = pub.dv[3]
+      ? String(pub.dv[3])
+          .split(',')
+          .map((x) => {
+            const [h, k] = x.split('.');
+            return { h: Number(h), k: BLD_R[k] };
+          })
+          .filter((r) => r.k)
+      : [];
   }
   // (the fog islands) the hexes found so far, on this page's own copy of the board
   if (pub.fg != null) {

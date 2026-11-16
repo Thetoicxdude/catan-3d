@@ -31,6 +31,7 @@ const HOUSE = [undefined, 'base-6', 'sea-1', 'sea-9'];
 // island, two or three on the 30-hex one
 const PRESETS = ['port', 'order', 'farm', 'frontier', 'scholars'];
 let devMax = 0;
+let ruinsSeen = 0;
 for (let g = 0; g < 124; g++) {
   const dev = g >= 116;
   const house = g >= 108 && !dev;
@@ -94,6 +95,8 @@ for (let g = 0; g < 124; g++) {
       if (dev) {
         assert.deepEqual(got.plots, want.plots, `plots differ (game ${g}, seq ${st.seq})`);
         assert.deepEqual(got.wonders, want.wonders, `wonders differ (game ${g}, seq ${st.seq})`);
+        assert.deepEqual(got.ruins || [], want.ruins || [], `ruins differ (game ${g}, seq ${st.seq})`);
+        if ((want.ruins || []).length) ruinsSeen++;
         assert.deepEqual(got.used, want.used, `used differs (game ${g}, seq ${st.seq})`);
         got.players.forEach((pl, i) => {
           const w = want.players[i];
@@ -165,4 +168,4 @@ assert.deepEqual(C.bpDecode(''), []);
 assert.equal(C.bpDecode(C.bpCode(['road', 'road'])), null);
 assert.equal(C.bpDecode('rdstctdvgrmkaqhg'), null, 'eight cards');
 
-console.log(`codec ok: ${checked} views compared, largest public snapshot ${maxSize} bytes (5–6 players on the large island: ${bigMax}; Seafarers: ${seaMax}; Seafarers for 5–6: ${sea6Max}; maps players made: ${drawnMax}; the development mode: ${devMax}), largest takeover snapshot ${fullMax} bytes`);
+console.log(`codec ok (wonders' ruins in ${ruinsSeen} views): ${checked} views compared, largest public snapshot ${maxSize} bytes (5–6 players on the large island: ${bigMax}; Seafarers: ${seaMax}; Seafarers for 5–6: ${sea6Max}; maps players made: ${drawnMax}; the development mode: ${devMax}), largest takeover snapshot ${fullMax} bytes`);

@@ -5,6 +5,7 @@ import { GEO } from '../engine/geometry.js';
 import { t, N_, cap, list, low, isZh } from '../i18n/index.js';
 import { placeName } from '../i18n/places.js';
 import { BUILDING_NAMES, WONDER_VP, GRANARY_EXTRA, developOn } from '../engine/develop.js';
+import { BUILDING_TEXT } from './develop-ui.js';
 
 // the development cards' names and what they do, in the language of the moment
 const dev = (name, desc, icon) => ({
@@ -269,8 +270,12 @@ export function hexTooltip(view, hexId, players) {
     const plot = view.plots[hexId];
     if (plot) lines.push(t('<p>{lv}開發：{who}，每次產出多拿 {res}</p>', { lv: plot.r.length > 1 ? t('二級') : t('一級'), who: players ? who(players, plot.p, view.viewer) : '', res: list(plot.r.map((r) => RES_NAMES[r])) }));
     const w = (view.wonders || []).find((x) => x.h === hexId);
+    const ruin = (view.ruins || []).find((x) => x.h === hexId);
     if (w) lines.push(t('<p><b>{name}</b>：{who}，{state}</p>', { name: t(BUILDING_NAMES[w.k]), who: players ? who(players, w.p, view.viewer) : '', state: w.done ? t('已完工') : t('施工中 {s}/3', { s: w.s }) }));
-    else if (H.terrain === 'desert') lines.push(t('<p>奇觀地基：路口上有你的聚落時，可以在這裡蓋世界奇觀</p>'));
+    else if (H.terrain === 'desert') {
+      if (ruin) lines.push(t('<p>{name}的廢墟：被摧毀的奇觀留下的</p>', { name: t(BUILDING_NAMES[ruin.k]) }));
+      lines.push(t('<p>奇觀地基：路口上有你的聚落時，可以在這裡蓋世界奇觀</p>'));
+    }
   }
   // (Seafarers) the viewer's home island, or an island where a first settlement earns points
   const me = view.viewer;
@@ -285,6 +290,14 @@ export function hexTooltip(view, hexId, players) {
     }
   }
   return `<h5>${esc(placeName(H))}</h5>${lines.join('')}`;
+}
+
+// (the development mode) a building beside a settlement, under the pointer: its name, whose, what it does
+export function annexTooltip(view, a, players) {
+  const b = view.vertices[a.v];
+  const where = b && b.t === 'c' ? t('{who}的城市旁', { who: players ? who(players, a.p, view.viewer) : '' }) : t('{who}的村莊旁', { who: players ? who(players, a.p, view.viewer) : '' });
+  const fx = BUILDING_TEXT[a.k] ? `<p>${t(BUILDING_TEXT[a.k].fx)}</p>` : '';
+  return `<h5>${esc(t(BUILDING_NAMES[a.k]))}</h5><p>${where}</p>${fx}`;
 }
 
 // the rules reference, written out in each language

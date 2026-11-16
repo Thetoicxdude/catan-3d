@@ -189,6 +189,8 @@ export function createGame(opts) {
   if (rules.develop) {
     st.plots = new Array(GEO.hexes.length).fill(null);
     st.wonders = [];
+    // (the ruins of wonders destroyed, until another is begun on their desert: the map shows them)
+    st.ruins = [];
     st.used = {};
     st.players.forEach((pl, i) => {
       pl.bp = blueprintOf(opts.players[i].bp);
@@ -1088,6 +1090,7 @@ H.defend = (st, a, ev) => {
     updateLargestArmy(st, a.p, ev);
   } else {
     st.wonders = st.wonders.filter((x) => x !== w);
+    st.ruins = [...(st.ruins || []).filter((r) => r.h !== w.h), { h: w.h, k: w.k }];
     ev.push({ type: 'wonderLost', p: a.p, by: pd.by, hex: pd.hex, k: w.k, stage: w.s, done: w.done });
   }
   st.pending = null;
@@ -1388,6 +1391,8 @@ H.wonder = (st, a, ev) => {
   } else {
     w = { h, k, p, s: 1, t: st.turn, done: false };
     st.wonders.push(w);
+    // (begun over the ruins of another: they are cleared away)
+    if (st.ruins && st.ruins.some((r) => r.h === h)) st.ruins = st.ruins.filter((r) => r.h !== h);
   }
   ev.push({ type: 'wonder', p, k, hex: h, stage: w.s });
 };
