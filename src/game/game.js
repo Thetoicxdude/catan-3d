@@ -35,6 +35,7 @@ import { Hud } from '../ui/hud.js';
 import { Dialogs } from '../ui/dialogs.js';
 import { describe, hexTooltip, annexTooltip, esc, DEV_INFO } from '../ui/text.js';
 import { sfx, setSfx } from '../ui/sfx.js';
+import { pop, shake, reduced } from '../ui/motion.js';
 import { TERRAIN_RES } from '../engine/board.js';
 import { turnKey, turnLimit, timeoutAction, DEFEND_MS } from './clock.js';
 import { gameSetup } from '../ui/menu.js';
@@ -501,6 +502,15 @@ export class Game {
         this.payBank(e.p, { [e.give]: e.ratio }, me);
         const get = this.planCards([{ res: e.get, p: e.p, from: this.hud.bankPoint(e.get) }], me);
         setTimeout(() => !this.destroyed && fx.cards(get()), 320 + 90 * e.ratio);
+      } else if (e.type === 'offer') {
+        // an offer goes out: a card of each kind offered flies from the offering nation to each nation
+        // asked, fading as it gets there (it is only shown: the cards stay in the hand)
+        // (whom it went to: in the event; an online page gets the event without it, the offer itself has it)
+        const to = Array.isArray(e.to) ? e.to : view.trade && view.trade.resp ? Object.keys(view.trade.resp).map(Number) : view.players.map((x) => x.id).filter((q) => q !== e.p);
+        const list = [];
+        for (const q of to)
+          for (const res of Object.keys(e.give || {})) list.push({ res, from: this.cardPoint(e.p, res, me), to: this.hud.nationPoint(q), delay: list.length * 70, small: true, fade: true });
+        if (list.length && !reduced()) fx.cards(list.slice(0, 9));
       } else if (e.type === 'trade') {
         // both sides of an accepted offer cross over
         const list = [];
@@ -524,9 +534,14 @@ export class Game {
           const flights = this.planCards([{ res: r, p: me, from: this.hud.nationPoint(e.from) }], me);
           fx.cards(flights());
         } else if (r && e.from === me) {
-          const from = this.hud.chipCenter(r);
-          fx.cards([{ res: r, from, to: this.hud.nationPoint(e.p), delay: 0, small: true }]);
-          fx.plus(from.x, from.y + 26, '−1', 'loss');
+          // (the card taken trembles in the hand first, then goes)
+          shake(this.hud.chips[r], { sound: false });
+          setTimeout(() => {
+            if (this.destroyed) return;
+            const from = this.hud.chipCenter(r);
+            fx.cards([{ res: r, from, to: this.hud.nationPoint(e.p), delay: 0, small: true }]);
+            fx.plus(from.x, from.y + 26, '−1', 'loss');
+          }, reduced() ? 0 : 260);
         }
       } else if (e.type === 'playDev' && e.card === 'yearOfPlenty' && e.res) {
         fx.cards(this.planCards(e.res.map((res) => ({ res, p: e.p, from: this.hud.bankPoint(res) })), me)());
@@ -555,9 +570,11 @@ export class Game {
       } else if (e.type === 'wonder') {
         sfx.build('city');
         this.payBank(e.p, BUILDINGS[e.k].stages[e.stage - 1], me);
+        this.popWonder(e.p, e.k);
       } else if (e.type === 'wonderDone') {
         sfx.fanfare(e.p === me);
         setTimeout(() => fx.medal(this.hud.vpTarget(e.p, me), '+5'), 260);
+        this.popWonder(e.p, e.k);
       } else if (e.type === 'market') {
         this.payBank(e.p, { [e.give]: 2 }, me);
         const get = this.planCards([{ res: e.get, p: e.p, from: this.hud.bankPoint(e.get) }], me);
@@ -570,6 +587,15 @@ export class Game {
       } else if (e.type === 'turnStart' && e.p === me && e.sub !== 'sbp') sfx.turn();
       else if (e.type === 'gameOver') sfx.fanfare(true);
     }
+  }
+
+  // a wonder's stage done: its card in the nation's blueprint (the nations list) bounces, once the list
+  // shows the new stage
+  popWonder(p, k) {
+    setTimeout(() => {
+      if (this.destroyed) return;
+      pop(this.hud.outliner.querySelector(`.nation[data-p="${p}"] .bp-mini[data-k="${k}"]`), { scale: 1.6, ms: 420 });
+    }, 120);
   }
 
   // where a player's card of `res` leaves from: the viewer's own card in the hand, else the nation's row
@@ -830,14 +856,14 @@ export class Game {
     };
     if (this.mode === 'develop') {
       return {
-        inter: { kind: 'hex', ids: plotSpots(v, me), player: me, onPick: (id) => this.developAt(id), onCancel: cancel },
+        inter: { kind: 'hex', ids: plotSpots(v, me), player: me, devGhost: { what: 'plot' }, onPick: (id) => this.developAt(id), onCancel: cancel },
         banner: { html: t('選擇要<b>開發</b>的地塊（你有聚落、沒有別人開發的地塊）'), buttons: [{ label: t('取消'), onClick: cancel }] },
         hint: { text: t('點選有白色圓圈的地塊（右鍵或 Esc 取消）') },
       };
     }
     if (this.mode === 'wonder') {
       return {
-        inter: { kind: 'hex', ids: wonderSpots(v, me), player: me, onPick: (id) => ((this.mode = null), this.dispatch({ type: 'wonder', p: me, hex: id })), onCancel: cancel },
+        inter: { kind: 'hex', ids: wonderSpots(v, me), player: me, devGhost: { what: 'wonder', k: (v.players[me].bp || []).find(isWonder) }, onPick: (id) => ((this.mode = null), this.dispatch({ type: 'wonder', p: me, hex: id })), onCancel: cancel },
         banner: { html: t('選擇蓋<b>世界奇觀</b>的沙漠（路口上要有你的聚落）'), buttons: [{ label: t('取消'), onClick: cancel }] },
         hint: { text: t('點選有白色圓圈的沙漠（右鍵或 Esc 取消）') },
       };
@@ -849,6 +875,7 @@ export class Game {
         kind: 'vertex',
         ids: specialHosts(v, me, k),
         player: me,
+        devGhost: { what: 'annex', k },
         onPick: (id) => {
           this.mode = null;
           if (k === 'shipyard') {
@@ -1197,7 +1224,7 @@ export class Game {
     }
     this.hud.render(this.ctx({ banner, hint }));
     // interaction (only rebuild when it changes)
-    const ikey = inter ? inter.kind + ':' + inter.ids.join(',') + ':' + (inter.ghost || '') : '';
+    const ikey = inter ? inter.kind + ':' + inter.ids.join(',') + ':' + (inter.ghost || '') + ':' + (inter.devGhost ? inter.devGhost.what + (inter.devGhost.k || '') : '') : '';
     if (ikey !== this.ikey) {
       this.ikey = ikey;
       this.map.setInteraction(inter);

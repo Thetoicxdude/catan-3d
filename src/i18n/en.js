@@ -962,6 +962,10 @@ export const EN = {
 
   // ── starting up, rooms, publishing (main.js) ──
   '測繪島嶼地形': 'Surveying the island',
+  '召集各國': 'Gathering the nations',
+  '全部翻開': 'Turn them all over',
+  '已接受交易': 'Accepted the trade',
+  '已拒絕交易': 'Declined the trade',
   '無法發布': "Couldn't publish",
   '已從列表移除': 'Removed from the list',
   '地圖 {code} 不再出現在公開列表（代號還能用）': 'Map {code} is no longer on the public list (its code still works)',

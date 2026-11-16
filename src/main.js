@@ -13,7 +13,7 @@ import { icon } from './ui/icons.js';
 import { esc } from './ui/text.js';
 import { reportResult } from './net/account.js';
 import { setSfx } from './ui/sfx.js';
-import { installPress } from './ui/motion.js';
+import { installPress, installSegGlide } from './ui/motion.js';
 import { registerMap } from './engine/maps.js';
 import { checkDraft } from './engine/custom.js';
 import { showEditor, loadDrafts } from './ui/editor.js';
@@ -28,8 +28,9 @@ import { gameOver as cardsGameOver, observe as cardsObserve, MISSIONS } from './
 
 const SETTINGS_KEY = 'catan3d-settings-v1';
 const app = document.getElementById('app');
-// every control pressed answers at once (motion.js)
+// every control pressed answers at once; a choice among a few slides over to the new one (motion.js)
 installPress(document);
+installSegGlide(document);
 // without the art pack (the claude.ai page) the bronze frames fall back to plain lines
 {
   const probe = new Image();
@@ -172,16 +173,34 @@ function toast(title, text, ic = 'vp') {
   }, 3800);
 }
 
-function loading(on, text = t('測繪島嶼地形')) {
-  let el = app.querySelector('.loading');
+// The screen while a map is built: what is being done, and (p, 0 to 1) how far along; without p the bar
+// just runs. It fades in over the screen leaving and fades out over the game (opacity only).
+function loading(on, text = t('測繪島嶼地形'), p = null) {
+  let el = app.querySelector('.loading:not(.leaving):not(.fatal)');
   if (on) {
     if (!el) {
       el = document.createElement('div');
       el.className = 'loading';
-      el.innerHTML = `<div>${text}</div><div class="bar"><i></i></div>`;
+      el.setAttribute('role', 'status');
+      el.innerHTML = `<div class="ld-text"></div><div class="bar"><i></i></div>`;
       app.appendChild(el);
     }
-  } else if (el) el.remove();
+    el.querySelector('.ld-text').textContent = text;
+    el.classList.toggle('det', p != null);
+    if (p != null) el.querySelector('.bar i').style.transform = `scaleX(${Math.max(0.02, Math.min(1, p)).toFixed(3)})`;
+  } else if (el) {
+    el.classList.add('leaving');
+    el.removeAttribute('role');
+    const bar = el.querySelector('.bar i');
+    if (el.classList.contains('det')) bar.style.transform = 'scaleX(1)';
+    const gone = () => el.remove();
+    if (!el.animate) return gone();
+    // (from wherever its own fade-in has got to)
+    const from = parseFloat(getComputedStyle(el).opacity);
+    for (const a of el.getAnimations()) a.cancel();
+    el.animate([{ opacity: Number.isFinite(from) ? from : 1 }, { opacity: 0 }], { duration: 220, delay: el.classList.contains('det') ? 90 : 0, easing: 'cubic-bezier(.5,0,.9,.4)', fill: 'both' }).onfinish = gone;
+    setTimeout(gone, 800);
+  }
 }
 
 function buildMap(state, players, quality) {
@@ -541,13 +560,17 @@ async function hostRoom(save) {
 
 async function startOnlineHost(players, net, official = false) {
   setDrift(null);
-  loading(true, t('佈置戰場'));
+  loading(true, t('佈置戰場'), 0.1);
   await nextFrame();
   // official rooms play the standard game (10 points, balanced numbers) on the island they listed
   const gs = official ? officialSettings(settings) : settings;
   const preview = createGame({ seed: previewSeed, players, ...gameSetup(gs, players.length) });
   if (!official) countPlay(preview.map);
+  loading(true, t('測繪島嶼地形'), 0.35);
+  await nextFrame();
   buildMap(preview, players, settings.quality);
+  loading(true, t('召集各國'), 0.8);
+  await nextFrame();
   map.onFrame = null;
   map.holdAssets(false);
   game = new Game({ app, map, settings: gs, players, seed: previewSeed, net, onExit: () => exitOnline() });
@@ -561,10 +584,14 @@ async function startOnlineHost(players, net, official = false) {
 async function startClientGame(view, players, net, { adopt = null, switched = false } = {}) {
   setDrift(null);
   if (!switched) {
-    loading(true, t('進入戰場'));
+    loading(true, t('進入戰場'), 0.2);
     await nextFrame();
   }
   buildMap(view, players, settings.quality);
+  if (!switched) {
+    loading(true, t('召集各國'), 0.8);
+    await nextFrame();
+  }
   map.onFrame = null;
   map.holdAssets(false);
   game = new Game({ app, map, settings, players, net, onExit: () => exitOnline() });
@@ -823,7 +850,8 @@ async function startGame(saved) {
     menu.close();
     menu = null;
   }
-  loading(true, saved ? t('載入戰役') : t('佈置戰場'));
+  // (step by step, a frame between steps so that the bar moves)
+  loading(true, saved ? t('載入戰役') : t('佈置戰場'), 0.1);
   await nextFrame();
   let players;
   let state;
@@ -839,6 +867,8 @@ async function startGame(saved) {
     state = createGame({ seed: previewSeed, players, ...gameSetup(settings, players.length) });
     countPlay(state.map);
   }
+  loading(true, t('測繪島嶼地形'), 0.35);
+  await nextFrame();
   try {
     buildMap(state, players, settings.quality);
   } catch (e) {
@@ -846,6 +876,8 @@ async function startGame(saved) {
     showFatal(e);
     return;
   }
+  loading(true, t('召集各國'), 0.8);
+  await nextFrame();
   map.onFrame = null;
   game = new Game({
     app,
@@ -875,7 +907,7 @@ function exitToMenu() {
 function showFatal(e) {
   console.error(e);
   const el = document.createElement('div');
-  el.className = 'loading';
+  el.className = 'loading fatal';
   el.innerHTML = `<div style="letter-spacing:0.1em;max-width:32em;text-align:center;line-height:1.7">${t('無法啟動 3D 地圖。')}<br><span style="font-family:var(--font-body);font-size:13px;color:var(--ink-faint)">${t('這個裝置或瀏覽器可能不支援 WebGL 2，或已停用硬體加速。請改用最新版 Chrome、Edge、Safari 或 Firefox。')}<br>(${esc(String(e && e.message ? e.message : e))})</span></div>`;
   app.appendChild(el);
 }

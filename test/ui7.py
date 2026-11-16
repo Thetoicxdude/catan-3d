@@ -193,6 +193,9 @@ async def main():
           // (the camera there and settled at once, its lift over the ground too: at the test's frame rate it
           // would glide for half a minute)
           for (let i = 0; i < 80; i++) c.update(0.1);
+          // (and the buildings at the size they take at that zoom, as the next frame would make them: this
+          // browser can go seconds without a frame)
+          L.setScale(Math.min(2.4, Math.max(1, 1 + (c.h - 46) / 78)));
           m.poke(); }''')
         # (the buildings beside settlements grow and shrink with the zoom, once a frame has gone: SwiftShader
         # draws this map slowly, so look again until the building is where the map's own picking finds it)

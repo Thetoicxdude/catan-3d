@@ -7,6 +7,7 @@ import { FIRST_BLUEPRINT, ownedBlueprint } from '../meta/collection.js';
 import { cards } from '../meta/store.js';
 import { t, tx, untx, N_, getLang } from '../i18n/index.js';
 import { deckLine } from './cards-ui.js';
+import { leaveScreen } from './motion.js';
 
 // (each colour's name is a key: t(p.name))
 export const PALETTE = [
@@ -627,7 +628,7 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
   start.addEventListener('click', () => onStart(settings));
   foot.appendChild(start);
   root.appendChild(scr);
-  return { el: scr, close: () => scr.remove(), render };
+  return { el: scr, close: () => leaveScreen(scr), render };
 }
 
 export { esc };

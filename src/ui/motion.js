@@ -209,3 +209,83 @@ export function whenShown(el, fn, tries = 90) {
   if (el.isConnected) return void requestAnimationFrame(() => fn());
   if (tries > 0) requestAnimationFrame(() => whenShown(el, fn, tries - 1));
 }
+
+// ── screens ──
+
+// A full screen (the home screen, the setup, a room) on its way out: nothing in it can be touched or
+// found any more (no ids, no data-k: neither the game nor the tests take it for the screen) and it fades
+// while the next one fades in over it (motion.css .menu-screen). Opacity only: the map is under it.
+export function leaveScreen(scr, { ms = 150 } = {}) {
+  if (!scr) return;
+  if (!scr.isConnected || !can(scr) || scr.classList.contains('leaving')) return void scr.remove();
+  scr.inert = true;
+  scr.setAttribute('aria-hidden', 'true');
+  scr.classList.add('leaving');
+  for (const e of scr.querySelectorAll('[id], [data-k]')) {
+    e.removeAttribute('id');
+    e.removeAttribute('data-k');
+  }
+  let gone = false;
+  const done = () => {
+    if (gone) return;
+    gone = true;
+    scr.remove();
+  };
+  const dur = reduced() ? Math.min(ms, 120) : ms;
+  scr.animate([{ opacity: 1 }, { opacity: 0 }], { duration: dur, easing: EASE.in, fill: 'forwards' }).onfinish = done;
+  // (never left behind: a page in the background holds its animations)
+  setTimeout(done, dur + 400);
+}
+
+// ── a choice among a few (.seg): the selection slides over to the one picked ──
+
+// A page draws itself again when one of its choices is picked. In the next frame the same row of
+// choices (the same place among the page's rows, as many buttons) is found again, and a copy of the
+// selection's background slides from where it was to the new choice (160 ms) under the buttons.
+export function installSegGlide(root = document) {
+  root.addEventListener(
+    'click',
+    (e) => {
+      const b = e.target.closest && e.target.closest('.seg > button');
+      if (!b || b.disabled || b.classList.contains('on') || reduced()) return;
+      const seg = b.parentElement;
+      const old = seg.querySelector(':scope > button.on');
+      // (the maps: a grid of choices, not a row)
+      if (!old || seg.classList.contains('maps')) return;
+      const at = [...document.querySelectorAll('.seg')].indexOf(seg);
+      const n = seg.children.length;
+      const idx = [...seg.children].indexOf(b);
+      const s0 = seg.getBoundingClientRect();
+      const o = old.getBoundingClientRect();
+      const from = { x: o.left - s0.left, y: o.top - s0.top, w: o.width, h: o.height };
+      requestAnimationFrame(() => {
+        const row = document.querySelectorAll('.seg')[at];
+        if (!row || row.children.length !== n || row.querySelector(':scope > .seg-glide')) return;
+        const on = row.children[idx];
+        if (!on || !on.classList.contains('on') || !can(on)) return;
+        const s1 = row.getBoundingClientRect();
+        const r = on.getBoundingClientRect();
+        const to = { x: r.left - s1.left, y: r.top - s1.top };
+        // (a row that wraps: from one line to another it just changes)
+        if (Math.abs(to.y - from.y) > 2 || !r.width || !r.height) return;
+        const cs = getComputedStyle(on);
+        const pill = document.createElement('i');
+        pill.className = 'seg-glide';
+        Object.assign(pill.style, { left: to.x + 'px', top: to.y + 'px', width: r.width + 'px', height: r.height + 'px', backgroundColor: cs.backgroundColor, backgroundImage: cs.backgroundImage });
+        row.classList.add('gliding');
+        // (first: the last button stays the last child, its edge as it was)
+        row.prepend(pill);
+        const end = () => {
+          pill.remove();
+          row.classList.remove('gliding');
+        };
+        const a = pill.animate([{ translate: `${from.x - to.x}px 0`, scale: `${from.w / r.width} 1` }, { translate: '0 0', scale: '1 1' }], { duration: 160, easing: EASE.out });
+        a.onfinish = end;
+        a.oncancel = end;
+        // (never left half way: a page in the background holds its animations)
+        setTimeout(end, 600);
+      });
+    },
+    true,
+  );
+}

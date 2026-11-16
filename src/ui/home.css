@@ -153,7 +153,9 @@
   clip-path: polygon(0.7em 0, calc(100% - 0.7em) 0, 100% 50%, calc(100% - 0.7em) 100%, 0.7em 100%, 0 50%);
 }
 .ho-seats { display: flex; flex-direction: column; align-items: center; gap: clamp(2px, 0.5cqw, 7px); }
-.ho-shields { display: flex; gap: clamp(2px, 0.4cqw, 6px); }
+.ho-shields { position: relative; display: flex; gap: clamp(2px, 0.4cqw, 6px); }
+/* a seat just taken: a flash of gold behind its shield (home.js light) */
+.ho-lit { position: absolute; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, rgba(255, 226, 140, 0.95) 0%, rgba(255, 200, 90, 0.45) 38%, rgba(255, 200, 90, 0) 70%); }
 .seat-shield { display: block; width: clamp(19px, 3.3cqw, 42px); height: auto; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55)); }
 .ho-n {
   font-family: var(--font-display); font-weight: 900; font-size: clamp(20px, 3.7cqw, 46px); line-height: 1; letter-spacing: 0.06em;
@@ -172,6 +174,8 @@
 .ho-timer b.long { font-size: clamp(16px, 2.9cqw, 36px); }
 .ho-timer span { font-family: var(--font-display); font-weight: 700; font-size: clamp(9.5px, 1.3cqw, 16px); line-height: 1; color: #d9c08a; letter-spacing: 0.2em; padding-left: 0.2em; }
 .ho-timer.idle b { opacity: 0.45; }
+/* the last three seconds (home.js tick): each number comes up large, in red gold */
+.ho-timer.final b { background: linear-gradient(180deg, #ffe2a6 0%, #f08a4b 60%, #c4402a 100%); -webkit-background-clip: text; background-clip: text; }
 .ho-hint { margin: 0; font-size: clamp(10.5px, 1.45cqw, 17px); letter-spacing: 0.06em; color: #e9d9ae; text-align: center; text-shadow: 0 1px 2px #000; }
 
 /* the hand: one card per way to play, in the resource cards' frames */

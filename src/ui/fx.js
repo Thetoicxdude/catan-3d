@@ -69,6 +69,13 @@ export class Fx {
       const x0 = 180 * side + (Math.random() - 0.5) * 80;
       const y0 = Math.max(380, window.innerHeight * 0.55) + Math.random() * 60;
       const opts = { duration: land, easing: 'cubic-bezier(.22,.75,.35,1)', fill: 'forwards' };
+      // (reduce motion: the dice appear where they land, faces up, fading in)
+      const rot = (z, k) => `rotateZ(${z}deg) rotateX(${fx + (sx - fx) * k}deg) rotateY(${fy + (sy - fy) * k}deg)`;
+      if (reduced()) {
+        d.style.transform = rot(rz, 0);
+        slot.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, fill: 'backwards' });
+        return;
+      }
       // thrown up from below, a high arc, then a bounce and a little skid as they settle
       slot.animate(
         [
@@ -82,7 +89,6 @@ export class Fx {
         opts,
       );
       // rotateZ is outermost so the resting tilt happens in the screen plane
-      const rot = (z, k) => `rotateZ(${z}deg) rotateX(${fx + (sx - fx) * k}deg) rotateY(${fy + (sy - fy) * k}deg)`;
       d.animate([{ transform: rot(rz + 160 * side, 1) }, { offset: 0.6, transform: rot(rz + 24 * side, 0.16) }, { offset: 0.8, transform: rot(rz - 4 * side, -0.025) }, { transform: rot(rz, 0) }], opts);
     });
     sfx.dice(land / 1000 - 0.08);
@@ -108,7 +114,8 @@ export class Fx {
   }
 
   // Resource cards fly from points on the map into their destinations.
-  // list: [{res, from:{x,y}, to:{x,y}, delay, small, onArrive}]
+  // list: [{res, from:{x,y}, to:{x,y}, delay, small, fade (it fades as it arrives: only shown, not
+  // given), onArrive}]
   cards(list) {
     for (const c of list) {
       const card = el('div', `fx-card rcard rc-${c.res}${c.small ? ' small' : ''}`, `${c.small ? '' : `<span class="nm">${RES_EN[c.res] || ''}</span>`}<i class="shine"></i>`);
@@ -121,14 +128,25 @@ export class Fx {
       const lift = Math.min(170, 70 + Math.hypot(dx, dy) * 0.22);
       const rot = (Math.random() - 0.5) * 50;
       // land at the size of the hand's cards (42px) or a nation row's flag
-      const dur = reduced() ? 200 : c.small ? 700 : 820;
+      const dur = c.small ? 700 : 820;
+      const end = `translate(-50%, -50%) translate(${dx}px, ${dy}px) scale(${c.end != null ? c.end : c.small ? 0.8 : 0.7})`;
+      if (reduced()) {
+        // (reduce motion: nothing travels; the card shows a moment where it goes)
+        card.style.transform = end;
+        const a = card.animate([{ opacity: 0 }, { opacity: c.fade ? 0.5 : 1, offset: 0.4 }, { opacity: 0 }], { duration: 240, delay: c.delay || 0, fill: 'both' });
+        a.onfinish = () => {
+          card.remove();
+          if (c.onArrive) c.onArrive();
+        };
+        continue;
+      }
       const a = card.animate(
         [
           { transform: `translate(-50%, -50%) translate(0px, 8px) scale(0.15) rotate(${rot}deg)`, opacity: 0 },
           { offset: 0.14, transform: `translate(-50%, -50%) translate(${dx * 0.02}px, -46px) scale(1.25) rotate(${rot * 0.7}deg)`, opacity: 1 },
           { offset: 0.24, transform: `translate(-50%, -50%) translate(${dx * 0.05}px, -52px) scale(1.12) rotate(${rot * 0.5}deg)`, opacity: 1 },
           { offset: 0.62, transform: `translate(-50%, -50%) translate(${dx * 0.55}px, ${dy * 0.55 - lift}px) scale(0.95) rotate(${rot * 0.15}deg)`, opacity: 1 },
-          { transform: `translate(-50%, -50%) translate(${dx}px, ${dy}px) scale(${c.end != null ? c.end : c.small ? 0.8 : 0.7}) rotate(0deg)`, opacity: 0.9 },
+          { transform: `${end} rotate(0deg)`, opacity: c.fade ? 0 : 0.9 },
         ],
         { duration: dur, delay: c.delay || 0, easing: 'cubic-bezier(.4,.05,.3,1)', fill: 'both' },
       );
@@ -158,16 +176,14 @@ export class Fx {
     this.layer.appendChild(box);
     const flip = box.querySelector('.flip');
     const slow = !reduced();
-    flip.animate(
-      [{ transform: 'rotateY(180deg) scale(0.6)' }, { offset: 0.55, transform: 'rotateY(-12deg) scale(1.05)' }, { transform: 'rotateY(0deg) scale(1)' }],
-      { duration: slow ? 650 : 1, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'both' },
-    );
-    box.querySelector('.cap').animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], {
-      duration: slow ? 320 : 1,
-      delay: slow ? 420 : 0,
-      easing: 'ease-out',
-      fill: 'both',
-    });
+    // (reduce motion: it shows face up and fades in, nothing turns or moves)
+    if (slow) {
+      flip.animate(
+        [{ transform: 'rotateY(180deg) scale(0.6)' }, { offset: 0.55, transform: 'rotateY(-12deg) scale(1.05)' }, { transform: 'rotateY(0deg) scale(1)' }],
+        { duration: 650, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'both' },
+      );
+      box.querySelector('.cap').animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 320, delay: 420, easing: 'ease-out', fill: 'both' });
+    } else box.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, fill: 'backwards' });
     sfx.whoosh();
     const hold = slow ? 2200 : 1200;
     let gone = false;
@@ -185,9 +201,9 @@ export class Fx {
       const r = target && target.getBoundingClientRect();
       const tx = r && r.width ? r.left + r.width / 2 - window.innerWidth / 2 : 0;
       const ty = r && r.width ? r.top + r.height / 2 - window.innerHeight * 0.42 : -window.innerHeight * 0.4;
-      box.animate(
-        [{ transform: 'translate(-50%, -50%)', opacity: 1 }, { transform: `translate(-50%, -50%) translate(${tx}px, ${ty}px) scale(0.12)`, opacity: 0.4 }],
-        { duration: slow ? 520 : 1, easing: 'cubic-bezier(.5,0,.7,.4)', fill: 'forwards' },
+      (slow
+        ? box.animate([{ transform: 'translate(-50%, -50%)', opacity: 1 }, { transform: `translate(-50%, -50%) translate(${tx}px, ${ty}px) scale(0.12)`, opacity: 0.4 }], { duration: 520, easing: 'cubic-bezier(.5,0,.7,.4)', fill: 'forwards' })
+        : box.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' })
       ).onfinish = () => {
         box.remove();
         if (target) {
@@ -208,6 +224,11 @@ export class Fx {
     p.style.left = x + 'px';
     p.style.top = y + 'px';
     this.layer.appendChild(p);
+    if (reduced()) {
+      p.style.transform = 'translate(-50%, -50%) translateY(-10px)';
+      p.animate([{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0 }], { duration: 800, fill: 'forwards' }).onfinish = () => p.remove();
+      return;
+    }
     p.animate(
       [
         { transform: 'translate(-50%, -50%) translateY(0) scale(0.6)', opacity: 0 },
@@ -226,6 +247,14 @@ export class Fx {
     m.style.left = r.left + r.width / 2 + 'px';
     m.style.top = r.top + r.height / 2 + 'px';
     this.layer.appendChild(m);
+    target.classList.remove('vp-hit');
+    void target.offsetWidth;
+    target.classList.add('vp-hit');
+    if (reduced()) {
+      m.style.transform = 'translate(-50%, -50%) translateY(36px)';
+      m.animate([{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: 1300, fill: 'forwards' }).onfinish = () => m.remove();
+      return;
+    }
     m.animate(
       [
         { transform: 'translate(-50%, -50%) translateY(14px) scale(0.3) rotate(-18deg)', opacity: 0 },
@@ -235,9 +264,6 @@ export class Fx {
       ],
       { duration: big ? 1900 : 1500, easing: 'cubic-bezier(.3,.7,.4,1)', fill: 'forwards' },
     ).onfinish = () => m.remove();
-    target.classList.remove('vp-hit');
-    void target.offsetWidth;
-    target.classList.add('vp-hit');
   }
 
   // a big centred announcement (longest road, largest army, the robber, victory)
@@ -246,6 +272,11 @@ export class Fx {
     a.querySelector('h3').textContent = title;
     a.querySelector('p').textContent = sub || '';
     this.layer.appendChild(a);
+    if (reduced()) {
+      a.style.transform = 'translate(-50%, -50%)';
+      a.animate([{ opacity: 0 }, { opacity: 1, offset: 0.05 }, { opacity: 1, offset: 0.9 }, { opacity: 0 }], { duration: 2600, fill: 'forwards' }).onfinish = () => a.remove();
+      return;
+    }
     // (only transform and opacity: a blur would be redrawn at every frame, over the map)
     a.animate(
       [

@@ -142,21 +142,28 @@ export function openCards(dialogs, settings, save, opts = {}) {
     const groups =
       `<section class="cp-group" style="--dc:${BASIC_COLOR}"><h5>${esc(t('基本卡'))}</h5><div class="cc-grid">${BASIC.map(face).join('')}</div></section>` +
       DIRS.map((d) => `<section class="cp-group" style="--dc:${DIR_COLOR[d]}"><h5>${esc(t(DIR_NAMES[d]))}</h5><div class="cc-grid">${BUILDING_IDS.filter((k) => BUILDINGS[k].dir === d).map(face).join('')}</div></section>`).join('');
+    // (the blueprint stays at the top of the page; the collection scrolls under it, kept where it was
+    // as the page is drawn again)
+    const was = body.querySelector('.cp-scroll');
+    const keep = was ? was.scrollTop : 0;
     body.innerHTML = `
       <section class="cp-deck">
         <div class="cp-tabs" role="group" aria-label="${esc(t('藍圖'))}">${tabs}</div>
         <div class="cp-slots">${slots}</div>
         <div class="cp-deckbar"><span class="cp-status num">${status}</span><span class="cp-use"></span></div>
-        <p class="cp-note">${esc(t('藍圖 7 張，含基本卡（道路、村莊、城市、發展卡）：沒帶的基本卡，這局就不能花錢蓋。開發不用卡牌。最多 1 座世界奇觀；開局帶「使用中」的那套。'))}</p>
         ${flash ? `<p class="cp-flash" role="status">${esc(flash)}</p>` : ''}
       </section>
-      <div class="cp-main">
-        <section class="cp-coll">
-          <h4>${esc(t('收藏'))} <span class="num">${c.own.length + BASIC.length}/${BUILDING_IDS.length + BASIC.length}</span></h4>
-          ${groups}
-        </section>
-        <aside class="cp-detail" aria-live="polite"></aside>
+      <div class="cp-scroll">
+        <p class="cp-note">${esc(t('藍圖 7 張，含基本卡（道路、村莊、城市、發展卡）：沒帶的基本卡，這局就不能花錢蓋。開發不用卡牌。最多 1 座世界奇觀；開局帶「使用中」的那套。'))}</p>
+        <div class="cp-main">
+          <section class="cp-coll">
+            <h4>${esc(t('收藏'))} <span class="num">${c.own.length + BASIC.length}/${BUILDING_IDS.length + BASIC.length}</span></h4>
+            ${groups}
+          </section>
+          <aside class="cp-detail" aria-live="polite"></aside>
+        </div>
       </div>`;
+    if (keep) body.querySelector('.cp-scroll').scrollTop = keep;
     flash = '';
     // which blueprint the next game takes
     const use = body.querySelector('.cp-use');
@@ -238,9 +245,13 @@ export function openCards(dialogs, settings, save, opts = {}) {
     if (!look || !from) return;
     const home = body.querySelector(`.cp-coll .cc[data-k="${k}"]`);
     const r = home && home.getBoundingClientRect();
-    if (r && r.bottom > 0 && r.top < window.innerHeight) fly(look, from, home, { ms: 420, arc: 30, onArrive: () => pop(home, { scale: 1.06 }) });
-    else fly(look, from, { left: from.left + from.width * 0.1, top: from.top + 28, width: from.width * 0.8, height: from.height * 0.8 }, { ms: 260, arc: 0, fade: true });
+    // (in sight in the collection's scrolling part)
+    const view = body.querySelector('.cp-scroll').getBoundingClientRect();
+    if (r && r.bottom > view.top + 10 && r.top < view.bottom - 10) fly(look, from, home, { ms: 420, arc: 30, onArrive: () => pop(home, { scale: 1.06 }) });
+    else dropAway(look, from);
   };
+  // a card leaving the blueprint for nowhere in sight: it sinks a little and fades
+  const dropAway = (look, from) => fly(look, from, { left: from.left + from.width * 0.1, top: from.top + 28, width: from.width * 0.8, height: from.height * 0.8 }, { ms: 260, arc: 0, fade: true });
   // the selected card: everything it does, and putting it in or taking it out
   const paintDetail = () => {
     const box = body.querySelector('.cp-detail');
@@ -265,14 +276,20 @@ export function openCards(dialogs, settings, save, opts = {}) {
           const src = body.querySelector(`.cp-coll .cc[data-k="${k}"]`);
           const from = src && src.getBoundingClientRect();
           const look = src && src.cloneNode(true);
-          if (isWonder(k) && bp.some(isWonder)) settings.bps[cur] = bp.map((x) => (isWonder(x) ? k : x));
-          else if (bp.length >= BLUEPRINT_SIZE) {
+          // (one wonder only: the one there makes way, fading out of its place as the new one flies in)
+          let gone = null;
+          if (isWonder(k) && bp.some(isWonder)) {
+            const old = body.querySelector(`.cp-slot[data-slot="${bp.find(isWonder)}"] .cc`);
+            if (old) gone = { look: old.cloneNode(true), from: old.getBoundingClientRect() };
+            settings.bps[cur] = bp.map((x) => (isWonder(x) ? k : x));
+          } else if (bp.length >= BLUEPRINT_SIZE) {
             flash = t('藍圖已滿：先拿出一張');
             render();
             return shake(body.querySelector('.cp-slots'));
           } else settings.bps[cur] = [...bp, k];
           save(settings);
           render();
+          if (gone && !reduced()) dropAway(gone.look, gone.from);
           landIn(k, look, from);
         }),
       );
@@ -285,6 +302,26 @@ export function openCards(dialogs, settings, save, opts = {}) {
 }
 
 // ── the Draw & Shop page ──
+
+// how long a wonder's back glows before it turns over (collection.css .rv.wonder: the same 0.45 s)
+const WONDER_GLOW = 450;
+// the missions' progress as last shown (this browser): a bar that has gone up since grows to its new
+// length the next time it is shown (after a game)
+const SEEN_KEY = 'catan3d-ms-seen';
+const readSeen = () => {
+  try {
+    return JSON.parse(localStorage.getItem(SEEN_KEY)) || {};
+  } catch {
+    return {};
+  }
+};
+const writeSeen = (m) => {
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(m));
+  } catch {
+    /* (private browsing: the bars just show where they are) */
+  }
+};
 
 const TABS = [
   ['draw', N_('抽卡')],
@@ -384,9 +421,10 @@ export function openShop(dialogs, opts = {}) {
     if (reveal) {
       const r = box.querySelector('.sp-reveal');
       r.classList.toggle('ten', reveal.length > 1);
+      // (a wonder's back glows gold for a moment before it turns over: collection.css .rv.wonder)
       r.innerHTML = reveal
         .map(
-          (x, i) => `<div class="rv" style="--i:${i}"><div class="rv-in"><div class="rv-back">${emblemSvg('cards', 40)}</div><div class="rv-face">${cardFace(x.k, { small: reveal.length > 1 })}</div></div>
+          (x, i) => `<div class="rv${isWonder(x.k) ? ' wonder' : ''}" style="--i:${i}">${isWonder(x.k) ? '<i class="rv-glow" aria-hidden="true"></i>' : ''}<div class="rv-in"><div class="rv-back">${emblemSvg('cards', 40)}</div><div class="rv-face">${cardFace(x.k, { small: reveal.length > 1 })}</div></div>
           <span class="rv-tag${x.fresh ? ' new' : ''}">${x.fresh ? esc(t('新卡！')) + (x.slotted ? `<small>${esc(t('已放進藍圖'))}</small>` : '') : `${icon('shard', 13)}+${x.shards}`}</span></div>`,
         )
         .join('');
@@ -403,13 +441,48 @@ export function openShop(dialogs, opts = {}) {
     render();
     settle('coins');
     // a card drawn again turns into shards: they fly from under it into the head as its tag shows
-    // (the tags show one after another: collection.css .rv-tag)
-    const tags = body.querySelectorAll('.sp-reveal .rv-tag');
+    // (the tags show one after another, a wonder's after its glow: collection.css .rv-tag, .rv.wonder)
+    const box = body.querySelector('.sp-reveal');
+    const tags = box.querySelectorAll('.rv-tag');
+    const later = [];
+    // (each runs once: on time, or at once when all are turned over)
+    const at = (fn, ms, sound = false) => {
+      const l = { fn, sound };
+      l.id = setTimeout(() => {
+        const i = later.indexOf(l);
+        if (i >= 0) later.splice(i, 1);
+        fn();
+      }, ms);
+      later.push(l);
+    };
+    let end = 0;
     reveal.forEach((x, i) => {
+      const wait = isWonder(x.k) ? WONDER_GLOW : 0;
+      end = Math.max(end, 750 + i * 130 + wait);
+      if (isWonder(x.k) && !reduced()) at(() => box.isConnected && sfx.fanfare(false), 330 + i * 130 + wait, true);
       if (x.fresh) return;
       const tag = tags[i];
-      setTimeout(() => (tag && tag.isConnected ? rain('shards', x.shards, tag, 2) : bump('shards', x.shards)), reduced() ? 0 : 640 + i * 130);
+      at(() => (tag && tag.isConnected ? rain('shards', x.shards, tag, 2) : bump('shards', x.shards)), reduced() ? 0 : 640 + i * 130 + wait);
     });
+    if (reduced() || reveal.length < 2) return;
+    // ten at once take a while: "turn them all over" (or a click on the cards) shows them at once
+    const skip = btn(esc(t('全部翻開')), 'ghost rv-skip', () => flipAll());
+    box.after(skip);
+    const flipAll = () => {
+      if (!skip.isConnected) return;
+      skip.remove();
+      for (const a of box.getAnimations({ subtree: true })) a.finish();
+      // (what was still to come, at once; a wonder's fanfare once)
+      let sound = null;
+      for (const l of later.splice(0)) {
+        clearTimeout(l.id);
+        if (l.sound) sound = l.fn;
+        else l.fn();
+      }
+      if (sound) sound();
+    };
+    box.addEventListener('click', flipAll, { once: true });
+    setTimeout(() => skip.isConnected && skip.remove(), end + 300);
   };
 
   // the shop: the cards of the pack for shards
@@ -446,12 +519,18 @@ export function openShop(dialogs, opts = {}) {
 
   // the missions: the granary's cards first, then the challenges
   const paintMissions = (box) => {
+    const was = readSeen();
+    const now = {};
+    const grow = [];
     const row = (m) => {
       const s = missionState(c, m.id);
       const reward = m.reward.card ? `${cardFace(m.reward.card, { small: true, locked: !owns(c, m.reward.card) && !s.got })}` : `<span class="ms-coins">${coinHtml(m.reward.coins)}</span>`;
-      const pct = Math.round((100 * s.n) / s.goal);
+      const pct = Math.min(100, Math.round((100 * s.n) / s.goal));
+      now[m.id] = s.n;
+      if (typeof was[m.id] === 'number' && was[m.id] < s.n) grow.push([m.id, Math.min(100, Math.round((100 * was[m.id]) / s.goal)), pct]);
+      // (the bar is as long as the track, slid back by what is still to do)
       return `<div class="ms-row${s.done ? ' done' : ''}${s.got ? ' got' : ''}" data-m="${m.id}">
-        <div class="ms-text"><b>${esc(t(m.text))}</b><span class="ms-bar" aria-hidden="true"><i style="width:${pct}%"></i></span><small class="num">${s.n}/${s.goal}</small></div>
+        <div class="ms-text"><b>${esc(t(m.text))}</b><span class="ms-bar" aria-hidden="true"><i style="translate:${pct - 100}% 0"></i></span><small class="num">${s.n}/${s.goal}</small></div>
         <div class="ms-reward">${reward}</div>
         <div class="ms-act">${s.got ? `<span class="ms-got">${esc(t('已領取'))}</span>` : s.done ? `<button type="button" class="btn primary" data-claim="${m.id}">${esc(t('領取'))}</button>` : ''}</div>
       </div>`;
@@ -464,6 +543,13 @@ export function openShop(dialogs, opts = {}) {
       ${first.map(row).join('')}
       <h5 class="ms-head">${esc(t('挑戰'))}</h5>
       ${rest.map(row).join('')}`;
+    // what went up since the last look grows from where it was, one after another
+    writeSeen(now);
+    if (!reduced())
+      grow.forEach(([id, from, to], i) => {
+        const bar = box.querySelector(`.ms-row[data-m="${id}"] .ms-bar i`);
+        if (bar) bar.animate([{ translate: `${from - 100}% 0` }, { translate: `${to - 100}% 0` }], { duration: 650, delay: 220 + i * 90, easing: EASE.out, fill: 'backwards' });
+      });
     box.querySelectorAll('[data-claim]').forEach((b) =>
       b.addEventListener('click', () => {
         const id = b.dataset.claim;

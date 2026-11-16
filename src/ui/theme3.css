@@ -193,6 +193,7 @@ html.ui3 .ol-body .ol-head::before, html.ui3 .ol-body .ol-head::after { content:
 html.ui3 .ol-body .ol-head::after { background-image: var(--u3-div-ink); background-position: left center; }
 html.ui3 .nation { grid-template-columns: 26px 1fr auto; gap: 1px 8px; padding: 6px 4px 6px 6px; border-bottom: var(--u3-rule); }
 html.ui3 .nation:last-child { border-bottom: 0; }
+html.ui3 .ol-resp { left: 20px; top: 1px; }
 /* the flag as a little pennant */
 html.ui3 .nation .flag {
   width: 22px; height: 32px; object-fit: cover; border-radius: 0; box-shadow: none;
@@ -501,6 +502,7 @@ html.ui3 .setup-card .offer-line { background: rgba(255, 250, 235, 0.35); border
 html.ui3 .seat-list { gap: 0; }
 html.ui3 .seat { padding: 5px 4px 6px; border-radius: 0; background: none; border: 0; border-bottom: var(--u3-rule); }
 html.ui3 .seat:last-child { border-bottom: 0; }
+html.ui3 .seat-ghost { background: #eddcb4; }
 html.ui3 .seat .flag { width: 22px; height: 32px; object-fit: cover; border-radius: 0; box-shadow: none; justify-self: center; -webkit-mask: var(--u3-pennant-mask) center / 100% 100% no-repeat; mask: var(--u3-pennant-mask) center / 100% 100% no-repeat; }
 html.ui3 .seat input[type="text"] {
   background: transparent !important; border: 0 !important; border-bottom: 1px dashed rgba(74, 46, 24, 0.55) !important; border-radius: 0 !important;

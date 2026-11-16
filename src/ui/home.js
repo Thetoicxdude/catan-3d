@@ -12,6 +12,7 @@ import { esc } from './text.js';
 import { emblemSvg, seatShield } from './emblems.js';
 import { mountAccount } from './account-ui.js';
 import { homeMarks, onCards } from './cards-ui.js';
+import { pop, reduced, leaveScreen } from './motion.js';
 import { t } from '../i18n/index.js';
 
 const APP = 'catan3d';
@@ -353,6 +354,10 @@ function crest() {
   </svg>`;
 }
 
+// the new cards and the rewards waiting as the home screen last showed them (this visit to the page):
+// a badge whose number went up since then bounces
+const seenMarks = { fresh: null, claim: null };
+
 // opts: settings, hasSave, seed (the island this player would open an official room on), seconds
 // (the official countdown), version, getLobby() → lobby wrapper | null (unreachable) | undefined
 // (no live lobby on this page), and the handlers onChange, onSingle, onCreate, onJoin, onEditor (the map
@@ -467,15 +472,24 @@ export function showHome(app, opts) {
   // ── the building cards: new ones to look at, rewards waiting, the coins ──
   const paintMarks = () => {
     const m = homeMarks();
+    // (more than the last look: the badge bounces, once the screen has come in)
+    const rose = (k) => seenMarks[k] != null && m[k] > seenMarks[k];
+    const bounce = (b) => !b.hidden && pop(b, { scale: 1.55, ms: 380, delay: 200 });
+    const popFresh = rose('fresh');
+    const popClaim = rose('claim');
+    seenMarks.fresh = m.fresh;
+    seenMarks.claim = m.claim;
     scr.querySelectorAll('[data-k="cards"] .hm-badge').forEach((b) => {
       b.hidden = !m.fresh;
       b.textContent = m.fresh ? t('新') : '';
       b.title = m.fresh ? t('{n} 張新卡', { n: m.fresh }) : '';
+      if (popFresh) bounce(b);
     });
     scr.querySelectorAll('[data-k="shop"] .hm-badge').forEach((b) => {
       b.hidden = !m.claim;
       b.textContent = m.claim ? String(m.claim) : '';
       b.title = m.claim ? t('{n} 個任務獎勵可以領取', { n: m.claim }) : '';
+      if (popClaim) bounce(b);
     });
     const purse = scr.querySelector('.hm-purse');
     if (purse) purse.textContent = m.coins.toLocaleString('en-US');
@@ -556,13 +570,35 @@ export function showHome(app, opts) {
     if (room && room.rem != null) return Math.max(0, room.rem - (Date.now() - room.at));
     return null;
   };
+  let lastSec = '';
   const tick = () => {
     const left = timeLeft();
     timerEl.classList.toggle('idle', left == null);
     const txt = left == null ? String(Math.round(total / 1000)) : String(Math.ceil(left / 1000));
+    // (the last three seconds: each number comes up large)
+    const final = left != null && left > 0 && left <= 3000;
+    timerEl.classList.toggle('final', final);
+    if (final && txt !== lastSec) pop(secEl, { scale: 1.6, ms: 420 });
+    lastSec = txt;
     secEl.textContent = txt;
     secEl.classList.toggle('long', txt.length > 2);
     arc.style.strokeDashoffset = (left == null ? CIRC : CIRC * (1 - Math.min(1, left / total))).toFixed(2);
+  };
+  let seen = null;
+  const light = (i) => {
+    const sh = shields.children[i];
+    if (!sh) return;
+    pop(sh, { scale: 1.4, ms: 380 });
+    if (reduced()) return;
+    const glow = document.createElement('i');
+    glow.className = 'ho-lit';
+    glow.style.left = sh.offsetLeft + sh.offsetWidth / 2 + 'px';
+    glow.style.top = sh.offsetTop + sh.offsetHeight / 2 + 'px';
+    shields.appendChild(glow);
+    const a = glow.animate([{ opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1.1, offset: 0.3 }, { opacity: 0, scale: 1.7 }], { duration: 700, easing: 'ease-out' });
+    a.onfinish = () => glow.remove();
+    // (never left behind: a page in the background holds its animations)
+    setTimeout(() => glow.remove(), 1300);
   };
   const paint = () => {
     const joined = !!match;
@@ -589,6 +625,9 @@ export function showHome(app, opts) {
     for (let i = 0; i < n; i++) html += seatShield(i >= have ? 'open' : joined && i === (match.seat >= 0 ? match.seat : 0) ? 'me' : 'taken', settings.color);
     shields.innerHTML = html;
     nEl.textContent = `${have}/${n}`;
+    // someone sat down since the last look (the same room): their shield lights up and bounces
+    if (seen && seen.n === n && seen.code === (room && room.code) && have > seen.have) for (let i = seen.have; i < have; i++) light(i);
+    seen = { n, have, code: room && room.code };
     const hints = { offline: t('暫時連不上線上大廳') };
     const h = joined ? (match.phase === 'searching' && !match.seats ? t('正在尋找房間…　再點一次退出') : t('再點一次退出')) : hints[link] || '';
     hint.textContent = h;
@@ -696,7 +735,7 @@ export function showHome(app, opts) {
       if (ro) ro.disconnect();
       if (fitRo) fitRo.disconnect();
       else window.removeEventListener('resize', fit);
-      scr.remove();
+      leaveScreen(scr);
     },
   };
 }

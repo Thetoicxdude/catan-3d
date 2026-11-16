@@ -88,6 +88,7 @@ html.ui2 .bank .bk-card { --w: 22px; }
 html.ui2 .bank .bk-card .cnt { top: auto; bottom: -7px; right: -8px; min-width: 17px; height: 17px; font-size: 11px; border-width: 1px; }
 html.ui2 .nation { padding: 5px 8px; gap: 1px 8px; grid-template-columns: 28px 1fr auto; border-bottom-color: rgba(226, 199, 135, 0.1); }
 html.ui2 .nation .flag { width: 28px; height: 19px; }
+html.ui2 .ol-resp { left: 26px; top: 1px; }
 html.ui2 .nation .nm { font-size: 13px; }
 html.ui2 .nation .vp { min-width: 32px; height: 32px; border: 0; border-radius: 6px; background: rgba(0, 0, 0, 0.32); }
 html.ui2 .nation .vp b { font-size: 19px; color: var(--gold); }

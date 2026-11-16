@@ -42,3 +42,9 @@ html:lang(en) .hm-name input { font-size: 17px; }
 @media (max-width: 760px) {
   html:lang(en) .hm-lbl { font-size: max(11px, calc(var(--cw) * 0.13)); }
 }
+
+/* the blueprint on a phone: seven cards across leave no room for an English name; the picture says it
+   (the card opened below names it) */
+@media (max-width: 520px) {
+  html:lang(en) .cp-slots .cc.small .cc-name { display: none; }
+}

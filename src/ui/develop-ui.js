@@ -80,7 +80,7 @@ export function nationStrip(v, p) {
       cls += ' built';
       title += t('（已建造）');
     }
-    return `<span class="${cls}" style="--dc:${DIR_COLOR[BUILDINGS[k].dir]}" title="${esc(title)}">${buildingIcon(k, 14)}${mark}</span>`;
+    return `<span class="${cls}" data-k="${k}" style="--dc:${DIR_COLOR[BUILDINGS[k].dir]}" title="${esc(title)}">${buildingIcon(k, 14)}${mark}</span>`;
   });
   return `<div class="bp-strip">${[...items, ...missing].join('')}</div>`;
 }

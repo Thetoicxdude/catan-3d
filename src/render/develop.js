@@ -11,7 +11,8 @@
 // Whatever of the scenery stands under a model (trees, haystacks, the desert's old fort) is cleared
 // (clear(x, z, r): the map's flora). New models rise out of the ground; a wonder that goes up a stage
 // settles into its new shape in a puff of dust. Chimneys, kilns and fires smoke. Under the pointer a
-// model names itself (pick: the map's hover).
+// model names itself (pick: the map's hover); choosing where to build, the pointer over a place shows
+// what would stand there, see-through (ghost).
 import * as THREE from 'three';
 import { GEO, HEX_SIZE } from '../engine/geometry.js';
 import { annexAt } from '../engine/develop.js';
@@ -39,6 +40,10 @@ const CLEAR = { annex: 1.05, plot1: 1.6, plot2: 2.4, wonder: 4.4 };
 const RISE = { annex: 0.45, plot: 0.45, wonder: 0.6 };
 const SETTLE = 0.32;
 const COLLAPSE = 0.8;
+// a preview drops into its place in this long (s), from this high (in the model's own heights)
+const GHOST_DROP = 0.18;
+const GHOST_LIFT = 1.1;
+const ghostMats = new Map();
 
 const ease = (k) => 1 + 2.2 * Math.pow(k - 1, 3) + 1.2 * Math.pow(k - 1, 2);
 const smooth = (k) => k * k * (3 - 2 * k);
@@ -221,29 +226,7 @@ export class DevelopLayer {
     // coordinates, so only on things that do not grow with the zoom)
     const imp = w.kind === 'wonder' && !!this.plants && this.plants.real();
     const obj = w.make(imp);
-    // (stand it on the lowest ground under it: it may sink a little into a slope, never float; a
-    // shipyard on the shore stands at the height of its own spot, its slipway out over the water)
-    const r = w.clear * 0.6;
-    let y = this.heightAt(w.x, w.z);
-    if (w.kind === 'wonder') {
-      // (a wonder is wide: it stands at the middle height of the sand under it, its foundations reaching
-      // down into the dunes)
-      const hs = [y];
-      for (let a = 0; a < 8; a++) hs.push(this.heightAt(w.x + Math.cos((a * Math.PI) / 4) * r, w.z + Math.sin((a * Math.PI) / 4) * r));
-      hs.sort((p, q) => p - q);
-      y = hs[Math.floor(hs.length / 2)];
-    } else if (!w.shore) for (let a = 0; a < 6; a++) y = Math.min(y, this.heightAt(w.x + Math.cos(a) * r, w.z + Math.sin(a) * r));
-    y = Math.max(y, 0.05) - 0.03;
-    // (a building beside a settlement hangs from the settlement's corner, so that the two grow
-    // together when the map is zoomed out)
-    const ax = w.ax != null ? w.ax : w.x;
-    const az = w.az != null ? w.az : w.z;
-    const ay = w.ax != null ? Math.max(this.heightAt(ax, az), 0.05) : y;
-    const anchor = new THREE.Group();
-    anchor.position.set(ax, ay, az);
-    obj.position.set(w.x - ax, y - ay, w.z - az);
-    obj.rotation.y = w.ry;
-    anchor.add(obj);
+    const anchor = this.stand(w, obj);
     this.group.add(anchor);
     const box = obj.userData.box;
     const size = box ? { r: Math.max(box.max.x - box.min.x, box.max.z - box.min.z) / 2, h: box.max.y } : { r: 1, h: 1 };
@@ -291,6 +274,94 @@ export class DevelopLayer {
     return it;
   }
 
+  // A model's place on the map: an anchor with the model in it, standing on the ground. (A building
+  // beside a settlement hangs from the settlement's corner, so that the two grow together when the map
+  // is zoomed out.)
+  stand(w, obj) {
+    // (stand it on the lowest ground under it: it may sink a little into a slope, never float; a
+    // shipyard on the shore stands at the height of its own spot, its slipway out over the water)
+    const r = w.clear * 0.6;
+    let y = this.heightAt(w.x, w.z);
+    if (w.kind === 'wonder') {
+      // (a wonder is wide: it stands at the middle height of the sand under it, its foundations reaching
+      // down into the dunes)
+      const hs = [y];
+      for (let a = 0; a < 8; a++) hs.push(this.heightAt(w.x + Math.cos((a * Math.PI) / 4) * r, w.z + Math.sin((a * Math.PI) / 4) * r));
+      hs.sort((p, q) => p - q);
+      y = hs[Math.floor(hs.length / 2)];
+    } else if (!w.shore) for (let a = 0; a < 6; a++) y = Math.min(y, this.heightAt(w.x + Math.cos(a) * r, w.z + Math.sin(a) * r));
+    y = Math.max(y, 0.05) - 0.03;
+    const ax = w.ax != null ? w.ax : w.x;
+    const az = w.az != null ? w.az : w.z;
+    const ay = w.ax != null ? Math.max(this.heightAt(ax, az), 0.05) : y;
+    const anchor = new THREE.Group();
+    anchor.position.set(ax, ay, az);
+    obj.position.set(w.x - ax, y - ay, w.z - az);
+    obj.rotation.y = w.ry;
+    anchor.add(obj);
+    return anchor;
+  }
+
+  // ── a preview: what would stand there (the pointer over a place to build) ──
+
+  // spec: { what: 'plot' } (the next level of a development on hex `id`), { what: 'wonder', k } (its
+  // first stage on the desert `id`), { what: 'annex', k } (the building beside the settlement `id`);
+  // null: none. The model, see-through in the player's colour, drops lightly into its place.
+  ghost(spec, id, color = '#ffffff') {
+    if (this.ghostIt) {
+      this.group.remove(this.ghostIt.anchor);
+      this.ghostIt = null;
+    }
+    if (!spec || id == null || id < 0 || !this.last) return;
+    const w = this.ghostWant(this.last.state, spec, id, color);
+    if (!w) return;
+    const obj = w.make(false);
+    if (!ghostMats.has(color)) ghostMats.set(color, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthWrite: false }));
+    const mat = ghostMats.get(color);
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      o.material = mat;
+      o.castShadow = false;
+      o.receiveShadow = false;
+      o.renderOrder = 5;
+    });
+    const anchor = this.stand(w, obj);
+    this.group.add(anchor);
+    const it = { kind: w.kind, anchor, obj, y0: obj.position.y, t: reduced() ? GHOST_DROP : 0 };
+    if (it.t < GHOST_DROP) obj.position.y += GHOST_LIFT;
+    this.applyScale(it);
+    this.ghostIt = it;
+  }
+
+  ghostWant(state, spec, id, color) {
+    const make = (kind, k, x) => () => devGroup(this.models, kind, k, x, color);
+    if (spec.what === 'plot') {
+      const pt = state.plots && state.plots[id];
+      const lv = pt ? pt.r.length + 1 : 1;
+      const H = state.board.hexes[id];
+      if (lv > 2 || !H) return null;
+      const g = GEO.hexes[id];
+      const x = g.x + Math.cos(FAC_A) * FAC_R;
+      const z = g.z + Math.sin(FAC_A) * FAC_R;
+      return { kind: 'plot', make: make('f', H.terrain, lv), x, z, ry: Math.atan2(g.x - x, g.z - z), clear: lv > 1 ? CLEAR.plot2 : CLEAR.plot1 };
+    }
+    if (spec.what === 'wonder' && spec.k) {
+      const g = GEO.hexes[id];
+      return { kind: 'wonder', make: make('w', spec.k, 1), x: g.x, z: g.z - 0.6, ry: 0, clear: CLEAR.wonder };
+    }
+    if (spec.what === 'annex' && spec.k && state.vertices[id]) {
+      const land = (h) => {
+        const H = state.board.hexes[h];
+        return H && H.terrain !== 'sea' && H.terrain !== 'fog';
+      };
+      const ks = [...annexAt(state, id).filter((k) => k !== spec.k), spec.k];
+      const s = annexSpots(state, id, ks, land, this.coastAt)[ks.length - 1];
+      if (!s) return null;
+      return { kind: 'annex', make: make('b', spec.k, null), x: s.x, z: s.z, ax: GEO.vertices[id].x, az: GEO.vertices[id].z, ry: s.ry, clear: CLEAR.annex, shore: s.shore };
+    }
+    return null;
+  }
+
   drop(it) {
     this.group.remove(it.anchor);
     if (it.flora) this.group.remove(it.flora);
@@ -331,6 +402,7 @@ export class DevelopLayer {
     if (Math.abs(s - this.scale) < 0.002) return;
     this.scale = s;
     for (const it of this.items.values()) this.applyScale(it);
+    if (this.ghostIt) this.applyScale(this.ghostIt);
   }
   applyScale(it) {
     const s = it.kind === 'annex' ? this.scale : it.kind === 'plot' ? Math.min(this.scale, 1.7) : 1;
@@ -352,6 +424,14 @@ export class DevelopLayer {
   update(dt) {
     this.time += dt;
     let busy = false;
+    // (a preview dropping into its place)
+    const gh = this.ghostIt;
+    if (gh && gh.t < GHOST_DROP) {
+      gh.t = Math.min(GHOST_DROP, gh.t + dt);
+      const k = 1 - gh.t / GHOST_DROP;
+      gh.obj.position.y = gh.y0 + k * k * GHOST_LIFT;
+      busy = true;
+    }
     for (const it of this.items.values()) {
       if (it.anim) {
         it.anim.t += dt;
@@ -446,6 +526,7 @@ export class DevelopLayer {
   }
 
   dispose() {
+    this.ghost(null);
     for (const it of this.items.values()) this.drop(it);
     for (const it of this.leaving) this.drop(it);
     for (const d of this.dust) for (const sp of d.sprites) this.group.remove(sp);

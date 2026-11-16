@@ -19,6 +19,16 @@
 /* (moved into the copy, its CSS animations would start again: the cards just drawn would turn back) */
 .modal-layer.leaving, .modal-layer.leaving * { animation: none !important; }
 
+/* full screens (home, setup, rooms) fade in over the one leaving (motion.js leaveScreen) */
+.menu-screen { animation: m-fade 0.18s var(--e-out) backwards; }
+.menu-screen.leaving { pointer-events: none !important; }
+
+/* a choice among a few: the selection slides over to the new one (motion.js installSegGlide) */
+.seg.gliding { position: relative; isolation: isolate; }
+.seg.gliding > button { position: relative; z-index: 1; }
+.seg.gliding > button.on { background: transparent !important; }
+.seg-glide { position: absolute; z-index: 0; transform-origin: 0 0; pointer-events: none; }
+
 /* the build menu grows from the Build button (hud.js toggleBuild) */
 .build-menu { transform-origin: 50% 100%; transition: opacity 0.15s ease; }
 .build-menu.closing { pointer-events: none; }
@@ -38,6 +48,7 @@
 @keyframes m-fade { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .modal, .modal.side-page, .toast { animation: m-fade 0.12s ease-out; }
+  .menu-screen { animation-duration: 0.12s; }
   .rv-in { animation: none; }
   .rv-tag { animation: m-fade 0.12s both; }
   .bm-need.flash { animation: none; }

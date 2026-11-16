@@ -1,5 +1,6 @@
 // Player pieces on the 3D map: settlements, cities, roads and harbors, plus ghost previews and
-// placement animations. (The robber is a badge on the map overlay, not a model: no clipping.)
+// placement animations (a piece put down drops from above and lands with a squash). (The robber is a
+// badge on the map overlay, not a model: no clipping.)
 // With the realistic asset pack loaded, settlements are detailed half-timbered houses roofed in the
 // player's colour, cities a stone keep with walls and town houses, and roads cobbled streets with
 // kerbs painted in the player's colour; until then simple stand-ins are drawn.
@@ -8,6 +9,7 @@ import { GEO } from '../engine/geometry.js';
 import { part, merge, roofGeometry, shade } from './geo.js';
 import { flagCanvas } from '../ui/flags.js';
 import { buildingParts, yardMesh, modelMaterial, METRE, part as modelPart } from './models.js';
+import { reduced } from '../ui/motion.js';
 
 const WALL = '#efe6d2';
 const STONE = '#d6ccb8';
@@ -100,11 +102,8 @@ function waveFlagMaterial(tex, timeU) {
   return m;
 }
 
-const easeOutBack = (t) => {
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-};
+// how high a preview starts (pieces' heights) as it drops lightly into place
+const GHOST_LIFT = 0.9;
 
 // a stable pseudo-random value per vertex/edge id
 const hash01 = (n) => {
@@ -222,6 +221,7 @@ float cobble(vec2 p) {
       this.group.add(mesh);
       b.mesh = mesh;
       b.anim = false;
+      b.baseY = mesh.position.y;
       b.yard = this.makeYard(v, b.type);
       if (b.yard) this.group.add(b.yard);
     }
@@ -231,6 +231,11 @@ float cobble(vec2 p) {
       r.mesh = this.makeRoad(e, r.p, this.roadWidth);
       r.anim = false;
       this.group.add(r.mesh);
+    }
+    // (a ship still dropping lands at once)
+    for (const r of this.ships.values()) {
+      r.dy = 0;
+      r.anim = false;
     }
     this.anims = [];
   }
@@ -584,13 +589,12 @@ float cobble(vec2 p) {
       this.group.add(mesh);
       const yard = this.makeYard(v, b.t);
       if (yard) this.group.add(yard);
-      const rec = { mesh, yard, type: b.t, p: b.p, anim: animate };
+      const motion = animate && !reduced();
+      const rec = { mesh, yard, type: b.t, p: b.p, anim: motion, baseY: mesh.position.y };
       this.buildings.set(v, rec);
-      if (animate) {
-        mesh.scale.setScalar(0.01);
-        this.anims.push({ kind: 'pop', rec, t: 0, dur: 0.55 });
-        this.spawnDust(mesh.position, b.t === 'c' ? 1.5 : 1.1);
-      } else mesh.scale.setScalar(this.scale);
+      mesh.scale.setScalar(this.scale);
+      // (it drops from above and lands with a squash, a puff of dust where it lands)
+      if (motion) this.drop(rec, b.t === 'c' ? 1.5 : 1.1);
       changed = true;
     });
     st.edges.forEach((p, e) => {
@@ -607,17 +611,11 @@ float cobble(vec2 p) {
       if (cur) this.group.remove(cur.mesh);
       const mesh = this.makeRoad(e, p, this.roadWidth);
       this.group.add(mesh);
-      const rec = { mesh, p };
+      const rec = { mesh, p, baseY: 0, at: this.edgeMid(e) };
       this.roads.set(e, rec);
-      if (animate) {
-        const mid = this.edgeMid(e);
-        mesh.position.set(mid.x, 0, mid.z);
-        mesh.geometry.translate(-mid.x, 0, -mid.z);
-        rec.offset = mid;
+      if (animate && !reduced()) {
         rec.anim = true;
-        mesh.scale.set(0.01, 1, 0.01);
-        this.anims.push({ kind: 'road', rec, t: 0, dur: 0.45 });
-        this.spawnDust(mid, 0.9);
+        this.drop(rec, 0.9, { road: true });
       }
       changed = true;
     });
@@ -636,14 +634,12 @@ float cobble(vec2 p) {
         if (cur && cur.p === p) return;
         if (cur) this.group.remove(cur.mesh);
         const mesh = this.makeShip(e, p);
-        mesh.scale.setScalar(animate ? 0.01 : this.scale);
+        mesh.scale.setScalar(this.scale);
         this.group.add(mesh);
-        const rec = { mesh, p, anim: animate };
+        const motion = animate && !reduced();
+        const rec = { mesh, p, anim: motion, dy: 0 };
         this.ships.set(e, rec);
-        if (animate) {
-          this.anims.push({ kind: 'pop', rec, t: 0, dur: 0.5 });
-          this.spawnDust(mesh.position, 0.9);
-        }
+        if (motion) this.drop(rec, 0.9, { ship: true });
         changed = true;
       });
       this.setPirate(st.board.pirate);
@@ -674,12 +670,33 @@ float cobble(vec2 p) {
     obj.renderOrder = 5;
     this.ghostObj = obj;
     this.group.add(obj);
+    // (it drops lightly into its place: how the piece would be put down)
+    if (!reduced()) {
+      const y0 = obj.position.y;
+      obj.position.y += GHOST_LIFT * this.scale;
+      this.anims.push({ kind: 'hover', rec: { mesh: obj, y0 }, t: 0, dur: 0.18 });
+    }
+  }
+
+  // A piece put down drops from above (a third of a second, falling faster and faster), lands with a
+  // squash and a little rebound, and raises a ring of dust (a splash for a ship) as it lands.
+  drop(rec, dust, { road = false, ship = false } = {}) {
+    rec.anim = true;
+    this.anims.push({ kind: 'drop', rec, t: 0, dur: road ? 0.5 : 0.62, fall: road ? 0.5 : 0.42, dust, road, ship, landed: false });
+    this.place(rec, road ? 2.2 : 3.4, 1, 1, ship);
+  }
+  // (a piece `h` (in pieces' heights) above its place, squashed to sy and widened to sxz)
+  place(rec, h, sy, sxz, ship = false) {
+    const y = h * this.scale;
+    if (ship) rec.dy = y;
+    else rec.mesh.position.y = rec.baseY + y;
+    if (sy != null && !rec.at) rec.mesh.scale.set(this.scale * sxz, this.scale * sy, this.scale * sxz);
   }
 
   // a building that just earned resources gives a little squash-and-stretch hop
   bump(v, delay = 0) {
     const rec = this.buildings.get(v);
-    if (!rec || this.anims.some((a) => a.rec === rec && a.kind === 'pop')) return;
+    if (!rec || this.anims.some((a) => a.rec === rec && a.kind === 'drop')) return;
     rec.anim = true;
     this.anims.push({ kind: 'bump', rec, t: -delay, dur: 0.42 });
   }
@@ -690,7 +707,7 @@ float cobble(vec2 p) {
     // ships ride the swell
     for (const r of this.ships.values()) {
       const ph = r.mesh.userData.phase || 0;
-      r.mesh.position.y = 0.04 + Math.sin(t * 1.5 + ph) * 0.05;
+      r.mesh.position.y = 0.04 + Math.sin(t * 1.5 + ph) * 0.05 + (r.dy || 0);
       r.mesh.rotation.x = Math.sin(t * 1.2 + ph) * 0.04;
       if (!r.anim && r.mesh.scale.x !== this.scale) r.mesh.scale.setScalar(this.scale);
     }
@@ -713,17 +730,31 @@ float cobble(vec2 p) {
           a.rec.mesh.scale.setScalar(this.scale);
           if (!this.anims.some((o) => o !== a && o.rec === a.rec && o.t < o.dur)) a.rec.anim = false;
         }
-      } else if (a.kind === 'pop') {
-        a.rec.mesh.scale.setScalar(Math.max(0.01, easeOutBack(k)) * this.scale);
-        if (k >= 1) a.rec.anim = false;
-      } else if (a.kind === 'road') {
-        const e = easeOutBack(k);
-        a.rec.mesh.scale.set(Math.max(0.01, e), 1, Math.max(0.01, e));
+      } else if (a.kind === 'hover') {
+        const q = 1 - k;
+        a.rec.mesh.position.y = a.rec.y0 + q * q * GHOST_LIFT * this.scale;
+      } else if (a.kind === 'drop') {
+        const f = a.fall;
+        const H = a.road ? 2.2 : 3.4;
+        if (k < f) {
+          // falling: faster and faster
+          const u = k / f;
+          this.place(a.rec, H * (1 - u * u), 1, 1, a.ship);
+        } else {
+          if (!a.landed) {
+            a.landed = true;
+            const m = a.rec.mesh.position;
+            this.spawnDust(a.rec.at ? a.rec.at.clone() : new THREE.Vector3(m.x, a.ship ? 0.04 : a.rec.baseY, m.z), a.dust);
+          }
+          // landed: squashed, then a little rebound that dies away
+          const u = (k - f) / (1 - f);
+          const w = -Math.sin(Math.PI * 2.5 * u) * Math.exp(-3.2 * u);
+          const hop = a.road ? 0.16 : 0.3;
+          this.place(a.rec, Math.max(0, w) * hop, 1 + 0.32 * w, 1 - 0.14 * w, a.ship);
+        }
         if (k >= 1) {
-          a.rec.mesh.geometry.translate(a.rec.offset.x, 0, a.rec.offset.z);
-          a.rec.mesh.position.set(0, 0, 0);
-          a.rec.mesh.scale.set(1, 1, 1);
-          a.rec.anim = false;
+          this.place(a.rec, 0, 1, 1, a.ship);
+          if (!this.anims.some((o) => o !== a && o.rec === a.rec && o.t < o.dur)) a.rec.anim = false;
         }
       }
       return k < 1;

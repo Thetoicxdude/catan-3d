@@ -14,6 +14,7 @@ import { esc } from '../ui/text.js';
 import { icon } from '../ui/icons.js';
 import { PALETTE, AI_NAMES, clipName, localName, fitSettings, gameSetup, mapTable, targetFor, officialSettings, houseRuleRows, houseRulesText, developing, myBlueprint } from '../ui/menu.js';
 import { deckLine } from '../ui/cards-ui.js';
+import { pop, reduced, leaveScreen, EASE } from '../ui/motion.js';
 import { mapDef, MAP_LIST, DEFAULT_MAP, isBuiltIn, knownMap } from '../engine/maps.js';
 import { mapsAvailable, publishedCode, loadPublished, cleanCode, CODE_RE } from './maps.js';
 import { openMapBrowser } from '../ui/maps-ui.js';
@@ -145,6 +146,34 @@ function seatRows(seats, me, opts = {}) {
       return `<div class="seat" data-i="${i}"><img class="flag sm" alt="" src="${flagURL(color, i)}"><div class="nm">${label}</div><div class="ctl">${opts.controls ? opts.controls(s, i) : ''}</div></div>`;
     })
     .join('');
+}
+
+// The seats as they were last drawn (the list is drawn again from scratch each time): a player who has
+// just sat down slides in; one who has just left fades out of the row as it turns back into an open
+// seat. Returns what to compare the next drawing with.
+// (who sits there: a player by their page, so that a name or colour changed is not someone new)
+const seatSig = (s) => (s.kind === 'remote' || s.kind === 'host' ? `${s.kind}:${s.peer || s.name || ''}` : s.kind);
+function seatMotion(list, seats, prev) {
+  const sigs = seats.map(seatSig);
+  const rows = [...list.querySelectorAll(':scope > .seat')];
+  if (prev && prev.sigs.length === sigs.length && rows.length === sigs.length && !reduced())
+    rows.forEach((row, i) => {
+      if (prev.sigs[i] === sigs[i]) return;
+      const went = prev.sigs[i].startsWith('remote:');
+      const came = sigs[i].startsWith('remote:') || sigs[i].startsWith('host:');
+      if (went) {
+        const ghost = el('div', 'seat-ghost', prev.html[i]);
+        ghost.setAttribute('aria-hidden', 'true');
+        ghost.inert = true;
+        row.appendChild(ghost);
+        const a = ghost.animate([{ opacity: 1 }, { opacity: 0, translate: '12px 0' }], { duration: 260, easing: EASE.in, fill: 'forwards' });
+        a.onfinish = () => ghost.remove();
+        setTimeout(() => ghost.remove(), 900);
+        if (!came) for (const c of row.children) if (c !== ghost) c.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, delay: 140, fill: 'backwards' });
+      }
+      if (came) for (const c of row.querySelectorAll(':scope > .flag, :scope > .nm')) c.animate([{ opacity: 0, translate: '-18px 0' }, { opacity: 1, translate: '0 0' }], { duration: 240, easing: EASE.out, fill: 'backwards' });
+    });
+  return { sigs, html: rows.map((r) => r.innerHTML) };
 }
 
 // ───────────────────────── host ─────────────────────────
@@ -963,6 +992,7 @@ export class HostSession {
           return `<select data-i="${i}" aria-label="${t('席位 {n}', { n: i + 1 })}"><option value="open"${s.kind === 'open' ? ' selected' : ''}>${t('開放給玩家')}</option><option value="ai:easy"${s.kind === 'ai' && s.level === 'easy' ? ' selected' : ''}>${t('電腦·簡單')}</option><option value="ai:normal"${s.kind === 'ai' && s.level === 'normal' ? ' selected' : ''}>${t('電腦·普通')}</option><option value="ai:hard"${s.kind === 'ai' && s.level === 'hard' ? ' selected' : ''}>${t('電腦·困難')}</option></select>`;
         },
       });
+      this.seatDrawn = seatMotion(list, this.seats, this.seatDrawn);
       list.querySelectorAll('select').forEach((sel) =>
         sel.addEventListener('change', () => {
           const i = Number(sel.dataset.i);
@@ -983,7 +1013,7 @@ export class HostSession {
     const startBtn = btn(t('開始戰役'), 'primary', () => this.start());
     foot.append(leave, startBtn);
     this.app.appendChild(scr);
-    this.ui = { render, close: () => scr.remove() };
+    this.ui = { render, close: () => leaveScreen(scr) };
     render();
   }
 }
@@ -1447,6 +1477,7 @@ export class ClientSession {
         statusEl.textContent = seat >= 0 ? t('你坐在第 {n} 席，等待主持人開始戰役…', { n: seat + 1 }) : open ? t('正在取得席位…') : t('席位已滿，目前在旁觀望。');
         termsEl.innerHTML = roomTerms(lay.mp, lay.ru, seats.length, lay.tv, lay.hr);
         list.innerHTML = seatRows(seats, this.me());
+        this.seatDrawn = seatMotion(list, seats, this.seatDrawn);
         const dev = !!(lay.mp && knownMap(lay.mp) && (mapDef(lay.mp).rules || {}).develop) && seat >= 0;
         const key = dev ? String(this.settings.bpCur) + this.settings.bps.map((b) => b.join()).join('|') : '';
         if (key === deckFor) return;
@@ -1458,7 +1489,7 @@ export class ClientSession {
         deckEl.appendChild(el('p', 'form-note', t('所有人的藍圖在開局時公開。')));
       },
       status: (t) => (statusEl.textContent = t),
-      close: () => scr.remove(),
+      close: () => leaveScreen(scr),
     };
   }
 }
@@ -1719,7 +1750,7 @@ export class MatchSession {
   }
 
   closeUI() {
-    if (this.ui) this.ui.el.remove();
+    if (this.ui) leaveScreen(this.ui.el);
     this.ui = null;
   }
 
@@ -1759,6 +1790,11 @@ export class MatchSession {
       <div class="mm-count"><b class="num">${secs == null ? '—' : secs}</b><span>${secs == null ? t('等待房間') : full ? t('人已到齊，即將開戰') : t('秒後開戰')}</span></div>
       <div class="seat-list">${seats ? seatRows(seats, me) : ''}</div>
       <p class="lead mm-foot">${searching > 0 ? t('大廳中有 {n} 位玩家正在配對。', { n: searching }) : ''}${selfHosted() ? t('所有打開這個網站、按下快速配對的玩家都會配對在一起。') : t('只有能開啟這個頁面的人（你分享過的對象）會出現在配對中。')}</p>`;
+    // (the last three seconds: each number comes up large)
+    if (secs != null && secs > 0 && secs <= 3 && secs !== this.lastSecs) pop(this.ui.body.querySelector('.mm-count b'), { scale: 1.6, ms: 420 });
+    this.lastSecs = secs;
+    const list = this.ui.body.querySelector('.seat-list');
+    if (seats && list) this.seatDrawn = seatMotion(list, seats, this.seatDrawn);
   }
 }
 
@@ -1783,7 +1819,7 @@ export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack
   let unsub = null;
   const cleanup = () => {
     if (unsub) unsub();
-    scr.remove();
+    leaveScreen(scr);
   };
   (async () => {
     const sup = await onlineSupport();

@@ -97,8 +97,13 @@ html:not(.no-art) .cd-pic {
 .cd-note { font-size: 12.5px; opacity: 0.8; }
 
 /* ── the Cards page ── */
-.cards-page { display: flex; flex-direction: column; gap: 14px; }
-.cp-deck { padding: 10px 12px 8px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.07); }
+/* the blueprint stays at the top of the page and the collection scrolls under it, so that a card put
+   in the blueprint is always seen landing there */
+.modal-body:has(> .cards-page) { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.cards-page { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.cp-deck { flex: none; padding: 10px 12px 8px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.07); }
+.cp-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-right: -8px; padding-right: 8px; }
+.cp-scroll > .cp-note { margin: 0 0 12px; }
 .cp-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
 .cp-tab {
   display: flex; flex-direction: column; align-items: center; min-width: 88px; padding: 5px 12px; border-radius: 7px; border: 1px solid var(--line);
@@ -190,6 +195,26 @@ html:not(.no-art) .cd-pic {
 .rv-tag.new { color: #c0392b; }
 .rv-tag small { font-weight: 400; font-size: 10.5px; opacity: 0.8; }
 @keyframes rv-tag { from { opacity: 0; transform: translateY(-4px); } }
+/* a wonder drawn: its back glows gold for a moment, then it turns over (cards-ui.js WONDER_GLOW: the
+   0.45 s added to its turn) */
+.rv { position: relative; }
+.rv.wonder .rv-in { z-index: 1; animation-delay: calc(0.6s + var(--i) * 0.13s); }
+.rv.wonder .rv-tag { animation-delay: calc(1.05s + var(--i) * 0.13s); }
+.rv.wonder .rv-back::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; opacity: 0;
+  background: radial-gradient(circle at 50% 45%, rgba(255, 236, 168, 0.7) 0%, rgba(226, 174, 72, 0.6) 55%, rgba(170, 118, 34, 0.5) 100%);
+  box-shadow: inset 0 0 0 3px #f6d98a;
+  animation: rv-gold 0.6s calc(0.12s + var(--i) * 0.13s) both ease-in-out;
+}
+@keyframes rv-gold { 45%, 100% { opacity: 1; } }
+.rv-glow {
+  position: absolute; z-index: 0; left: 50%; top: 0; width: 180%; aspect-ratio: 1; translate: -50% -24%; border-radius: 50%; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, rgba(255, 228, 140, 0.95) 0%, rgba(246, 196, 82, 0.5) 30%, rgba(246, 196, 82, 0) 66%);
+  animation: rv-glow 1.25s calc(0.12s + var(--i) * 0.13s) both ease-out;
+}
+@keyframes rv-glow { 0% { opacity: 0; scale: 0.6; } 35% { opacity: 1; scale: 1; } 60% { opacity: 1; scale: 1.08; } 100% { opacity: 0; scale: 1.3; } }
+/* ten at once: turn them all over */
+.rv-skip { display: block; margin: 2px auto 4px; }
 .rv:has(.rv-tag.new) .cc { box-shadow: inset 0 0 0 3px var(--dc), inset 0 0 0 5px #f8f0dc, inset 0 0 0 6px color-mix(in srgb, var(--dc) 55%, #000), 0 0 16px 3px rgba(240, 196, 90, 0.85); }
 .sp-reveal.ten .cc { width: 96px; }
 .sp-odds { margin: 10px 0 0; font-size: 12.5px; }
@@ -210,7 +235,7 @@ html:not(.no-art) .cd-pic {
 .ms-reward { display: flex; justify-content: center; }
 .ms-text b { display: block; font-size: 14px; line-height: 1.35; }
 .ms-bar { display: block; height: 6px; margin: 6px 0 2px; border-radius: 3px; background: rgba(0, 0, 0, 0.18); overflow: hidden; }
-.ms-bar i { display: block; height: 100%; border-radius: 3px; background: var(--brass-hi); }
+.ms-bar i { display: block; width: 100%; height: 100%; border-radius: 3px; background: var(--brass-hi); }
 .ms-row.done .ms-bar i { background: #3f9a4a; }
 .ms-text small { font-size: 11.5px; opacity: 0.75; }
 .ms-reward .cc.small { width: 54px; padding: 5px 3px 4px; }
@@ -298,5 +323,5 @@ html.ui3 .sp-draw .cur { background: rgba(255, 244, 214, 0.22); }
 html.ui3 .modal[data-kind="cards"] { --u3-vig: var(--u3-ink-flag); }
 html.ui3 .modal[data-kind="shop"] { --u3-vig: var(--u3-ink-chest); }
 @media (prefers-reduced-motion: reduce) {
-  .modal.side-page, .rv-in, .rv-tag { animation: none; }
+  .modal.side-page, .rv-in, .rv-tag, .rv-glow, .rv.wonder .rv-back::after { animation: none; }
 }

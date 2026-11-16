@@ -800,6 +800,7 @@ export class MapView {
     this.hoverId = null;
     this.markers.clear();
     this.pieces.ghost(null);
+    if (this.developLayer) this.developLayer.ghost(null);
     const hexData = this.terrain.hexData;
     const slot = this.terrain.hexSlot;
     for (const h of GEO.hexes) hexData[slot(h) + 3] = 0;
@@ -870,6 +871,8 @@ export class MapView {
         this.terrain.uniforms.uHover.value.set(h.q, h.r, 1, 1);
       }
     } else if (spec.ghost) this.pieces.ghost(id == null ? null : spec.ghost, id, spec.player);
+    // (the development mode: a development, a wonder or a building beside a settlement, see-through)
+    if (spec.devGhost && this.developLayer) this.developLayer.ghost(id == null ? null : spec.devGhost, id, this.players[spec.player] ? this.players[spec.player].color : '#ffffff');
     this.markers.setHover(id);
     this.canvas.style.cursor = id == null ? '' : 'pointer';
     if (spec.onHover) spec.onHover(id);

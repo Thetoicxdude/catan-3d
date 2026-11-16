@@ -23,7 +23,7 @@ import { BUILDING_TEXT, DEVELOP_TEXT, DIR_COLOR, nationStrip, pointsText } from 
 import { resCard, resIcon, icon, dieFace, RES_NAMES, RES_EN, buildingIcon } from './icons.js';
 import { Fx } from './fx.js';
 import { sfx } from './sfx.js';
-import { shake, reduced, EASE } from './motion.js';
+import { shake, pop, reduced, EASE } from './motion.js';
 import { flagURL } from './flags.js';
 import { esc, cardsText } from './text.js';
 import { t, N_, cap, isZh } from '../i18n/index.js';
@@ -576,8 +576,12 @@ export class Hud {
         if (v.largestArmy === p.id) badges.push(`<span class="badge" title="${t('最大騎士團 +2')}">${icon('knight', 12)}${t('騎士團')}</span>`);
         const thinking = ctx.thinking === p.id ? `<span class="thinking"><span class="spinner"></span>${t('思考中')}</span>` : '';
         const lead = v.sub && v.sub.lead === p.id && v.phase !== 'over';
+        // a trade offer out: beside each nation asked, its answer (a tick, a cross) or that it is thinking
+        const asked = v.trade && v.trade.resp && p.id in v.trade.resp ? v.trade.resp[p.id] : undefined;
+        const answer =
+          asked === undefined ? '' : asked === 'yes' ? `<span class="ol-resp yes" data-a="yes" title="${t('已接受交易')}">${icon('check', 12)}</span>` : asked ? `<span class="ol-resp no" data-a="no" title="${t('已拒絕交易')}">${icon('cross', 11)}</span>` : `<span class="ol-resp wait" data-a="" title="${t('考慮中')}">…</span>`;
         return `<div class="nation${v.current === p.id && v.phase !== 'over' ? ' current' : ''}${lead ? ' lead' : ''}" data-p="${p.id}" style="--pc:${P.color}">
-          <img class="flag" alt="" src="${flagURL(P.color, p.id)}">
+          <img class="flag" alt="" src="${flagURL(P.color, p.id)}">${answer}
           <div class="nm" style="color:${P.color}">${esc(P.name)}<em>${kind}</em></div>
           <div class="vp" title="${isMe ? t('你的分數（含分數卡）') : t('公開分數')}"><b class="num">${vp}</b><span>${t('分')}</span></div>
           <div class="meta">
@@ -593,8 +597,46 @@ export class Hud {
     this.olBody.innerHTML = `<div class="ol-head"><span>${t('諸國')}</span></div>${rows}`;
     // five or six nations: tighter rows (and the list scrolls when the screen is short)
     this.outliner.classList.toggle('many', v.players.length > 4);
+    this.turnSlide(v);
+    // an answer just given bounces once
+    const tid = v.trade ? v.trade.id : null;
+    const was = this.olAnswers && this.olAnswers.id === tid ? this.olAnswers.a : {};
+    const now = {};
+    for (const m of this.olBody.querySelectorAll('.ol-resp')) {
+      const q = m.closest('.nation').dataset.p;
+      now[q] = m.dataset.a;
+      if (m.dataset.a && was[q] !== m.dataset.a) pop(m, { scale: 1.6, ms: 360 });
+    }
+    this.olAnswers = { id: tid, a: now };
     this.bankShown = { ...v.bank, dev: v.devDeckCount };
     this.paintBank();
+  }
+
+  // The turn passed on: the mark of the current turn slides from the last nation's row to this one's
+  // (a copy of it, under the rows, while the row's own mark waits).
+  turnSlide(v) {
+    const cur = v.phase === 'over' ? -1 : v.current;
+    const was = this.olCur;
+    this.olCur = cur;
+    if (was == null || was === cur || cur < 0 || was < 0 || reduced() || this.outliner.classList.contains('closed')) return;
+    const a = this.olBody.querySelector(`.nation[data-p="${was}"]`);
+    const b = this.olBody.querySelector(`.nation.current[data-p="${cur}"]`);
+    if (!a || !b || !b.offsetHeight) return;
+    const mark = el('i', 'nation current ol-turn');
+    mark.setAttribute('aria-hidden', 'true');
+    Object.assign(mark.style, { left: b.offsetLeft + 'px', top: b.offsetTop + 'px', width: b.offsetWidth + 'px', height: b.offsetHeight + 'px' });
+    // (first: the rows are drawn over it)
+    this.olBody.prepend(mark);
+    b.classList.add('arriving');
+    const done = () => {
+      mark.remove();
+      b.classList.remove('arriving');
+    };
+    const an = mark.animate([{ translate: `0 ${a.offsetTop - b.offsetTop}px`, scale: `1 ${a.offsetHeight / b.offsetHeight}` }, { translate: '0 0', scale: '1 1' }], { duration: 300, easing: EASE.out });
+    an.onfinish = done;
+    an.oncancel = done;
+    // (never left half way: a page in the background holds its animations)
+    setTimeout(done, 900);
   }
 
   renderActions(ctx) {
@@ -1041,6 +1083,8 @@ export class Hud {
       return;
     }
     this.tip.innerHTML = html;
+    // (it comes in with a quick fade, not when it only moves or changes)
+    if (this.tip.hidden && this.tip.animate) this.tip.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: 'ease-out' });
     this.tip.hidden = false;
     const w = this.tip.offsetWidth;
     const h = this.tip.offsetHeight;
