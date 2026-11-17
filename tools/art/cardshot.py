@@ -35,9 +35,8 @@ async def main():
         await page.route('**/*', route)
         await page.goto('http://127.0.0.1:8765/dist/index.test.html')
         await page.wait_for_selector('.menu-screen.home', timeout=120000)
-        tab = '.hm-tab[data-k="cards"]' if await page.locator('.hm-tab[data-k="cards"]').is_visible() else '.hm-medal[data-k="cards"]'
-        await page.click(tab)
-        await page.wait_for_selector('.modal.side-page .cards-page')
+        await page.click('.hm-tab[data-k="cards"]')
+        await page.wait_for_selector('.menu-screen.page .cards-page')
         await page.wait_for_timeout(1500)
         await page.screenshot(path=f'{OUT}/cards.png')
         await page.click(f'.cp-coll .cc[data-k="{KEY}"]')

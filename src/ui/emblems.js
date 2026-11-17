@@ -19,7 +19,9 @@ const FIGURES = {
   workshop: 'treasure-map', // the map workshop: an island of your own drawing
   blueprint: 'pencil-ruler', // the development mode's blueprints
   cards: 'card-pick', // the building cards and the blueprints made of them
-  shop: 'open-treasure-chest', // drawing cards, the shop, the missions
+  shop: 'open-treasure-chest', // drawing cards and the shop
+  missions: 'scroll-quill', // the missions and their rewards
+  profile: 'visored-helm', // your nation, your collection, your record
 };
 
 export function emblemSvg(name, size = 64) {
@@ -41,5 +43,28 @@ export function seatShield(state, color = null) {
   return `<svg class="seat-shield ${state}" viewBox="0 0 40 46" width="28" height="32" aria-hidden="true">
     <path d="M4 4 H36 V20 C36 32 28 39 20 43 C12 39 4 32 4 20 Z" fill="${fill}" stroke="${stroke}" stroke-width="2.6" stroke-linejoin="round"/>
     ${state === 'open' ? '' : '<path d="M9 9 H31 V20 C31 29 25 34 20 37" fill="none" stroke="#fff3c4" stroke-opacity="0.5" stroke-width="1.6"/>'}
+  </svg>`;
+}
+
+// the game's crest: a small island of seven hexes in a gold rim (the home screen's title, the pages'
+// way home)
+export function crest() {
+  const cols = ['#e9c04f', '#3f6e3c', '#c46a40', '#8fc457', '#8a8e9c', '#3f6e3c', '#efc24a'];
+  const pts = [[0, 0]];
+  for (let k = 0; k < 6; k++) pts.push([Math.cos((Math.PI / 3) * k + Math.PI / 6) * 17.3, Math.sin((Math.PI / 3) * k + Math.PI / 6) * 17.3]);
+  const hex = (x, y, r) => {
+    const p = [];
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 180) * (60 * i - 90);
+      p.push(`${(50 + x + r * Math.cos(a)).toFixed(1)},${(50 + y + r * Math.sin(a)).toFixed(1)}`);
+    }
+    return p.join(' ');
+  };
+  const id = `crest${++uid}`;
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2c0"/><stop offset="0.45" stop-color="#e2b456"/><stop offset="1" stop-color="#7a4c16"/></linearGradient></defs>
+    <polygon points="${hex(0, 0, 47)}" fill="url(#${id})" stroke="#2a1808" stroke-width="3"/>
+    <polygon points="${hex(0, 0, 40)}" fill="#13222d" stroke="#2a1808" stroke-width="2"/>
+    ${pts.map(([x, y], i) => `<polygon points="${hex(x, y, 9.6)}" fill="${cols[i]}" stroke="#2a1808" stroke-width="1.6"/>`).join('')}
   </svg>`;
 }

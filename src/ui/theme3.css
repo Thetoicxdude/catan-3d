@@ -47,7 +47,7 @@ html.ui3 .panel { border: 0; border-image: none; background: none; box-shadow: n
 html.ui3 { scrollbar-color: #7a4e28 rgba(58, 36, 20, 0.14); }
 
 /* ── paper: a sheet of parchment, its text in ink ── */
-html.ui3 .log, html.ui3 .ol-body, html.ui3 .toast, html.ui3 .tooltip, html.ui3 .modal, html.ui3 .build-menu,
+html.ui3 .log, html.ui3 .ol-body, html.ui3 .toast, html.ui3 .tooltip, html.ui3 .modal, html.ui3 .pg-sheet, html.ui3 .build-menu,
 html.ui3 .setup-card.panel, html.ui3 .ed-board.panel, html.ui3 .pass-screen .panel, html.ui3 .fx-announce, html.ui3 .hm-logo, html.ui3 .title-block {
   border: 0; border-image: none; border-radius: 3px;
   background: var(--u3-paper-bg), var(--u3-paper);
@@ -396,17 +396,17 @@ html.ui3 .modal-head h3 { background: none; -webkit-background-clip: border-box;
 html.ui3 .modal-body { padding: 12px 4px; }
 html.ui3 .modal-foot { background: none; border-top: var(--u3-rule-head); padding: 10px 2px 0; }
 html.ui3 .modal-layer { background: radial-gradient(ellipse at center, rgba(12, 8, 4, 0.3), rgba(12, 8, 4, 0.66)); }
-html.ui3 .modal .row-label { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); filter: none; }
-html.ui3 .modal .tabs button.on { color: var(--u3-red); border-bottom-color: var(--u3-red); }
-html.ui3 .modal .res-pick, html.ui3 .modal .offer-line, html.ui3 .modal .resp { background: rgba(255, 250, 235, 0.35); border-color: rgba(74, 46, 24, 0.25); }
-html.ui3 .modal .res-pick.on { background: rgba(142, 36, 22, 0.1); border-color: var(--u3-red); box-shadow: 0 0 0 1px var(--u3-red); }
-html.ui3 .modal .seg { border-color: rgba(74, 46, 24, 0.4); }
-html.ui3 .modal .seg button { background: rgba(255, 250, 235, 0.35); color: var(--u3-ink-soft); border-right-color: rgba(74, 46, 24, 0.25); }
-html.ui3 .modal .seg button.on { background: var(--u3-cloth); color: #fff1d6; }
+html.ui3 :is(.modal, .pg-sheet) .row-label { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--u3-red); filter: none; }
+html.ui3 :is(.modal, .pg-sheet) .tabs button.on { color: var(--u3-red); border-bottom-color: var(--u3-red); }
+html.ui3 :is(.modal, .pg-sheet) .res-pick, html.ui3 :is(.modal, .pg-sheet) .offer-line, html.ui3 :is(.modal, .pg-sheet) .resp { background: rgba(255, 250, 235, 0.35); border-color: rgba(74, 46, 24, 0.25); }
+html.ui3 :is(.modal, .pg-sheet) .res-pick.on { background: rgba(142, 36, 22, 0.1); border-color: var(--u3-red); box-shadow: 0 0 0 1px var(--u3-red); }
+html.ui3 :is(.modal, .pg-sheet) .seg { border-color: rgba(74, 46, 24, 0.4); }
+html.ui3 :is(.modal, .pg-sheet) .seg button { background: rgba(255, 250, 235, 0.35); color: var(--u3-ink-soft); border-right-color: rgba(74, 46, 24, 0.25); }
+html.ui3 :is(.modal, .pg-sheet) .seg button.on { background: var(--u3-cloth); color: #fff1d6; }
 html.ui3 .modal input[type="text"], html.ui3 .modal input[type="number"], html.ui3 .modal select { background: rgba(255, 250, 235, 0.6); border: 1px solid rgba(74, 46, 24, 0.4); color: var(--u3-ink); }
-html.ui3 .modal .cards-inline .c { background: rgba(74, 46, 24, 0.08); }
-html.ui3 .modal .btn.ghost { color: var(--u3-ink-soft); }
-html.ui3 .modal .btn.ghost:hover:not(:disabled) { background: rgba(74, 46, 24, 0.08); }
+html.ui3 :is(.modal, .pg-sheet) .cards-inline .c { background: rgba(74, 46, 24, 0.08); }
+html.ui3 :is(.modal, .pg-sheet) .btn.ghost { color: var(--u3-ink-soft); }
+html.ui3 :is(.modal, .pg-sheet) .btn.ghost:hover:not(:disabled) { background: rgba(74, 46, 24, 0.08); }
 /* each sheet has its own drawing (Kenney's Cartography Pack): in red ink beside the title, and faint
    in a corner of the paper, under the writing (at its own size at most: 128 px) */
 html.ui3 { --u3-vig: var(--u3-ink-compass); }
@@ -531,10 +531,10 @@ html.ui3 .ed-msgs .err { color: #8e2416; } html.ui3 .ed-msgs .warn { color: #7a5
 
 /* inside any sheet of paper: boxes and fields in light paper, numbers in red ink; the browser's own
    controls (check boxes, the lists of a select) drawn light, ticked in red */
-html.ui3 :is(.modal, .setup-card, .ed-board, .pass-screen) { color-scheme: light; accent-color: #8e2416; }
-html.ui3 :is(.modal, .setup-card, .ed-board, .pass-screen) :is(.resp, .offer-line, .res-pick, .ed-facts div, .ed-mine-row, .ed-msgs li) { background: rgba(255, 250, 235, 0.38); border-color: rgba(74, 46, 24, 0.25); }
-html.ui3 :is(.modal, .setup-card, .ed-board, .pass-screen) :is(input[type="text"], input[type="number"], select, textarea) { background: rgba(255, 250, 235, 0.62); border: 1px solid rgba(74, 46, 24, 0.4); color: var(--u3-ink); }
-html.ui3 :is(.modal, .setup-card, .ed-board) .stepper button { background: var(--u3-wood); color: var(--u3-cream); border-color: #1c1108; }
+html.ui3 :is(.modal, .pg-sheet, .setup-card, .ed-board, .pass-screen) { color-scheme: light; accent-color: #8e2416; }
+html.ui3 :is(.modal, .pg-sheet, .setup-card, .ed-board, .pass-screen) :is(.resp, .offer-line, .res-pick, .ed-facts div, .ed-mine-row, .ed-msgs li) { background: rgba(255, 250, 235, 0.38); border-color: rgba(74, 46, 24, 0.25); }
+html.ui3 :is(.modal, .pg-sheet, .setup-card, .ed-board, .pass-screen) :is(input[type="text"], input[type="number"], select, textarea) { background: rgba(255, 250, 235, 0.62); border: 1px solid rgba(74, 46, 24, 0.4); color: var(--u3-ink); }
+html.ui3 :is(.modal, .pg-sheet, .setup-card, .ed-board) .stepper button { background: var(--u3-wood); color: var(--u3-cream); border-color: #1c1108; }
 html.ui3 .room-terms { color: var(--u3-red); }
 html.ui3 .online-card { border-bottom-color: rgba(74, 46, 24, 0.25); }
 /* the room's code: large, in red ink, inside a double ink line */
@@ -553,12 +553,9 @@ html.ui3 .asset-chip b { color: var(--u3-red); }
 html.ui3 .asset-chip i { background: var(--u3-red); }
 
 /* ───────── home (its ways to play and the official room keep their own cards and frame) ───────── */
-/* who you are: the flag a pennant, the name on a crimson band, the account a walnut plate */
-html.ui3 .hm-flag { border: 0; border-image: none; filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.6)); }
-html.ui3 .hm-flag img { width: 42px; height: 60px; -webkit-mask: var(--u3-pennant-mask) center / 100% 100% no-repeat; mask: var(--u3-pennant-mask) center / 100% 100% no-repeat; }
+/* who you are (the Profile page; its flag: pages.css): the name on a crimson band */
 html.ui3 .hm-name { background: var(--u3-threads), var(--u3-cloth); }
 html.ui3 .hm-name input { color: #fbe7c8; text-shadow: 0 1px 1px rgba(40, 4, 2, 0.85); }
-html.ui3 .hm-account { background: var(--u3-wood); border-color: rgba(232, 196, 128, 0.55); }
 html.ui3 .gem { border-color: #6b4a1d; }
 
 /* the title: a cartouche of parchment, as in the corner of a chart, the name in red ink */
@@ -607,7 +604,6 @@ html.ui3 .hm-medal .emblem { background: radial-gradient(circle at 50% 38%, #3d2
   html.ui3 .act svg, html.ui3 .act .gi, html.ui3 .act .ico { width: 20px; height: 20px; margin-top: 10px; }
   html.ui3 .act .lbl { font-size: 10.5px; margin-top: 6px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   html.ui3 .banner { padding: 6px 14px 7px; }
-  html.ui3 .hm-flag img { width: 32px; height: 46px; }
   html.ui3 .setup-card.panel { padding: 10px 12px 10px; }
   /* (the workshop's grid wants every pixel of a phone's width) */
   html.ui3 .ed-board.panel { padding: 8px 8px; }

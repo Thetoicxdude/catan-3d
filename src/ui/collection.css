@@ -1,19 +1,6 @@
-/* The building cards (cards-ui.js): the home screen's side tabs, the Cards and Draw & Shop side pages,
-   the cards themselves, drawing, the shop, the missions; the blueprint in use on the setup screen and in
-   the room lobby; what a finished game earned. */
-
-/* ── side pages: a sheet of the dialogs layer against the left edge of the screen ── */
-.modal-layer:has(> .side-page) { padding: 0; justify-content: flex-start; }
-.modal.side-page {
-  height: 100%; max-height: none; box-sizing: border-box; border-radius: 0;
-  padding-top: calc(12px + var(--safe-t)); padding-bottom: calc(12px + var(--safe-b)); padding-left: max(18px, var(--safe-l));
-  width: min(1100px, calc(100vw - 56px)); animation: side-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
-}
-.modal.side-page[data-kind="shop"] { width: min(680px, calc(100vw - 56px)); }
-@keyframes side-in { from { opacity: 0; transform: translateX(-48px); } }
-@media (max-width: 760px) {
-  .modal.side-page, .modal.side-page[data-kind="shop"] { width: 100vw; }
-}
+/* The building cards (cards-ui.js): the cards themselves, the Cards page, drawing, the shop, the
+   missions (the pages themselves: pages.css); the blueprint in use on the setup screen and in the room
+   lobby; what a finished game earned. */
 
 /* ── a building as a collectible card: its direction's frame, the figure in a medallion ── */
 .cc {
@@ -99,7 +86,6 @@ html:not(.no-art) .cd-pic {
 /* ── the Cards page ── */
 /* the blueprint stays at the top of the page and the collection scrolls under it, so that a card put
    in the blueprint is always seen landing there */
-.modal-body:has(> .cards-page) { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .cards-page { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .cp-deck { flex: none; padding: 10px 12px 8px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.07); }
 .cp-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-right: -8px; padding-right: 8px; }
@@ -174,8 +160,8 @@ html:not(.no-art) .cd-pic {
 .sp-packinfo > b { font-family: var(--font-display); font-size: 18px; }
 .sp-packinfo p { margin: 0; font-size: 13px; line-height: 1.55; opacity: 0.85; }
 .sp-buy { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.sp-draw { display: inline-flex; align-items: center; gap: 8px; }
-.sp-draw .cur { padding: 1px 7px; border-radius: 10px; background: rgba(0, 0, 0, 0.22); }
+.btn.sp-draw { display: inline-flex; align-items: center; gap: 8px; }
+.btn.sp-draw .cur { padding: 1px 7px; border-radius: 10px; background: rgba(0, 0, 0, 0.22); }
 .sp-short { width: 100%; font-size: 12px; opacity: 0.78; }
 .sp-reveal { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 16px 0 6px; perspective: 1000px; }
 .sp-reveal:empty { display: none; }
@@ -255,38 +241,12 @@ html:not(.no-art) .cd-pic {
   .sp-bals { gap: 8px; }
 }
 
-/* ── the home screen: the two pages' tabs on the left edge (narrow or upright screens: medals in the corner) ── */
-.hm-tabs { position: absolute; left: 0; top: 50%; z-index: 3; display: flex; flex-direction: column; gap: 14px; transform: translateY(-50%); }
-.hm-tab {
-  position: relative; width: 62px; box-sizing: border-box; padding: 14px 6px 12px;
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  border: 2px solid #c9a35a; border-left: 0; border-radius: 0 14px 14px 0; background: linear-gradient(180deg, #5a3b21 0%, #3b2513 100%); cursor: pointer;
-  color: #f3dfb0; font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.18em;
-  box-shadow: 0 0 0 2px #2a1a0e, 0 8px 18px rgba(0, 0, 0, 0.55); transition: transform 0.15s ease;
-}
-.hm-tab:focus-visible { transform: translateX(4px); outline: none; }
-@media (hover: hover) { .hm-tab:hover { transform: translateX(4px); } }
-.hm-tab .lbl { writing-mode: vertical-rl; text-shadow: 0 1px 2px #000; }
-.hm-purse { font-size: 12px; letter-spacing: 0; color: #f1c965; }
-.hm-purse::before { content: ''; display: block; width: 14px; height: 2px; margin: 0 auto 6px; background: rgba(201, 163, 90, 0.5); }
 .hm-badge {
   position: absolute; top: -8px; right: -9px; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; display: grid; place-items: center;
   border-radius: 10px; background: #c0392b; color: #fff; font-family: var(--font-num, inherit); font-size: 11.5px; font-style: normal; letter-spacing: 0;
   box-shadow: 0 0 0 2px #2a1a0e, 0 2px 5px rgba(0, 0, 0, 0.5);
 }
 .hm-badge[hidden] { display: none; }
-.hm-medal { position: relative; }
-.hm-medal .hm-badge { top: -4px; right: -4px; }
-.hm-medal.narrow { display: none; }
-@media (max-width: 999px), (max-aspect-ratio: 1 / 1) {
-  /* (narrow or upright screens: the board takes the whole width, the tabs would cover its frame) */
-  .hm-tabs { display: none; }
-  .hm-medal.narrow { display: flex; }
-}
-@media (max-width: 760px) {
-  .hm-medals { gap: 6px; }
-  .hm-medal .emblem { width: 37px; height: 37px; padding: 4px; }
-}
 
 /* ── the build menu: a basic card left out of the blueprint (struck through), and a blueprint of fewer
    than seven cards says where more come from ── */
@@ -313,15 +273,9 @@ html:not(.no-art) .cd-pic {
 .rw-missions small { display: block; opacity: 0.75; }
 
 /* the map table: ink on paper */
-html.ui3 .cp-deck { background: rgba(120, 80, 40, 0.06); border-color: rgba(74, 46, 24, 0.3); }
-html.ui3 .cp-tab.on, html.ui3 .sp-tab.on { border-color: var(--u3-red); color: var(--u3-red); box-shadow: none; }
-html.ui3 .cp-tab.on { box-shadow: inset 0 0 0 1px var(--u3-red); }
-html.ui3 .cp-inuse, html.ui3 .sp-note { color: var(--u3-red); }
 html.ui3 .ms-bar i { background: var(--u3-red); }
 html.ui3 .ms-row.done .ms-bar i { background: #3f7a3a; }
-html.ui3 .sp-draw .cur { background: rgba(255, 244, 214, 0.22); }
-html.ui3 .modal[data-kind="cards"] { --u3-vig: var(--u3-ink-flag); }
-html.ui3 .modal[data-kind="shop"] { --u3-vig: var(--u3-ink-chest); }
+html.ui3 .btn.sp-draw .cur { background: rgba(255, 244, 214, 0.22); }
 @media (prefers-reduced-motion: reduce) {
-  .modal.side-page, .rv-in, .rv-tag, .rv-glow, .rv.wonder .rv-back::after { animation: none; }
+  .rv-in, .rv-tag, .rv-glow, .rv.wonder .rv-back::after { animation: none; }
 }

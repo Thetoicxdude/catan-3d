@@ -22,7 +22,8 @@ import { openMapBrowser, showPublished, ratingStars } from './ui/maps-ui.js';
 import { currentUser, loadUser } from './net/account.js';
 import { openSignIn } from './ui/account-ui.js';
 import { setLang, isZh, t, tx, terr } from './i18n/index.js';
-import { openCards, openShop, rewardsBox } from './ui/cards-ui.js';
+import { rewardsBox } from './ui/cards-ui.js';
+import { showPage, PAGES } from './ui/pages.js';
 import { cards as collection, commit as commitCards } from './meta/store.js';
 import { gameOver as cardsGameOver, observe as cardsObserve, MISSIONS } from './meta/collection.js';
 
@@ -31,10 +32,14 @@ const app = document.getElementById('app');
 // every control pressed answers at once; a choice among a few slides over to the new one (motion.js)
 installPress(document);
 installSegGlide(document);
-// without the art pack (the claude.ai page) the bronze frames fall back to plain lines
+// without the art pack (the claude.ai page) the bronze frames fall back to plain lines, and a page of
+// the side bar is see-through over the island, drawn on under it
 {
   const probe = new Image();
-  probe.onerror = () => document.documentElement.classList.add('no-art');
+  probe.onerror = () => {
+    document.documentElement.classList.add('no-art');
+    coverMap(false);
+  };
   probe.src = 'assets/ui/frame_bronze.webp';
 }
 app.innerHTML = '<div id="map"></div><div class="vignette"></div>';
@@ -215,6 +220,7 @@ function buildMap(state, players, quality) {
   map.build(state, players, quality);
   map.setOptions({ fps: settings.fps, stats: settings.perfInfo });
   map.start();
+  if (covered) map.stop();
   mapKey = key;
   return map;
 }
@@ -271,11 +277,17 @@ function menuDialogs() {
   return menuDlg;
 }
 
-function closeMenus() {
+// The screen over the map goes; the map is drawn again if a page covered it.
+function dropMenu() {
   if (menu) {
     menu.close();
     menu = null;
   }
+  coverMap(false);
+}
+
+function closeMenus() {
+  dropMenu();
   if (onlineScreen) {
     onlineScreen.close();
     onlineScreen = null;
@@ -305,12 +317,15 @@ function onSettingsChange(s, key) {
 // A new language: the page starts again in it (every word on it, the default names, the map's labels),
 // back where it was: the campaign on this device saved and resumed, an online room joined again.
 const RESUME_KEY = 'catan3d-resume';
+const PAGE_KEY = 'catan3d-page';
 function relaunch() {
   try {
     if (game && !game.destroyed && !session) {
       if (game.save) game.save();
       sessionStorage.setItem(RESUME_KEY, '1');
     }
+    // (the Settings page, where the language is chosen: back to it)
+    if (menu && menu.page) sessionStorage.setItem(PAGE_KEY, menu.page);
   } catch {
     /* storage unavailable: the main menu instead */
   }
@@ -328,7 +343,8 @@ function applyLook(s) {
 
 function openMenu() {
   closeMenus();
-  if (map) map.holdAssets(false);
+  // (matchmaking keeps the page light while it waits: it may have gone on while a page was shown)
+  if (map) map.holdAssets(!!matching);
   menu = showHome(app, {
     settings,
     hasSave: !!loadSave(),
@@ -336,8 +352,6 @@ function openMenu() {
     seconds: window.__mmSeconds || 60,
     version: buildInfo(),
     getLobby: homeLobby,
-    dialogs: menuDialogs,
-    onChange: onSettingsChange,
     // any other way to play leaves the official matchmaking first
     onSingle: () => stopMatch().then(openSetup),
     onEditor: () => stopMatch().then(openEditor),
@@ -356,29 +370,61 @@ function openMenu() {
         else startGame(save);
       }),
     onRules: () => menuDialogs().rules(),
-    onCards: () => cardsPage(),
-    onShop: () => shopPage(),
-    onSettings: () =>
-      menuDialogs().settings({ ...settings }, (s, key) => {
-        // in place: the home screen keeps editing this same object (name, colour)
-        Object.assign(settings, s);
-        saveSettings(settings);
-        if (key === 'lang') return relaunch();
-        setSfx(settings.sound !== false);
-        applyLook(settings);
-        // the preview island is redrawn in the new quality straight away (same quality: kept as is)
-        if (key === 'quality' && !game) showPreview(false);
-      }),
+    // the side bar: a page in the home screen's place (the matchmaking goes on)
+    onPage: (k) => openPage(k),
   });
+  restoreMatch();
+  // (a new quality chosen on the Settings page: the island drawn again now that it shows)
+  if (previewStale && !game) {
+    previewStale = false;
+    showPreview(false);
+  }
 }
 
-// The home screen's side pages: the building cards and the blueprints made of them; drawing cards, the
-// shop and the missions. after(): once the page is closed (the setup redraws the blueprint in use).
-function cardsPage(after = null) {
-  openCards(menuDialogs(), settings, (s) => saveSettings(s), { onShop: (tab) => shopPage(tab, after), onClose: after });
+// The side bar's pages (pages.js), each the whole screen in the home screen's place. o.back: where the
+// page was opened from when not the home screen ({ label, fn }: the single-player setup); o.tab: the
+// Draw & Shop page's tab.
+function openPage(page, o = {}) {
+  closeMenus();
+  menu = showPage(app, page, {
+    settings,
+    tab: o.tab,
+    back: o.back || null,
+    save: (s) => saveSettings(s),
+    onChange: (s) => onSettingsChange(s),
+    onSettings: (s, key) => settingsChosen(s, key),
+    dialogs: menuDialogs,
+    onHome: o.back ? o.back.fn : () => openMenu(),
+    // (the matchmaking in the header: the home screen's board shows it)
+    onMatch: () => openMenu(),
+  });
+  coverMap(true);
+  restoreMatch();
 }
-function shopPage(tab = 'draw', after = null) {
-  openShop(menuDialogs(), { tab, settings, save: (s) => saveSettings(s), onCards: () => cardsPage(after), onClose: after });
+
+// A setting chosen on the Settings page.
+let previewStale = false;
+function settingsChosen(s, key) {
+  // in place: the pages keep using this same object
+  Object.assign(settings, s);
+  saveSettings(settings);
+  if (key === 'lang') return relaunch();
+  setSfx(settings.sound !== false);
+  applyLook(settings);
+  // the preview island in the new quality once the home screen shows it again
+  if (key === 'quality' && !game) previewStale = true;
+}
+
+// A page covers the whole screen: the map under it is not drawn meanwhile. (Without the art pack, the
+// claude.ai page, a page is see-through and the island stays alive under it.)
+let covered = false;
+function coverMap(on) {
+  if (on && document.documentElement.classList.contains('no-art')) on = false;
+  if (covered === on) return;
+  covered = on;
+  if (!map) return;
+  if (on) map.stop();
+  else map.start();
 }
 
 // single player: opponents, numbers, victory points and the island, over the live preview
@@ -390,8 +436,8 @@ function openSetup() {
     onChange: onSettingsChange,
     onReroll: (newSeed) => showPreview(newSeed),
     onRules: () => menuDialogs().rules(),
-    // (the development mode) the blueprint in use is chosen on the Cards page: the setup shows it
-    onBlueprints: (changed) => cardsPage(changed),
+    // (the development mode) the blueprint in use is chosen on the Cards page: from there back here
+    onBlueprints: () => openPage('cards', { back: { label: t('單人遊戲'), fn: () => openSetup() } }),
     onStart: () => startGame(null),
     onBack: () => openMenu(),
     onEditor: () => openEditor(),
@@ -516,10 +562,7 @@ function openJoin() {
 }
 
 async function hostRoom(save) {
-  if (menu) {
-    menu.close();
-    menu = null;
-  }
+  dropMenu();
   session = new HostSession({
     app,
     settings,
@@ -697,6 +740,16 @@ if (window.__mockRoom || window.__testHooks) {
 // the board shows the seats and the countdown, pressing it again leaves. When the room starts, the
 // campaign opens.
 let matching = null;
+// the matchmaking's last state, for a screen opened since (its countdown gone on meanwhile)
+let lastMatch = null;
+function restoreMatch() {
+  if (!matching || !menu || !menu.setMatch) return;
+  if (lastMatch) {
+    const { st, at } = lastMatch;
+    menu.setMatch({ ...st, rem: st.rem != null ? Math.max(0, st.rem - (Date.now() - at)) : st.rem });
+  } else menu.setMatch({ phase: 'searching' });
+  if (menu.attachLobby && matching.lobby) menu.attachLobby(matching.lobby);
+}
 async function toggleMatch() {
   if (matching) {
     await stopMatch();
@@ -708,14 +761,20 @@ async function toggleMatch() {
     toast,
     seconds: window.__mmSeconds || 60,
     mapSeed: previewSeed,
-    onState: (st) => matching === m && menu && menu.setMatch && menu.setMatch(st),
+    onState: (st) => {
+      if (matching !== m) return;
+      lastMatch = { st, at: Date.now() };
+      if (menu && menu.setMatch) menu.setMatch(st);
+    },
     onHostStart: (players, net) => {
       matching = null;
+      lastMatch = null;
       closeMenus();
       return startOnlineHost(players, net, true);
     },
     onClientGame: (view, players, net) => {
       matching = null;
+      lastMatch = null;
       closeMenus();
       return startClientGame(view, players, net);
     },
@@ -723,6 +782,7 @@ async function toggleMatch() {
     onDemoted: (d, from) => becomeClient(d, from),
   });
   matching = m;
+  lastMatch = null;
   session = m;
   // keep the page light while it waits for other players (slow devices could drop out otherwise)
   if (map) map.holdAssets(true);
@@ -745,6 +805,7 @@ async function stopMatch() {
   const m = matching;
   if (!m) return;
   matching = null;
+  lastMatch = null;
   if (session === m) session = null;
   if (menu && menu.setMatch) menu.setMatch(null);
   if (map) map.holdAssets(false);
@@ -841,15 +902,12 @@ function localDay() {
 // a mission done in play: a note in the corner (its reward waits on the home screen)
 function missionToast(g, id) {
   const m = MISSIONS.find((x) => x.id === id);
-  if (m && !g.destroyed) g.hud.toast(t('任務完成'), t('{m}：到主畫面的「抽卡・商店」領取', { m: t(m.text) }), 'vp', 4200);
+  if (m && !g.destroyed) g.hud.toast(t('任務完成'), t('{m}：到主畫面的「任務」領取', { m: t(m.text) }), 'vp', 4200);
 }
 
 async function startGame(saved) {
   setDrift(null);
-  if (menu) {
-    menu.close();
-    menu = null;
-  }
+  dropMenu();
   // (step by step, a frame between steps so that the bar moves)
   loading(true, saved ? t('載入戰役') : t('佈置戰場'), 0.1);
   await nextFrame();
@@ -997,7 +1055,15 @@ function boot(data) {
     );
     return;
   }
-  openMenu();
+  let page = null;
+  try {
+    page = sessionStorage.getItem(PAGE_KEY);
+    sessionStorage.removeItem(PAGE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+  if (PAGES.includes(page)) openPage(page);
+  else openMenu();
   showPreview(false);
 }
 

@@ -1,6 +1,15 @@
-// The player's account on the home screen: a plate under the nation (sign in, or the record so far)
-// and the two dialogs it opens: signing in with Google, and the record of finished campaigns.
+// The player's own page (pages.js: Profile): the nation (its name, colour and flag), the building cards
+// collected so far, and the account (signing in with Google, a dialog; the record of finished
+// campaigns, on the page itself).
 import { accountsAvailable, currentUser, onUser, loadUser, renderSignIn, signOut, forgetMe } from '../net/account.js';
+import { PALETTE, NAME_MAX } from './menu.js';
+import { flagURL } from './flags.js';
+import { coinHtml, shardHtml } from './cards-ui.js';
+import { cards as collection, onCards } from '../meta/store.js';
+import { MISSIONS, missionState } from '../meta/collection.js';
+import { BUILDING_IDS, BASIC } from '../engine/develop.js';
+import { emblemSvg } from './emblems.js';
+import { fadeIn } from './motion.js';
 import { esc } from './text.js';
 import { t, tx, names, isZh, terr } from '../i18n/index.js';
 
@@ -72,92 +81,158 @@ export function openSignIn(dialogs, onSigned) {
     });
 }
 
-export function openRecord(dialogs) {
-  const u = currentUser();
-  if (!u) return;
-  const body = el('div', 'ac-record');
-  const paint = (u) => {
-    if (!u) return;
-    const recent = (u.recent || [])
-      .map(
-        (r) =>
-          `<li class="${r.won ? 'won' : ''}"><span class="d">${esc(day(r.at))}</span><span class="m">${esc(MODES[r.mode] || '')}</span><b class="r">${r.won ? t('勝利') : t('第 {n} 名', { n: r.place })}</b><span class="v">${t('<b class="num">{vp}</b> 分 · {n} 國 · {turns} 回合', { vp: r.vp, n: r.n, turns: r.turns })}</span></li>`,
-      )
-      .join('');
-    body.innerHTML = `
-      <div class="ac-who">${avatar(u, 56)}<div><b class="nm"></b><small>${u.since ? t('{day} 起的戰績', { day: esc(day(u.since)) }) : ''}</small></div></div>
-      <div class="ac-stats">
-        <div><b class="num">${u.games}</b><span>${t('場數')}</span></div>
-        <div><b class="num">${u.wins}</b><span>${t('勝場')}</span></div>
-        <div><b class="num">${pct(u.wins, u.games)}</b><span>${t('勝率')}</span></div>
-        <div><b class="num">${u.best || 0}</b><span>${t('最高分')}</span></div>
-        <div><b class="num">${u.games ? (u.vp / u.games).toFixed(1) : '—'}</b><span>${t('平均分數')}</span></div>
-        <div><b class="num">${u.onlineWins || 0}<small>/${u.online || 0}</small></b><span>${t('線上勝場')}</span></div>
-      </div>
-      <div class="row-label">${t('最近的戰役')}</div>
-      ${recent ? `<ul class="ac-recent">${recent}</ul>` : t('<p class="lead">還沒有記錄。打完一場戰役（單人或線上）就會出現在這裡。</p>')}`;
-    body.querySelector('.ac-who .nm').textContent = tx(u.name);
-  };
-  paint(u);
-  const forget = btn(t('刪除我的資料'), 'ghost danger', async () => {
-    if (!forget.classList.contains('armed')) {
-      forget.classList.add('armed');
-      forget.textContent = t('確定刪除全部戰績？');
-      return;
-    }
-    forget.disabled = true;
-    try {
-      await forgetMe();
-      dialogs.close(true);
-    } catch (e) {
-      forget.disabled = false;
-      forget.textContent = t('刪除失敗，再試一次');
-    }
-  });
-  const out = btn(t('登出'), '', async () => {
-    out.disabled = true;
-    try {
-      await signOut();
-    } finally {
-      dialogs.close(true);
-    }
-  });
-  const done = btn(t('關閉'), 'primary', () => dialogs.close());
-  dialogs.open({ kind: 'record', title: t('戰績'), body, foot: [forget, out, done], cls: 'account' });
-  // the latest numbers
-  loadUser(true).then((v) => v && body.isConnected && paint(v));
+// the record so far: who, the numbers, the last campaigns
+function recordHtml(u) {
+  const recent = (u.recent || [])
+    .map(
+      (r) =>
+        `<li class="${r.won ? 'won' : ''}"><span class="d">${esc(day(r.at))}</span><span class="m">${esc(MODES[r.mode] || '')}</span><b class="r">${r.won ? t('勝利') : t('第 {n} 名', { n: r.place })}</b><span class="v">${t('<b class="num">{vp}</b> 分 · {n} 國 · {turns} 回合', { vp: r.vp, n: r.n, turns: r.turns })}</span></li>`,
+    )
+    .join('');
+  return `
+    <div class="ac-who">${avatar(u, 56)}<div><b class="nm">${esc(tx(u.name))}</b><small>${u.since ? t('{day} 起的戰績', { day: esc(day(u.since)) }) : ''}</small></div></div>
+    <div class="ac-stats">
+      <div><b class="num">${u.games}</b><span>${t('場數')}</span></div>
+      <div><b class="num">${u.wins}</b><span>${t('勝場')}</span></div>
+      <div><b class="num">${pct(u.wins, u.games)}</b><span>${t('勝率')}</span></div>
+      <div><b class="num">${u.best || 0}</b><span>${t('最高分')}</span></div>
+      <div><b class="num">${u.games ? (u.vp / u.games).toFixed(1) : '—'}</b><span>${t('平均分數')}</span></div>
+      <div><b class="num">${u.onlineWins || 0}<small>/${u.online || 0}</small></b><span>${t('線上勝場')}</span></div>
+    </div>
+    <div class="row-label">${t('最近的戰役')}</div>
+    ${recent ? `<ul class="ac-recent">${recent}</ul>` : t('<p class="lead">還沒有記錄。打完一場戰役（單人或線上）就會出現在這裡。</p>')}`;
 }
 
-// the plate on the home screen; getDialogs() gives the dialogs over the menus
-export function mountAccount(host, getDialogs) {
-  if (!accountsAvailable() || !host) return null;
-  const plate = el('button', 'hm-account');
-  plate.type = 'button';
-  host.appendChild(plate);
-  const paint = (u) => {
-    plate.classList.toggle('in', !!u);
-    if (!u) {
-      plate.innerHTML = `<span class="ac-face ac-none" style="--s:30px">${KEY}</span><span class="ac-t">${t('<b>登入</b><small>用 Google 帳號記錄戰績</small>')}</span>`;
-      plate.setAttribute('aria-label', t('登入：用 Google 帳號記錄戰績'));
-    } else {
-      plate.innerHTML = `${avatar(u, 30)}<span class="ac-t"><b></b><small>${t('{games} 場 · {wins} 勝', { games: u.games, wins: u.wins })}</small></span><i class="ac-chev" aria-hidden="true">›</i>`;
-      plate.querySelector('.ac-t b').textContent = tx(u.name);
-      plate.setAttribute('aria-label', t('{name} 的戰績：{games} 場、{wins} 勝', { name: tx(u.name), games: u.games, wins: u.wins }));
+// The Profile page. host: the page shell (pages.js); opts: settings, onChange(settings) (the name and
+// the colour, kept at once), dialogs() (signing in), go(page) (to the Cards and Missions pages).
+export function profilePage(host, { settings, onChange, dialogs }) {
+  let closed = false;
+  const body = el('div', 'profile-page');
+  body.innerHTML = `
+    <section class="pf-nation pg-sheet panel">
+      <h4 class="pg-h">${t('你的國家')}</h4>
+      <div class="pf-banner">
+        <span class="pf-flag"><img alt=""></span>
+        <div class="pf-id">
+          <label class="hm-name pf-name"><span class="sr-only">${t('你的國家名稱')}</span><input id="menu-name" type="text" maxlength="${NAME_MAX}" autocomplete="off" spellcheck="false"></label>
+          <div class="hm-gems pf-gems" role="group" aria-label="${t('國家顏色')}"></div>
+        </div>
+      </div>
+      <p class="pf-note">${t('在對局和官方房間裡，大家看到的就是這面旗、這個名字和顏色。')}</p>
+    </section>
+    <section class="pf-coll pg-sheet panel"></section>
+    ${accountsAvailable() ? '<section class="pf-record pg-sheet panel"></section>' : ''}`;
+
+  // ── the nation: its flag, name and colour ──
+  const flag = body.querySelector('.pf-flag img');
+  const name = body.querySelector('#menu-name');
+  const gems = body.querySelector('.pf-gems');
+  const paintId = () => {
+    flag.src = flagURL(settings.color, 0, 240, 160);
+    gems.innerHTML = '';
+    for (const p of PALETTE) {
+      const b = el('button', 'gem' + (settings.color === p.hex ? ' on' : ''));
+      b.type = 'button';
+      b.style.setProperty('--c', p.hex);
+      b.title = t(p.name);
+      b.setAttribute('aria-label', t('{c}色', { c: t(p.name) }));
+      b.setAttribute('aria-pressed', String(settings.color === p.hex));
+      b.addEventListener('click', () => {
+        if (settings.color === p.hex) return;
+        settings.color = p.hex;
+        onChange(settings);
+        paintId();
+        // (the new colour hoisted)
+        fadeIn(flag, { y: -10, ms: 220 });
+      });
+      gems.appendChild(b);
     }
   };
-  paint(currentUser());
-  const off = onUser(paint);
-  loadUser();
-  plate.addEventListener('click', () => {
-    const d = getDialogs();
-    if (currentUser()) openRecord(d);
-    else openSignIn(d);
+  name.value = settings.name;
+  name.addEventListener('input', () => {
+    settings.name = name.value;
+    onChange(settings);
   });
+  paintId();
+
+  // ── the building cards collected so far ──
+  const coll = body.querySelector('.pf-coll');
+  const paintColl = () => {
+    const c = collection();
+    const all = BUILDING_IDS.length + BASIC.length;
+    const have = c.own.length + BASIC.length;
+    const done = MISSIONS.filter((m) => missionState(c, m.id).got).length;
+    coll.innerHTML = `
+      <h4 class="pg-h">${t('收藏')}</h4>
+      <div class="pf-tally">
+        <div class="pf-meter"><span class="pf-big num">${have}<small>/${all}</small></span><span class="pf-what">${t('建築卡')}</span><span class="pf-bar" aria-hidden="true"><i style="translate:${Math.round((100 * have) / all) - 100}% 0"></i></span></div>
+        <div class="pf-meter"><span class="pf-big num">${done}<small>/${MISSIONS.length}</small></span><span class="pf-what">${t('完成的任務')}</span><span class="pf-bar" aria-hidden="true"><i style="translate:${Math.round((100 * done) / MISSIONS.length) - 100}% 0"></i></span></div>
+        <div class="pf-purse">${coinHtml(c.coins)}${shardHtml(c.shards)}</div>
+      </div>
+      <div class="pf-links"></div>`;
+    const links = coll.querySelector('.pf-links');
+    if (host.go) {
+      links.appendChild(btn(`${emblemSvg('cards', 22)}<span>${esc(t('卡牌'))}</span>`, 'ghost', () => host.go('cards')));
+      links.appendChild(btn(`${emblemSvg('missions', 22)}<span>${esc(t('任務'))}</span>`, 'ghost', () => host.go('missions')));
+    }
+  };
+  paintColl();
+  const unCards = onCards(() => !closed && paintColl());
+
+  // ── the account: signing in, or the record so far ──
+  const rec = body.querySelector('.pf-record');
+  let unUser = null;
+  if (rec) {
+    const paintRec = (u) => {
+      if (closed) return;
+      if (!u) {
+        rec.className = 'pf-record pg-sheet panel out';
+        rec.innerHTML = `<h4 class="pg-h">${t('戰績')}</h4>
+          <p class="lead">${t('登入後，每一場打完的戰役都會記進你的戰績：場數、勝場、分數，以及最近幾場的結果。')}</p>
+          <ul class="ac-facts"><li>${t('只保存 Google 帳號編號、名稱與頭像，<b>不保存 email</b>。')}</li><li>${t('隨時可以登出，或在戰績裡刪除全部資料。')}</li></ul>`;
+        rec.appendChild(btn(`<span class="ac-face ac-none" style="--s:26px">${KEY}</span><span>${esc(t('用 Google 帳號登入'))}</span>`, 'primary pf-signin', () => openSignIn(dialogs())));
+        return;
+      }
+      rec.className = 'pf-record pg-sheet panel in';
+      rec.innerHTML = `<h4 class="pg-h">${t('戰績')}</h4>${recordHtml(u)}`;
+      const acts = el('div', 'pf-acts');
+      const forget = btn(t('刪除我的資料'), 'ghost danger', async () => {
+        if (!forget.classList.contains('armed')) {
+          forget.classList.add('armed');
+          forget.textContent = t('確定刪除全部戰績？');
+          return;
+        }
+        forget.disabled = true;
+        try {
+          await forgetMe();
+        } catch (e) {
+          forget.disabled = false;
+          forget.textContent = t('刪除失敗，再試一次');
+        }
+      });
+      const out = btn(t('登出'), '', async () => {
+        out.disabled = true;
+        try {
+          await signOut();
+        } finally {
+          out.disabled = false;
+        }
+      });
+      acts.append(forget, out);
+      rec.appendChild(acts);
+    };
+    paintRec(currentUser());
+    unUser = onUser((u) => paintRec(u));
+    // (the latest numbers: painted again as they come)
+    loadUser(true);
+  }
+
+  host.mount(body);
   return {
-    el: plate,
     close() {
-      off();
-      plate.remove();
+      closed = true;
+      unCards();
+      if (unUser) unUser();
     },
   };
 }

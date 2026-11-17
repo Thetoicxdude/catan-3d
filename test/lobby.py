@@ -82,9 +82,9 @@ async def main():
         await cp.click('.ho-board')
         ok &= await wait_for(a, lambda s: s['n'] == '2/4' and not s['idle'], 40, 'A sees C join and the countdown, with no event', t2)
         print('B', await bp.evaluate(STATE), '| C', await cp.evaluate(STATE))
-        # leave matchmaking
-        await cp.click('.ho-board')
-        await bp.click('.ho-board')
+        # leave matchmaking (forced: on a slow machine the board may still be settling from the last press)
+        await cp.click('.ho-board', force=True)
+        await bp.click('.ho-board', force=True)
         await a.wait_for_timeout(3000)
         print('A after both left', await a.evaluate(STATE))
         await b.close()

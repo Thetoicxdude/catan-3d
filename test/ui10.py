@@ -164,12 +164,12 @@ async def main():
 
         # ── the Cards page: the blueprint stays on top ──
         await page.click('.hm-tab[data-k="cards"]')
-        await page.wait_for_selector('.modal.side-page .cards-page')
+        await page.wait_for_selector('.menu-screen.page .cards-page')
         await page.wait_for_timeout(600)
         top0 = await page.evaluate("() => document.querySelector('.cp-deck').getBoundingClientRect().top")
         await page.evaluate("() => { const s = document.querySelector('.cp-scroll'); s.scrollTop = s.scrollHeight; }")
         await page.wait_for_timeout(300)
-        st = await page.evaluate("() => { const s = document.querySelector('.cp-scroll'), d = document.querySelector('.cp-deck').getBoundingClientRect(); return { scrolled: s.scrollTop, deck: d.top, page: document.querySelector('.modal.side-page .modal-body').scrollTop }; }")
+        st = await page.evaluate("() => { const s = document.querySelector('.cp-scroll'), d = document.querySelector('.cp-deck').getBoundingClientRect(); return { scrolled: s.scrollTop, deck: d.top, page: document.querySelector('.pg-main').scrollTop }; }")
         check('the blueprint stays at the top while the collection scrolls under it', st['scrolled'] > 100 and abs(st['deck'] - top0) < 1 and st['page'] == 0, (top0, st))
         await page.screenshot(path=f'{SP}/ui10-cards-scrolled.png')
         # a wonder in its place: the gardens make way for the library
@@ -186,29 +186,27 @@ async def main():
         flyers = [x for x in a if 'm-flyer' in x['cls']]
         check('a wonder makes way: the old one fades out of its place as the new one flies in', fly == 2 and len(flyers) == 2 and 'library' in bp and 'gardens' not in bp and after['shown'] == 'visible', (fly, len(flyers), bp, after))
         check('the collection stays where it was scrolled as the page is drawn again', kept > 100 and abs(after['scroll'] - min(kept, after['max'])) < 2, (kept, after))
-        await page.click('.modal.side-page .modal-head .icon-btn')
-        await page.wait_for_timeout(500)
 
-        # ── the Draw & Shop page ──
+        # ── the Missions page, then Draw & Shop (from the rail: one page in another's place) ──
         n0 = await page.evaluate(NANIMS)
-        await page.click('.hm-tab[data-k="shop"]')
-        await page.wait_for_selector('.modal.side-page .shop-page')
-        await page.click('[data-tab="missions"]')
+        await page.click('.pg-item[data-k="missions"]')
+        await page.wait_for_selector('.menu-screen.page .missions-page')
         await page.wait_for_timeout(1200)
         a = await page.evaluate(ANIMS, n0)
         grew = [x for x in a if 'ms-bar' in x['parent'] and x['props'] == ['translate']]
         seen = await page.evaluate("() => JSON.parse(localStorage.getItem('catan3d-ms-seen'))")
         check("a mission's bar grows from where it was last seen", len(grew) == 1 and seen.get('games10') == 6, (len(grew), seen.get('games10')))
         n0 = await page.evaluate(NANIMS)
-        await page.click('[data-tab="draw"]')
-        await page.click('[data-tab="missions"]')
+        await page.click('.pg-item[data-k="shop"]')
+        await page.click('.pg-item[data-k="missions"]')
         await page.wait_for_timeout(300)
         a = await page.evaluate(ANIMS, n0)
         check('...and only once', not [x for x in a if 'ms-bar' in x['parent']], len(a))
         # ten drawn, all the last card of the pack (a wonder): its back glows gold before it turns over
         await page.evaluate("() => { crypto.getRandomValues = (arr) => { arr[0] = 0xfffffff0; return arr; }; }")
-        await page.click('[data-tab="draw"]')
-        await page.click('.sp-draw >> nth=1')
+        await page.click('.pg-item[data-k="shop"]')
+        await page.wait_for_selector('.menu-screen.page .shop-page')
+        await page.click('.btn.sp-draw >> nth=1')
         await page.wait_for_timeout(250)
         # (the button goes when the cards are all over: pressed at once, the browser here being slow)
         mid = await page.evaluate("() => { const m = { wonders: document.querySelectorAll('.sp-reveal .rv.wonder').length, glow: document.querySelectorAll('.sp-reveal .rv-glow').length, skip: !!document.querySelector('.rv-skip'), playing: document.querySelector('.sp-reveal').getAnimations({ subtree: true }).filter((x) => x.playState !== 'finished').length }; const b = document.querySelector('.rv-skip'); if (b) b.click(); return m; }")
@@ -219,15 +217,17 @@ async def main():
         await page.screenshot(path=f'{SP}/ui10-draw.png')
         check("ten drawn: a wonder's back glows gold, and 'turn them all over' shows them at once", mid['wonders'] == 10 and mid['glow'] == 10 and mid['skip'] and mid['playing'] > 10 and not done['skip'] and done['playing'] == 0, (mid, done))
         # (one drawn: a picture of the glow, the flip held as the gold comes up)
-        await page.click('.sp-draw >> nth=0')
+        await page.click('.btn.sp-draw >> nth=0')
         await page.wait_for_timeout(120)
         await page.evaluate("() => { for (const a of document.querySelector('.sp-reveal').getAnimations({ subtree: true })) { a.pause(); a.currentTime = 450; } }")
         await page.screenshot(path=f'{SP}/ui10-glow.png')
         await page.evaluate("() => { for (const a of document.querySelector('.sp-reveal').getAnimations({ subtree: true })) a.finish(); }")
-        await page.click('.modal.side-page .modal-head .icon-btn')
+        await page.click('.pg-home')
+        await page.wait_for_selector('.menu-screen.home:not(.leaving)')
         await page.wait_for_timeout(500)
 
         # ── to the setup: the home screen fades over ──
+        await page.evaluate("() => { window.__leaves = []; }")
         n0 = await page.evaluate(NANIMS)
         await page.click('[data-k="single"]')
         await page.wait_for_timeout(1500)
@@ -338,8 +338,8 @@ async def main():
 
         # ── a phone: the blueprint on top too ──
         ctx, page, logs = await open_page(b, w=390, h=844, mobile=True)
-        await page.click('.hm-medal[data-k="cards"]')
-        await page.wait_for_selector('.modal.side-page .cards-page')
+        await page.click('.hm-tab[data-k="cards"]')
+        await page.wait_for_selector('.menu-screen.page .cards-page')
         await page.wait_for_timeout(700)
         await page.screenshot(path=f'{SP}/ui10-phone-cards.png')
         ph = await page.evaluate("() => { const s = document.querySelector('.cp-scroll'), d = document.querySelector('.cp-deck').getBoundingClientRect(); s.scrollTop = 400; return { deck: d.bottom, room: s.getBoundingClientRect().height, tall: s.scrollHeight > s.clientHeight, top: document.querySelector('.cp-deck').getBoundingClientRect().top === d.top }; }")

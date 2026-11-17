@@ -1,14 +1,16 @@
-// The building cards on the home screen (rules and saving: meta/collection.js, meta/store.js):
-//   openCards   the Cards side page: the three blueprints (one in use) and every card, the basic ones
-//               first; the ones not owned yet are grey, and a card opened says how to get it
-//   openShop    the Draw & Shop side page: drawing cards for coins, the shop (shards for a chosen
-//               card), the missions and their rewards
-//   deckLine    the blueprint in use, in a line (single-player setup, room lobby: nothing to choose
-//               there, it is chosen at home)
-//   rewardsBox  what a finished game earned (the end-of-game sheet)
-// Both side pages are sheets of the dialogs layer that slide in from the left of the screen. Small
-// cards show only their figure, name and points: what a card costs and does is on the card opened
+// The building cards' pages (rules and saving: meta/collection.js, meta/store.js), each shown full
+// screen by the page shell (pages.js) that the home screen's side bar opens:
+//   cardsPage     Cards: the three blueprints (one in use) and every card, the basic ones first; the ones
+//                 not owned yet are grey, and a card opened says how to get it
+//   shopPage      Draw & Shop: drawing cards for coins, the shop (shards for a chosen card)
+//   missionsPage  Missions and their rewards
+//   deckLine      the blueprint in use, in a line (single-player setup, room lobby: nothing to choose
+//                 there, it is chosen on the Cards page)
+//   rewardsBox    what a finished game earned (the end-of-game sheet)
+// Small cards show only their figure, name and points: what a card costs and does is on the card opened
 // (cardDetail), where the resources are large enough to read.
+// host (the page shell): mount(el) puts the page's body in place; bals() is where the coins and shards
+// are shown (filled by the page that counts them); go(page, opts) goes to another page.
 import { BUILDINGS, BUILDING_IDS, DIRS, DIR_NAMES, BLUEPRINT_SIZE, WONDER_VP, SCORE_VP, BASIC, BASIC_NAMES, isWonder, isBasic } from '../engine/develop.js';
 import { COSTS } from '../engine/engine.js';
 import { POOL, MISSIONS, STARTER, DRAW_COST, DRAW10_COST, COINS, owns, ownedBlueprint, missionFor, missionOf, missionState, claim, claimable, draw, buy, priceOf, dupShards, chanceOf, seen, slotNew } from '../meta/collection.js';
@@ -115,15 +117,9 @@ function howToGet(c, k) {
   return { text: isBasic(k) ? t('基本卡：每位玩家都有') : t('一開始就有'), tab: null };
 }
 
-// a side page: a sheet of the dialogs layer against the left edge of the screen
-function sidePage(dialogs, { kind, title, body, headExtra = '', onClose = null, foot = [] }) {
-  return dialogs.open({ kind, title, body, foot, cls: 'side-page', headExtra, onClose });
-}
-
 // ── the Cards page ──
 
-// opts.onShop(tab): to the Draw & Shop page (a locked card's way to get it)
-export function openCards(dialogs, settings, save, opts = {}) {
+export function cardsPage(host, settings, save) {
   const c = collection();
   const body = el('div', 'cards-page');
   let cur = [0, 1, 2].includes(settings.bpCur) ? settings.bpCur : 0;
@@ -146,6 +142,8 @@ export function openCards(dialogs, settings, save, opts = {}) {
     // as the page is drawn again)
     const was = body.querySelector('.cp-scroll');
     const keep = was ? was.scrollTop : 0;
+    // (a blueprint sheet across the top; under it the collection, scrolling, and the card opened beside
+    // it — on a phone, a sheet coming up from below)
     body.innerHTML = `
       <section class="cp-deck">
         <div class="cp-tabs" role="group" aria-label="${esc(t('藍圖'))}">${tabs}</div>
@@ -153,16 +151,15 @@ export function openCards(dialogs, settings, save, opts = {}) {
         <div class="cp-deckbar"><span class="cp-status num">${status}</span><span class="cp-use"></span></div>
         ${flash ? `<p class="cp-flash" role="status">${esc(flash)}</p>` : ''}
       </section>
-      <div class="cp-scroll">
+      <div class="cp-scroll pg-sheet panel">
+        <section class="cp-coll">
+          <h4>${esc(t('收藏'))} <span class="num">${c.own.length + BASIC.length}/${BUILDING_IDS.length + BASIC.length}</span></h4>
+          ${groups}
+        </section>
         <p class="cp-note">${esc(t('藍圖 7 張，含基本卡（道路、村莊、城市、發展卡）：沒帶的基本卡，這局就不能花錢蓋。開發不用卡牌。最多 1 座世界奇觀；開局帶「使用中」的那套。'))}</p>
-        <div class="cp-main">
-          <section class="cp-coll">
-            <h4>${esc(t('收藏'))} <span class="num">${c.own.length + BASIC.length}/${BUILDING_IDS.length + BASIC.length}</span></h4>
-            ${groups}
-          </section>
-          <aside class="cp-detail" aria-live="polite"></aside>
-        </div>
-      </div>`;
+      </div>
+      <aside class="cp-detail pg-sheet panel" aria-live="polite"></aside>`;
+    body.classList.toggle('picked', !!sel);
     if (keep) body.querySelector('.cp-scroll').scrollTop = keep;
     flash = '';
     // which blueprint the next game takes
@@ -261,11 +258,18 @@ export function openCards(dialogs, settings, save, opts = {}) {
     }
     const bp = settings.bps[cur];
     box.innerHTML = cardDetail(sel, { on: bp.includes(sel), locked: !owns(c, sel) });
+    // (a phone: the card opened is a sheet over the collection, put away with this)
+    const x = btn(icon('cross', 16), 'ghost icon-btn cp-x', () => {
+      sel = null;
+      render();
+    });
+    x.setAttribute('aria-label', t('關閉'));
+    box.prepend(x);
     const acts = el('div', 'cp-acts');
     if (!owns(c, sel)) {
       const how = howToGet(c, sel);
       acts.appendChild(el('p', 'cp-how', `<span>${esc(how.text)}</span>`));
-      if (how.tab && opts.onShop) acts.appendChild(btn(how.tab === 'missions' ? esc(t('看任務')) : esc(t('去抽卡')), '', () => opts.onShop(how.tab)));
+      if (how.tab && host.go) acts.appendChild(btn(how.tab === 'missions' ? esc(t('看任務')) : esc(t('去抽卡')), '', () => host.go(how.tab === 'missions' ? 'missions' : 'shop', { tab: 'draw' })));
     } else if (bp.includes(sel)) {
       acts.appendChild(btn(esc(t('拿出藍圖')), '', () => takeOut(sel)));
     } else {
@@ -297,7 +301,7 @@ export function openCards(dialogs, settings, save, opts = {}) {
     }
     box.appendChild(acts);
   };
-  sidePage(dialogs, { kind: 'cards', title: t('卡牌'), body, onClose: opts.onClose });
+  host.mount(body);
   render();
 }
 
@@ -326,33 +330,20 @@ const writeSeen = (m) => {
 const TABS = [
   ['draw', N_('抽卡')],
   ['shop', N_('商店')],
-  ['missions', N_('任務')],
 ];
 
-// opts: tab ('draw', 'shop', 'missions'), settings and save (a new card goes into the blueprint in use
-// when it has room), onCards() (to the Cards page), onClose
-export function openShop(dialogs, opts = {}) {
-  const { settings, save } = opts;
-  const c = collection();
-  let tab = TABS.some(([k]) => k === opts.tab) ? opts.tab : 'draw';
-  let reveal = null;
-  let note = '';
-  const body = el('div', 'shop-page');
-  const gained = (k) => {
-    if (settings && slotNew(settings.bps[[0, 1, 2].includes(settings.bpCur) ? settings.bpCur : 0], k)) {
-      save(settings);
-      return true;
-    }
-    return false;
-  };
-  // The coins and shards in the head, as shown: they count to what the collection holds as coins are
-  // spent and as coins and shards land on them (made once, so a count is not cut short by a render).
+// The coins and shards in the page's head, as shown: they count to what the collection holds as coins
+// are spent and as coins and shards land on them (made once, so a count is not cut short by a render).
+function wallet(host, c) {
   const shown = { coins: c.coins, shards: c.shards };
-  const balances = () => {
-    const box = dialogs.cur && dialogs.cur.el.querySelector('.sp-bals');
+  const paint = () => {
+    const box = host.bals && host.bals();
     if (box && !box.firstChild) box.innerHTML = coinHtml(shown.coins) + shardHtml(shown.shards);
   };
-  const balEl = (kind, part = '.num') => dialogs.cur && dialogs.cur.el.querySelector(`.sp-bals .cur.${kind === 'coins' ? 'coin' : 'shard'} ${part}`);
+  const balEl = (kind, part = '.num') => {
+    const box = host.bals && host.bals();
+    return box && box.querySelector(`.cur.${kind === 'coins' ? 'coin' : 'shard'} ${part}`);
+  };
   // to the collection's number, counting
   const settle = (kind, ms = 450) => {
     const from = shown[kind];
@@ -383,16 +374,39 @@ export function openShop(dialogs, opts = {}) {
       onDone: () => --flying[kind] === 0 && shown[kind] !== c[kind] && settle(kind, 200),
     });
   };
+  return { paint, settle, bump, rain };
+}
+
+// a new card goes into the blueprint in use when that has room
+function keeper(settings, save) {
+  return (k) => {
+    if (settings && slotNew(settings.bps[[0, 1, 2].includes(settings.bpCur) ? settings.bpCur : 0], k)) {
+      save(settings);
+      return true;
+    }
+    return false;
+  };
+}
+
+// opts: tab ('draw', 'shop'), settings and save (a new card goes into the blueprint in use when it has
+// room)
+export function shopPage(host, opts = {}) {
+  const { settings, save } = opts;
+  const c = collection();
+  let tab = TABS.some(([k]) => k === opts.tab) ? opts.tab : 'draw';
+  let reveal = null;
+  let note = '';
+  const body = el('div', 'shop-page');
+  const gained = keeper(settings, save);
+  const { paint: balances, settle, bump, rain } = wallet(host, c);
   const render = () => {
-    const n = claimable(c);
-    const tabs = TABS.map(([k, label]) => `<button type="button" class="sp-tab${k === tab ? ' on' : ''}" data-tab="${k}" role="tab" aria-selected="${k === tab}">${esc(t(label))}${k === 'missions' && n ? `<i class="badge num">${n}</i>` : ''}</button>`).join('');
-    body.innerHTML = `<div class="sp-tabs" role="tablist">${tabs}</div><div class="sp-body"></div>${note ? `<p class="sp-note" role="status">${esc(note)}</p>` : ''}`;
+    const tabs = TABS.map(([k, label]) => `<button type="button" class="sp-tab${k === tab ? ' on' : ''}" data-tab="${k}" role="tab" aria-selected="${k === tab}">${esc(t(label))}</button>`).join('');
+    body.innerHTML = `<div class="sp-tabs" role="tablist">${tabs}</div><div class="sp-body sp-${tab}${tab === 'shop' ? ' pg-sheet panel' : ''}"></div>${note ? `<p class="sp-note" role="status">${esc(note)}</p>` : ''}`;
     note = '';
     body.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => ((tab = b.dataset.tab), (reveal = null), render())));
     const box = body.querySelector('.sp-body');
     if (tab === 'draw') paintDraw(box);
-    else if (tab === 'shop') paintShop(box);
-    else paintMissions(box);
+    else paintShop(box);
     balances();
   };
 
@@ -401,7 +415,7 @@ export function openShop(dialogs, opts = {}) {
     const total = POOL.length;
     const wonders = POOL.filter(isWonder).length;
     box.innerHTML = `
-      <div class="sp-pack">
+      <div class="sp-pack pg-sheet panel">
         <div class="sp-packart" aria-hidden="true">${emblemSvg('cards', 74)}</div>
         <div class="sp-packinfo">
           <b>${esc(t('建築卡包'))}</b>
@@ -410,8 +424,10 @@ export function openShop(dialogs, opts = {}) {
         </div>
       </div>
       <div class="sp-reveal"></div>
-      <details class="sp-odds"><summary>${esc(t('每張卡的機率'))}</summary><div class="sp-oddlist">${POOL.map((k) => `<span>${buildingIcon(k, 14)}${esc(buildingName(k))}<b class="num">${(chanceOf(k) * 100).toFixed(1)}%</b></span>`).join('')}</div></details>
-      <p class="sp-earn">${esc(t('金幣怎麼來：打完一局 +{a}、獲勝 +{b}、線上房間 +{c}、每天第一局 +{d}，還有任務。', { a: COINS.game, b: COINS.win, c: COINS.online, d: COINS.daily }))}</p>`;
+      <div class="sp-info pg-sheet panel">
+        <details class="sp-odds"><summary>${esc(t('每張卡的機率'))}</summary><div class="sp-oddlist">${POOL.map((k) => `<span>${buildingIcon(k, 14)}${esc(buildingName(k))}<b class="num">${(chanceOf(k) * 100).toFixed(1)}%</b></span>`).join('')}</div></details>
+        <p class="sp-earn">${esc(t('金幣怎麼來：打完一局 +{a}、獲勝 +{b}、線上房間 +{c}、每天第一局 +{d}，還有任務。', { a: COINS.game, b: COINS.win, c: COINS.online, d: COINS.daily }))}</p>
+      </div>`;
     const buy1 = btn(`${esc(t('抽 1 次'))}${coinHtml(DRAW_COST)}`, 'primary sp-draw', () => doDraw(1));
     const buy10 = btn(`${esc(t('抽 10 次'))}${coinHtml(DRAW10_COST)}`, 'primary sp-draw', () => doDraw(10));
     buy1.disabled = c.coins < DRAW_COST;
@@ -517,6 +533,25 @@ export function openShop(dialogs, opts = {}) {
     }
   };
 
+  host.mount(body);
+  render();
+}
+
+// opts: settings and save (a card won goes into the blueprint in use when it has room)
+export function missionsPage(host, opts = {}) {
+  const { settings, save } = opts;
+  const c = collection();
+  let note = '';
+  const body = el('div', 'missions-page');
+  const gained = keeper(settings, save);
+  const { paint: balances, rain } = wallet(host, c);
+  const render = () => {
+    body.innerHTML = `<div class="sp-body sp-missions pg-sheet panel"></div>${note ? `<p class="sp-note" role="status">${esc(note)}</p>` : ''}`;
+    note = '';
+    paintMissions(body.querySelector('.sp-body'));
+    balances();
+  };
+
   // the missions: the granary's cards first, then the challenges
   const paintMissions = (box) => {
     const was = readSeen();
@@ -571,8 +606,7 @@ export function openShop(dialogs, opts = {}) {
     );
   };
 
-  const foot = opts.onCards ? [btn(`${icon('cards', 16)}${esc(t('卡牌'))}`, 'ghost', () => opts.onCards())] : [];
-  sidePage(dialogs, { kind: 'shop', title: t('抽卡・商店'), body, headExtra: '<span class="sp-bals"></span>', onClose: opts.onClose, foot });
+  host.mount(body);
   render();
 }
 
@@ -607,7 +641,7 @@ export function rewardsBox(out) {
   const lines = out.coins.map(([k, n]) => `<span class="rw-line">${esc(t(EARNED[k]))}<b class="num">+${n}</b></span>`).join('');
   const done = out.done.map((id) => missionOf(id)).filter(Boolean);
   box.innerHTML = `<div class="rw-coins">${icon('coin', 22)}<b class="num">+${num(out.total)}</b><span class="rw-what">${lines}</span></div>
-    ${done.length ? `<div class="rw-missions">${icon('mission', 18)}<span>${esc(t('任務完成：'))}${list(done.map((m) => `<b>${esc(t(m.text))}</b>`))}<small>${esc(t('到主畫面的「抽卡・商店」領取'))}</small></span></div>` : ''}`;
+    ${done.length ? `<div class="rw-missions">${icon('mission', 18)}<span>${esc(t('任務完成：'))}${list(done.map((m) => `<b>${esc(t(m.text))}</b>`))}<small>${esc(t('到主畫面的「任務」領取'))}</small></span></div>` : ''}`;
   // once on screen: the coins counted up from nothing, what for line by line, then the missions done
   whenShown(box, () => {
     count(box.querySelector('.rw-coins > b'), 0, out.total, { ms: 800, delay: 250, fmt: (n) => '+' + num(n) });
@@ -619,9 +653,9 @@ export function rewardsBox(out) {
   return box;
 }
 
-// the marks on the home screen's Cards and Draw & Shop buttons: new cards, rewards waiting, coins
+// the marks on the side bar (pages.js): new cards, rewards waiting; the coins and shards
 export function homeMarks() {
   const c = collection();
-  return { fresh: c.fresh.length, claim: claimable(c), coins: c.coins };
+  return { fresh: c.fresh.length, claim: claimable(c), coins: c.coins, shards: c.shards };
 }
 export { onCards };

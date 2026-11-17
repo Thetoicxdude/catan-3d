@@ -1,9 +1,9 @@
 # The interface's motions (src/ui/motion.js; the design: Claude Docs「卡坦島：互動與動畫設計」): a control
 # pressed shrinks and springs back; the Cards page (a card flying into the blueprint and landing, one
 # taken out with the rest closing the gap, a full blueprint shaking, "in use" stamped, the detail fading
-# in); a dialog closing leaves a picture of itself that nobody can click or find, gone at once; coins of a
-# mission flying into the head and the number counting up to them; cards drawn again turning into shards
-# that fly in; in a game the build menu growing out of its button and sinking back, a row that cannot
+# in); a page and a dialog leaving leave a picture of themselves that nobody can click or find, gone at
+# once; coins of a mission flying into the head and the number counting up to them; cards drawn again
+# turning into shards that fly in; in a game the build menu growing out of its button and sinking back, a row that cannot
 # be built shaking with its missing resources flashing, the development card turning over with the
 # screen dimmed and the menu stepped back (a click sends it away), your turn dropping in; and with
 # "reduce motion" nothing flying, no picture left by a closing dialog.
@@ -77,7 +77,7 @@ async def main():
         await page.mouse.down()
         pressed = await page.evaluate(ANIMS, n0)
         await page.mouse.up()
-        await page.wait_for_selector('.modal.side-page .cards-page')
+        await page.wait_for_selector('.menu-screen.page .cards-page')
         released = await page.evaluate(ANIMS, n0)
         check('a control pressed shrinks and springs back', any('hm-tab' in a['cls'] and a['props'] == ['scale'] for a in pressed) and sum(1 for a in released if 'hm-tab' in a['cls'] and a['props'] == ['scale']) >= 2, pressed[:3])
         await page.wait_for_timeout(500)
@@ -120,18 +120,27 @@ async def main():
         a = await page.evaluate(ANIMS, n0)
         check('"in use" is stamped', any('cp-inuse' in x['cls'] and 'rotate' in x['props'] for x in a), [x['cls'] for x in a][:4])
 
+        # ── the page leaves for the home screen: a picture of it that nobody can click or find ──
+        await page.click('.pg-home')
+        left = await page.evaluate("() => { const g = document.querySelector('.menu-screen.page'); return { page: !!g, leaving: !!(g && g.classList.contains('leaving')), inert: !!(g && g.inert), found: document.querySelectorAll('.pg-item[data-k], .cards-page [data-k]').length, home: !!document.querySelector('.menu-screen.home:not(.leaving)') }; }")
+        await page.wait_for_timeout(700)
+        gone = await page.evaluate("() => document.querySelectorAll('.menu-screen.page').length")
+        check('a page leaving fades away untouchable over the home screen, gone at once', left['page'] and left['leaving'] and left['inert'] and left['found'] == 0 and left['home'] and gone == 0, (left, gone))
+
         # ── a dialog closing: a picture of it, not clickable, not found, gone at once ──
-        await page.click('.modal.side-page .modal-head .icon-btn')
+        await page.click('.hm-medal[data-k="rules"]')
+        await page.wait_for_selector('.modal[data-kind="rules"]')
+        await page.wait_for_timeout(400)
+        await page.click('.modal[data-kind="rules"] .modal-head .icon-btn')
         ghost = await page.evaluate("() => { const g = document.querySelector('.modal-layer.leaving'); return { ghost: !!g, inert: !!(g && g.inert), kinds: document.querySelectorAll('.modal[data-kind]').length, open: !!document.querySelector('.modal-layer:not(.leaving) .modal') }; }")
         await page.wait_for_timeout(700)
-        gone = await page.evaluate("() => document.querySelectorAll('.modal-layer.leaving, .modal.side-page').length")
+        gone = await page.evaluate("() => document.querySelectorAll('.modal-layer.leaving').length")
         check('a closing dialog leaves a picture that nobody can click or find, gone at once', ghost['ghost'] and ghost['inert'] and ghost['kinds'] == 0 and not ghost['open'] and gone == 0, (ghost, gone))
 
-        # ── the Draw & Shop page: a mission's coins fly in; cards drawn again turn into shards ──
-        await page.click('.hm-tab[data-k="shop"]')
-        await page.wait_for_selector('.modal.side-page .shop-page')
+        # ── the Missions page: a mission's coins fly in; Draw & Shop: cards drawn again turn into shards ──
+        await page.click('.hm-tab[data-k="missions"]')
+        await page.wait_for_selector('.menu-screen.page .missions-page')
         await page.wait_for_timeout(500)
-        await page.click('[data-tab="missions"]')
         await page.click('[data-claim="welcome"]')
         early = await page.evaluate("() => ({ coins: document.querySelectorAll('.m-fly .m-coin').length, shown: document.querySelector('.sp-bals .cur.coin .num').textContent })")
         await page.wait_for_function("() => document.querySelector('.sp-bals .cur.coin .num').textContent === '200'", timeout=10000)
@@ -140,8 +149,9 @@ async def main():
         check("a mission's coins fly into the head, the number counting up to them", early['coins'] >= 3 and early['shown'] != '200' and left == 0, early)
         # (every card of the pack owned: a draw gives shards)
         await page.evaluate("() => { const c = window.__cards.get(); c.coins = 1000; window.__cards.commit(); }")
-        await page.click('[data-tab="draw"]')
-        await page.click('.sp-draw >> nth=1')
+        await page.click('.pg-item[data-k="shop"]')
+        await page.wait_for_selector('.menu-screen.page .shop-page')
+        await page.click('.btn.sp-draw >> nth=1')
         await page.wait_for_timeout(900)
         mid = await page.evaluate("() => ({ shards: document.querySelectorAll('.m-fly .m-coin.shard').length, shown: +document.querySelector('.sp-bals .cur.shard .num').textContent.replace(/,/g, '') })")
         c = await page.evaluate(CARDS)
@@ -149,7 +159,8 @@ async def main():
         coins = await page.evaluate("() => document.querySelector('.sp-bals .cur.coin .num').textContent")
         check('ten cards drawn again: their shards fly in, the coins counted off', mid['shards'] >= 1 and mid['shown'] < c['shards'] and coins == '100', (mid, c['shards'], coins))
         await page.screenshot(path=f'{SP}/ui9-draw.png')
-        await page.click('.modal.side-page .modal-head .icon-btn')
+        await page.click('.pg-home')
+        await page.wait_for_selector('.menu-screen.home:not(.leaving)')
         await page.wait_for_timeout(500)
 
         # ── in a game ──
@@ -209,14 +220,18 @@ async def main():
         # ── reduce motion: nothing flies, a closing dialog leaves no picture ──
         ctx, page, logs = await open_page(b, reduce=True)
         await page.click('.hm-tab[data-k="cards"]')
-        await page.wait_for_selector('.modal.side-page .cards-page')
+        await page.wait_for_selector('.menu-screen.page .cards-page')
         await page.click('.cp-coll .cc[data-k="shipyard"]')
         n0 = await page.evaluate(NANIMS)
         await page.click('.cp-acts .btn.primary')
         a = await page.evaluate(ANIMS, n0)
         flyers = await page.evaluate("() => document.querySelectorAll('.m-fly .m-flyer').length")
         shownv = await page.evaluate("() => getComputedStyle(document.querySelector('.cp-slot[data-slot=\"shipyard\"] .cc')).visibility")
-        await page.click('.modal.side-page .modal-head .icon-btn')
+        await page.click('.pg-home')
+        await page.wait_for_selector('.menu-screen.home:not(.leaving)')
+        await page.click('.hm-medal[data-k="rules"]')
+        await page.wait_for_selector('.modal[data-kind="rules"]')
+        await page.click('.modal[data-kind="rules"] .modal-head .icon-btn')
         ghost = await page.evaluate("() => document.querySelectorAll('.modal-layer.leaving').length")
         moving = [x for x in a if 'translate' in x['props'] or 'scale' in x['props'] or 'rotate' in x['props']]
         check('reduce motion: nothing flies or bounces, no picture of a closing dialog', flyers == 0 and shownv == 'visible' and ghost == 0 and not moving, (flyers, shownv, ghost, moving[:3]))

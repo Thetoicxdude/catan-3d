@@ -6,12 +6,10 @@ import { HEX_SIZE, geometryOf, withMap } from '../engine/geometry.js';
 import { DEFAULT_MAP } from '../engine/maps.js';
 import { generateBoard } from '../engine/board.js';
 import { seedState } from '../engine/rng.js';
-import { PALETTE, NAME_MAX } from './menu.js';
-import { flagURL } from './flags.js';
 import { esc } from './text.js';
-import { emblemSvg, seatShield } from './emblems.js';
-import { mountAccount } from './account-ui.js';
-import { homeMarks, onCards } from './cards-ui.js';
+import { emblemSvg, seatShield, crest } from './emblems.js';
+import { onCards } from './cards-ui.js';
+import { navHtml, paintNav } from './pages.js';
 import { pop, reduced, leaveScreen } from './motion.js';
 import { t } from '../i18n/index.js';
 
@@ -333,37 +331,14 @@ function countdownFrom(peer, h) {
   return remSeen.get(k);
 }
 
-// the hexes of the crest: a small island
-function crest() {
-  const cols = ['#e9c04f', '#3f6e3c', '#c46a40', '#8fc457', '#8a8e9c', '#3f6e3c', '#efc24a'];
-  const pts = [[0, 0]];
-  for (let k = 0; k < 6; k++) pts.push([Math.cos((Math.PI / 3) * k + Math.PI / 6) * 17.3, Math.sin((Math.PI / 3) * k + Math.PI / 6) * 17.3]);
-  const hex = (x, y, r) => {
-    const p = [];
-    for (let i = 0; i < 6; i++) {
-      const a = (Math.PI / 180) * (60 * i - 90);
-      p.push(`${(50 + x + r * Math.cos(a)).toFixed(1)},${(50 + y + r * Math.sin(a)).toFixed(1)}`);
-    }
-    return p.join(' ');
-  };
-  return `<svg viewBox="0 0 100 100" aria-hidden="true">
-    <defs><linearGradient id="crestg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2c0"/><stop offset="0.45" stop-color="#e2b456"/><stop offset="1" stop-color="#7a4c16"/></linearGradient></defs>
-    <polygon points="${hex(0, 0, 47)}" fill="url(#crestg)" stroke="#2a1808" stroke-width="3"/>
-    <polygon points="${hex(0, 0, 40)}" fill="#13222d" stroke="#2a1808" stroke-width="2"/>
-    ${pts.map(([x, y], i) => `<polygon points="${hex(x, y, 9.6)}" fill="${cols[i]}" stroke="#2a1808" stroke-width="1.6"/>`).join('')}
-  </svg>`;
-}
-
-// the new cards and the rewards waiting as the home screen last showed them (this visit to the page):
-// a badge whose number went up since then bounces
-const seenMarks = { fresh: null, claim: null };
 
 // opts: settings, hasSave, seed (the island this player would open an official room on), seconds
 // (the official countdown), version, getLobby() → lobby wrapper | null (unreachable) | undefined
-// (no live lobby on this page), and the handlers onChange, onSingle, onCreate, onJoin, onEditor (the map
-// workshop), onMatch, onContinue, onRules, onSettings. setMatch(state) shows this player's own matchmaking.
+// (no live lobby on this page), and the handlers onSingle, onCreate, onJoin, onEditor (the map
+// workshop), onMatch, onContinue, onRules and onPage(page) (the side bar: pages.js). setMatch(state)
+// shows this player's own matchmaking.
 export function showHome(app, opts) {
-  const { settings, hasSave, onChange, version } = opts;
+  const { settings, hasSave, version } = opts;
   const total = Math.max(1, opts.seconds || 60) * 1000;
   const scr = el('div', 'menu-screen home');
   // (a card's name, and a shorter one for the small cards of a phone: the same in Chinese)
@@ -374,13 +349,6 @@ export function showHome(app, opts) {
       <div class="hm-brand">
         <div class="hm-logo"><span class="hm-crest">${crest()}</span><h1><span class="hm-title">${t('卡坦島')}</span><span class="hm-sub">${t('3D 戰略版')}</span></h1></div>
         <div class="hm-live" role="status" hidden><i></i><span></span></div>
-      </div>
-      <div class="hm-who">
-        <div class="hm-nation">
-          <span class="hm-flag"><img alt=""></span>
-          <label class="hm-name"><span class="sr-only">${t('你的國家名稱')}</span><input id="menu-name" type="text" maxlength="${NAME_MAX}" autocomplete="off" spellcheck="false"></label>
-          <div class="hm-gems" role="group" aria-label="${t('國家顏色')}"></div>
-        </div>
       </div>
     </header>
     <main class="hm-main">
@@ -402,15 +370,9 @@ export function showHome(app, opts) {
         ${card('single', 'gold', t('單人遊戲'), 'single', t('單人遊戲§short'))}${card('create', 'bronze', t('建立房間'), 'create', t('建立房間§short'))}${card('join', 'verdigris', t('加入房間'), 'join', t('加入房間§short'))}${card('workshop', 'bronze', t('地圖工坊'), 'workshop', t('地圖工坊§short'))}${card('continue', 'silver', t('繼續上一局'), 'resume', t('繼續上一局§short'))}
       </nav>
     </main>
-    <div class="hm-tabs">
-      <button class="hm-tab" type="button" data-k="cards" title="${t('卡牌：建築卡與藍圖（發展模式）')}" aria-label="${t('卡牌：建築卡與藍圖（發展模式）')}">${emblemSvg('cards', 36)}<span class="lbl">${t('卡牌')}</span><i class="hm-badge new" hidden></i></button>
-      <button class="hm-tab" type="button" data-k="shop" title="${t('抽卡・商店・任務')}" aria-label="${t('抽卡・商店・任務')}">${emblemSvg('shop', 36)}<span class="lbl">${t('商店')}</span><span class="hm-purse num"></span><i class="hm-badge" hidden></i></button>
-    </div>
+    <nav class="hm-tabs" aria-label="${t('頁面')}">${navHtml({ cls: 'hm-tab', size: 34, purse: true })}</nav>
     <div class="hm-medals">
-      <button class="hm-medal narrow" type="button" data-k="cards" title="${t('卡牌：建築卡與藍圖（發展模式）')}" aria-label="${t('卡牌：建築卡與藍圖（發展模式）')}">${emblemSvg('cards', 40)}<span>${t('卡牌')}</span><i class="hm-badge new" hidden></i></button>
-      <button class="hm-medal narrow" type="button" data-k="shop" title="${t('抽卡・商店・任務')}" aria-label="${t('抽卡・商店・任務')}">${emblemSvg('shop', 40)}<span>${t('商店')}</span><i class="hm-badge" hidden></i></button>
       <button class="hm-medal" type="button" data-k="rules" title="${t('規則說明')}" aria-label="${t('規則說明')}">${emblemSvg('rules', 40)}<span>${t('規則')}</span></button>
-      <button class="hm-medal" type="button" data-k="settings" title="${t('設定')}" aria-label="${t('設定')}">${emblemSvg('settings', 40)}<span>${t('設定')}</span></button>
     </div>
     <p class="hm-credits">${t('寫實素材來自 {polyhaven}、Blend Swap 的 Daniel74 與 {quaternius}（皆為 CC0）；圖示來自 {gameicons}（Lorc、Delapouite 等，{ccby}）', {
       polyhaven: '<a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>',
@@ -433,69 +395,14 @@ export function showHome(app, opts) {
     c.style.setProperty('--lift', `${(Math.abs(off) ** 1.6 * 7).toFixed(1)}px`);
   });
 
-  // ── who you are: flag, name, colour ──
-  const flag = scr.querySelector('.hm-flag img');
-  const name = scr.querySelector('#menu-name');
-  const gems = scr.querySelector('.hm-gems');
-  const paintId = () => {
-    flag.src = flagURL(settings.color, 0);
-    gems.innerHTML = '';
-    for (const p of PALETTE) {
-      const b = el('button', 'gem' + (settings.color === p.hex ? ' on' : ''));
-      b.type = 'button';
-      b.style.setProperty('--c', p.hex);
-      b.title = t(p.name);
-      b.setAttribute('aria-label', t('{c}色', { c: t(p.name) }));
-      b.setAttribute('aria-pressed', String(settings.color === p.hex));
-      b.addEventListener('click', () => {
-        settings.color = p.hex;
-        onChange(settings);
-        paintId();
-        paint();
-      });
-      gems.appendChild(b);
-    }
-  };
-  name.value = settings.name;
-  name.addEventListener('input', () => {
-    settings.name = name.value;
-    onChange(settings);
-  });
-
-  // ── the player's account (signing in with Google, the record of finished campaigns) ──
-  const account = opts.dialogs ? mountAccount(scr.querySelector('.hm-who'), opts.dialogs) : null;
-
   // ── actions ──
-  const handlers = { single: opts.onSingle, create: opts.onCreate, join: opts.onJoin, workshop: opts.onEditor, continue: opts.onContinue, rules: opts.onRules, settings: opts.onSettings, cards: opts.onCards, shop: opts.onShop, match: opts.onMatch };
-  const act = (k) => handlers[k] && handlers[k]();
+  const handlers = { single: opts.onSingle, create: opts.onCreate, join: opts.onJoin, workshop: opts.onEditor, continue: opts.onContinue, rules: opts.onRules, match: opts.onMatch };
+  const act = (k) => (handlers[k] ? handlers[k]() : opts.onPage && opts.onPage(k));
   scr.querySelectorAll('button[data-k]').forEach((b) => b.addEventListener('click', () => act(b.dataset.k)));
-  // ── the building cards: new ones to look at, rewards waiting, the coins ──
-  const paintMarks = () => {
-    const m = homeMarks();
-    // (more than the last look: the badge bounces, once the screen has come in)
-    const rose = (k) => seenMarks[k] != null && m[k] > seenMarks[k];
-    const bounce = (b) => !b.hidden && pop(b, { scale: 1.55, ms: 380, delay: 200 });
-    const popFresh = rose('fresh');
-    const popClaim = rose('claim');
-    seenMarks.fresh = m.fresh;
-    seenMarks.claim = m.claim;
-    scr.querySelectorAll('[data-k="cards"] .hm-badge').forEach((b) => {
-      b.hidden = !m.fresh;
-      b.textContent = m.fresh ? t('新') : '';
-      b.title = m.fresh ? t('{n} 張新卡', { n: m.fresh }) : '';
-      if (popFresh) bounce(b);
-    });
-    scr.querySelectorAll('[data-k="shop"] .hm-badge').forEach((b) => {
-      b.hidden = !m.claim;
-      b.textContent = m.claim ? String(m.claim) : '';
-      b.title = m.claim ? t('{n} 個任務獎勵可以領取', { n: m.claim }) : '';
-      if (popClaim) bounce(b);
-    });
-    const purse = scr.querySelector('.hm-purse');
-    if (purse) purse.textContent = m.coins.toLocaleString('en-US');
-  };
-  paintMarks();
-  const unCards = onCards(() => !closed && paintMarks());
+  // ── the side bar's marks: new cards to look at, rewards waiting, the coins ──
+  const tabsEl = scr.querySelector('.hm-tabs');
+  paintNav(tabsEl);
+  const unCards = onCards(() => !closed && paintNav(tabsEl));
   const boardEl = scr.querySelector('.ho-board');
   boardEl.addEventListener('click', () => act('match'));
   boardEl.addEventListener('keydown', (e) => {
@@ -692,7 +599,6 @@ export function showHome(app, opts) {
     update(lobby.peers());
   };
 
-  paintId();
   fit();
   paintArt();
   paint();
@@ -730,7 +636,6 @@ export function showHome(app, opts) {
       closed = true;
       clearInterval(timer);
       unCards();
-      if (account) account.close();
       for (const u of unsubs) if (u) u();
       if (ro) ro.disconnect();
       if (fitRo) fitRo.disconnect();

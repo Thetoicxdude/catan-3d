@@ -1,11 +1,12 @@
-# The building cards on the page (src/meta/collection.js, src/ui/cards-ui.js): a new player's home screen
-# (a full first blueprint: the four basic cards and three buildings; the welcome present waiting on the
-# Draw & Shop tab, both tabs on the left), taking it, a draw (into the collection: the blueprint is
-# full), the shop (shards for a card), the Cards page (the basic cards and the 18 buildings, the ones not
-# owned grey, a card opened with its cost, another blueprint without the development card taken into
-# use), the setup showing that blueprint, a campaign where it is played (no development cards for
-# money; the computers with seven cards each), a mission done in play, and the coins and missions of
-# the finished game; the pages at phone width.
+# The building cards on the page (src/meta/collection.js, src/ui/cards-ui.js, the pages: src/ui/pages.js):
+# a new player's home screen (a full first blueprint: the four basic cards and three buildings; the
+# welcome present waiting on the Missions tab, the side bar's five tabs on the left), taking it on the
+# Missions page (the whole screen), a draw (into the collection: the blueprint is full), the shop (shards
+# for a card), the Cards page (the basic cards and the 18 buildings, the ones not owned grey, a card
+# opened with its cost, another blueprint without the development card taken into use), the setup
+# showing that blueprint, a campaign where it is played (no development cards for money; the computers
+# with seven cards each), a mission done in play, and the coins and missions of the finished game; the
+# pages at phone width (the side bar along the bottom).
 #   python3 test/ui8.py          (SHOTS=dir for the screenshots)
 import asyncio, sys, os, json, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
@@ -54,32 +55,33 @@ async def main():
         # (nothing saved yet: the first blueprint is the settings' default)
         deck1 = (s.get('bps') or [first])[0]
         check('a new player: three buildings, a full first blueprint with the basic cards', c['own'] == ['aqueduct', 'granary', 'market'] and c['coins'] == 0 and deck1 == first, (c['own'], deck1))
-        marks = await page.evaluate("() => ({ tabs: [...document.querySelectorAll('.hm-tab')].filter((t) => getComputedStyle(t).display !== 'none').map((t) => [t.dataset.k, Math.round(t.getBoundingClientRect().left)]), shop: document.querySelector('.hm-tab[data-k=\"shop\"] .hm-badge').textContent, shopShown: !document.querySelector('.hm-tab[data-k=\"shop\"] .hm-badge').hidden, cardsShown: !document.querySelector('.hm-tab[data-k=\"cards\"] .hm-badge').hidden })")
-        check('both tabs on the left, the welcome present marked', marks['tabs'] == [['cards', 0], ['shop', 0]] and marks['shopShown'] and marks['shop'] == '1' and not marks['cardsShown'], marks)
+        marks = await page.evaluate("() => ({ tabs: [...document.querySelectorAll('.hm-tab')].filter((t) => getComputedStyle(t).display !== 'none').map((t) => [t.dataset.k, Math.round(t.getBoundingClientRect().left)]), missions: document.querySelector('.hm-tab[data-k=\"missions\"] .hm-badge').textContent, missionsShown: !document.querySelector('.hm-tab[data-k=\"missions\"] .hm-badge').hidden, cardsShown: !document.querySelector('.hm-tab[data-k=\"cards\"] .hm-badge').hidden })")
+        check('the side bar\'s five tabs on the left, the welcome present marked on Missions', marks['tabs'] == [['cards', 0], ['shop', 0], ['missions', 0], ['profile', 0], ['settings', 0]] and marks['missionsShown'] and marks['missions'] == '1' and not marks['cardsShown'], marks)
         await page.screenshot(path=f'{SP}/ui8-home.png')
 
-        # ── Draw & Shop: the present, a draw ──
-        await page.click('.hm-tab[data-k="shop"]')
-        await page.wait_for_selector('.modal.side-page .shop-page')
+        # ── Missions: the present (a page over the whole screen, the home screen gone) ──
+        await page.click('.hm-tab[data-k="missions"]')
+        await page.wait_for_selector('.menu-screen.page .missions-page')
         await page.wait_for_timeout(600)
-        left = await page.evaluate("() => Math.round(document.querySelector('.modal.side-page').getBoundingClientRect().left)")
-        check('the Draw & Shop page opens at the left', left == 0, left)
-        await page.click('[data-tab="missions"]')
+        geo = await page.evaluate("() => { const r = document.querySelector('.menu-screen.page').getBoundingClientRect(); return { x: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height), home: !!document.querySelector('.menu-screen.home:not(.leaving)') }; }")
+        check('the Missions page takes the whole screen in the home screen\'s place', geo['x'] == 0 and geo['w'] == 1366 and geo['h'] == 820 and not geo['home'], geo)
         await page.click('[data-claim="welcome"]')
         # (the coins fly into the head and the number counts up to them)
         await page.wait_for_function("() => document.querySelector('.sp-bals .cur.coin .num').textContent === '200'", timeout=10000)
         c = await page.evaluate(CARDS)
         bal = await page.inner_text('.sp-bals')
         check('the welcome present: 200 coins, shown at the top', c['coins'] == 200 and 'welcome' in c['got'] and '200' in bal, (c['coins'], bal))
-        await page.click('[data-tab="draw"]')
-        await page.click('.sp-draw >> nth=0')
+        # ── Draw & Shop: a draw ──
+        await page.click('.pg-item[data-k="shop"]')
+        await page.wait_for_selector('.menu-screen.page .shop-page')
+        await page.click('.btn.sp-draw >> nth=0')
         await page.wait_for_timeout(1500)
         c = await page.evaluate(CARDS)
         got = await page.evaluate("() => [...document.querySelectorAll('.sp-reveal .rv .cc')].map((x) => x.dataset.k)")
         s = await page.evaluate(SETTINGS)
         check('a draw: 100 coins, a card of the pack into the collection (the blueprint is full)', c['coins'] == 100 and len(got) == 1 and got[0] in c['own'] and len(c['own']) == 4 and (s.get('bps') or [first])[0] == first, (c['coins'], got, s.get('bps')))
         await page.screenshot(path=f'{SP}/ui8-draw.png')
-        ten = await page.locator('.sp-draw >> nth=1').is_disabled()
+        ten = await page.locator('.btn.sp-draw >> nth=1').is_disabled()
         check('ten draws need 900 coins', ten)
 
         # ── the shop: shards for a chosen card ──
@@ -96,8 +98,8 @@ async def main():
         await page.screenshot(path=f'{SP}/ui8-shop.png')
 
         # ── the Cards page: the collection, a locked card, the blueprints ──
-        await page.click('.modal-foot .btn:has-text("卡牌")')
-        await page.wait_for_selector('.modal.side-page .cards-page')
+        await page.click('.pg-item[data-k="cards"]')
+        await page.wait_for_selector('.menu-screen.page .cards-page')
         n = await page.locator('.cp-coll .cc').count()
         locked = await page.locator('.cp-coll .cc.locked').count()
         lock_icons = await page.locator('.cp-coll .cc .cc-lock, .cp-coll .cc .cc-cost').count()
@@ -125,7 +127,9 @@ async def main():
         check('a card taken out from its place', s['bps'][1] == mine[:-1], s['bps'][1])
         await page.click('.cp-acts .btn.primary')
         await page.screenshot(path=f'{SP}/ui8-cards.png')
-        await page.click('.modal.side-page .modal-head .icon-btn')
+        # home from the rail's crest
+        await page.click('.pg-home')
+        await page.wait_for_selector('.menu-screen.home:not(.leaving)')
         await page.wait_for_timeout(300)
 
         # ── the setup shows the blueprint in use; the campaign plays it ──
@@ -170,8 +174,13 @@ async def main():
         await page.evaluate("() => { const g = __game, s = g.state; s.phase = 'over'; s.winner = 0; s.pending = null; g.refresh(); }")
         await page.wait_for_selector('.modal[data-kind="over"] .rewards', timeout=20000)
         c = await page.evaluate(CARDS)
-        rw = await page.inner_text('.modal[data-kind="over"] .rewards')
         gained = c['coins'] - before
+        # (the total counts up from 0: read it once it has got there)
+        try:
+            await page.wait_for_function("(n) => document.querySelector('.modal[data-kind=\"over\"] .rewards').textContent.includes(String(n))", arg=gained, timeout=8000)
+        except Exception:
+            pass
+        rw = await page.inner_text('.modal[data-kind="over"] .rewards')
         check('a win: coins for the game, the win and the first game today', gained == 30 + 40 + 50 and str(gained) in rw, (gained, rw.replace('\n', ' ')))
         check('the missions of a finished game: a game and a win of the development mode', c['prog'].get('devgame') == 1 and c['prog'].get('devwin') == 1 and c['games'] == 1 and c['wins'] == 1, c['prog'])
         await page.screenshot(path=f'{SP}/ui8-over.png')
@@ -183,29 +192,39 @@ async def main():
         await page.evaluate("() => localStorage.removeItem('catan3d-save-v1')")
         await page.goto('http://127.0.0.1:8765/dist/index.test.html')
         await page.wait_for_selector('.menu-screen.home', timeout=60000)
-        badge = await page.inner_text('.hm-tab[data-k="shop"] .hm-badge')
-        check('the Draw & Shop tab shows three rewards waiting', badge == '3', badge)
-        await page.click('.hm-tab[data-k="shop"]')
-        await page.click('[data-tab="missions"]')
+        badge = await page.inner_text('.hm-tab[data-k="missions"] .hm-badge')
+        check('the Missions tab shows three rewards waiting', badge == '3', badge)
+        await page.click('.hm-tab[data-k="missions"]')
         await page.click('[data-claim="devwin"]')
         await page.wait_for_timeout(300)
         c = await page.evaluate(CARDS)
         s = await page.evaluate(SETTINGS)
         check('the win of a development game gives the academy, into the blueprint with room', 'academy' in c['own'] and 'academy' in s['bps'][1], (c['own'], s['bps'][1]))
 
-        # ── phone width: the medals instead of the tabs, the pages over the whole screen ──
+        # ── phone width: the side bar along the bottom, the pages over the whole screen ──
         await page.set_viewport_size({'width': 390, 'height': 844})
         await page.goto('http://127.0.0.1:8765/dist/index.test.html')
         await page.wait_for_selector('.menu-screen.home', timeout=60000)
         await page.wait_for_timeout(800)
-        vis = await page.evaluate("() => ({ tabs: [...document.querySelectorAll('.hm-tab')].some((t) => t.getBoundingClientRect().width > 0), medals: [...document.querySelectorAll('.hm-medal')].filter((m) => m.getBoundingClientRect().width > 0).map((m) => m.dataset.k) })")
-        check('a phone shows the medals, not the tabs', not vis['tabs'] and vis['medals'][:2] == ['cards', 'shop'], vis)
-        await page.click('.hm-medal[data-k="cards"]')
-        await page.wait_for_selector('.cards-page')
-        await page.wait_for_timeout(400)
-        geo = await page.evaluate("() => { const m = document.querySelector('.modal.side-page').getBoundingClientRect(); const slots = [...document.querySelectorAll('.cp-slots > *')].map((x) => Math.round(x.getBoundingClientRect().top)); return { w: Math.round(m.width), oneRow: new Set(slots).size === 1, over: document.documentElement.scrollWidth > innerWidth }; }")
-        check('the Cards page fills a phone, its seven places in one row', geo['w'] == 390 and geo['oneRow'] and not geo['over'], geo)
+        vis = await page.evaluate("() => ({ tabs: [...document.querySelectorAll('.hm-tab')].map((t) => { const r = t.getBoundingClientRect(); return [t.dataset.k, Math.round(r.top), Math.round(r.bottom)]; }), medals: [...document.querySelectorAll('.hm-medal')].filter((m) => m.getBoundingClientRect().width > 0).map((m) => m.dataset.k) })")
+        row = len(set(t[1] for t in vis['tabs'])) == 1 and all(t[2] >= 830 for t in vis['tabs'])
+        check('a phone shows the side bar along the bottom, the rules in the corner', len(vis['tabs']) == 5 and row and vis['medals'] == ['rules'], vis)
+        await page.click('.hm-tab[data-k="cards"]')
+        await page.wait_for_selector('.menu-screen.page .cards-page')
+        await page.wait_for_timeout(600)
+        geo = await page.evaluate("() => { const m = document.querySelector('.menu-screen.page').getBoundingClientRect(); const slots = [...document.querySelectorAll('.cp-slots > *')].map((x) => Math.round(x.getBoundingClientRect().top)); const bar = [...document.querySelectorAll('.pg-item')].map((x) => Math.round(x.getBoundingClientRect().bottom)); const home = document.querySelector('.pg-corner').getBoundingClientRect(); return { w: Math.round(m.width), oneRow: new Set(slots).size === 1, over: document.documentElement.scrollWidth > innerWidth, bar, home: [Math.round(home.left), Math.round(home.top)] }; }")
+        check('the Cards page fills a phone, its seven places in one row, the bar at the bottom, home in the corner', geo['w'] == 390 and geo['oneRow'] and not geo['over'] and len(set(geo['bar'])) == 1 and geo['bar'][0] >= 830 and geo['home'][0] < 30 and geo['home'][1] < 30, geo)
+        # a card opened: a sheet from below, its button in reach, the header still there
+        await page.click('.cp-coll .cc[data-k="guild"]')
+        await page.wait_for_timeout(500)
+        sheet = await page.evaluate("() => { const d = document.querySelector('.cp-detail').getBoundingClientRect(); const a = document.querySelector('.cp-acts').getBoundingClientRect(); const bar = document.querySelector('.pg-rail').getBoundingClientRect(); return { top: Math.round(d.top), bottom: Math.round(d.bottom), acts: Math.round(a.bottom), bar: Math.round(bar.top) }; }")
+        check('a card opened on a phone: a sheet over the bar, its button in sight', sheet['bottom'] <= sheet['bar'] + 1 and sheet['top'] > 60 and sheet['acts'] <= sheet['bottom'] + 1, sheet)
         await page.screenshot(path=f'{SP}/ui8-phone-cards.png')
+        await page.click('.cp-x')
+        await page.wait_for_timeout(300)
+        await page.click('.pg-corner')
+        await page.wait_for_selector('.menu-screen.home:not(.leaving)')
+        check('home again from the corner', True)
 
         errors = [l for l in logs if 'pageerror' in l or '[error]' in l]
         check('no page errors', not errors, errors[:5])

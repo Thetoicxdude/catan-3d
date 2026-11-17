@@ -1,4 +1,6 @@
-# Official matchmaking: N pages press "quick match"; check they converge into one room and start.
+# Official matchmaking: N pages press "quick match"; check they converge into one room and start. The
+# last one goes on to the Cards page meanwhile (the side bar): its matchmaking goes on there, shown in
+# the page's header, and the campaign opens over the page when the room starts.
 import asyncio, sys, os, json, time, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
@@ -38,15 +40,20 @@ async def main():
         # everyone presses quick match at about the same time (clicked together: in this software-rendered
         # test browser a single click can take several seconds, longer than the test's short countdown)
         await asyncio.gather(*[pg.click('[data-k="match"]', timeout=90000) for pg in pages])
+        await pages[-1].click('.hm-tab[data-k="cards"]', timeout=90000)
         t0 = time.time()
         shot = False
+        chip = None
         while time.time() - t0 < 120:
             st = []
             for pg in pages:
                 # matchmaking runs on the home screen: its official-room board shows the phase, seats and countdown
-                st.append(await pg.evaluate("""(() => { const g = window.__game; const m = document.querySelector('.ho-board');
-                  return { game: !!(g && g.state), seat: g ? g.viewer : null, code: m ? m.dataset.match || null : null,
-                           count: m ? m.querySelector('.ho-n').textContent : null, status: m ? m.querySelector('.ho-sec').textContent : null }; })()"""))
+                # (on a page: its header shows the matchmaking going on)
+                st.append(await pg.evaluate("""(() => { const g = window.__game; const m = document.querySelector('.ho-board'); const c = document.querySelector('.menu-screen.page:not(.leaving) .pg-match');
+                  return { game: !!(g && g.state), seat: g ? g.viewer : null, code: m ? m.dataset.match || null : c && !c.hidden ? 'page' : null,
+                           count: m ? m.querySelector('.ho-n').textContent : c ? c.querySelector('.pg-seats').textContent : null, status: m ? m.querySelector('.ho-sec').textContent : c ? c.querySelector('.pg-clock').textContent : null }; })()"""))
+            if st[-1]['code'] == 'page' and not chip:
+                chip = st[-1]
             if not shot and all(s['code'] for s in st):
                 shot = True
                 await pages[-1].screenshot(path=f'{SP}/match-lobby.png', timeout=120000)
@@ -62,6 +69,8 @@ async def main():
         for pg in pages:
             info.append(await pg.evaluate("({code: __game.net && __game.net.code, role: __game.net && __game.net.role, seat: __game.viewer, kinds: __game.players.map(p=>p.kind).join(',')})"))
         print('rooms', json.dumps(info, ensure_ascii=False))
+        gone = await pages[-1].evaluate("() => !document.querySelector('.menu-screen.page:not(.leaving)')")
+        print('PASS' if chip and gone and len(set(i['code'] for i in info)) == 1 else 'FAIL', 'matchmaking went on on the Cards page and its campaign opened over it', json.dumps(chip, ensure_ascii=False), gone)
         await pages[0].screenshot(path=f'{SP}/match-game.png', timeout=120000)
         for l in logs[:20]: print(l)
         await b.close()

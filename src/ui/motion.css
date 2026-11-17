@@ -47,7 +47,7 @@
 
 @keyframes m-fade { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .modal, .modal.side-page, .toast { animation: m-fade 0.12s ease-out; }
+  .modal, .toast { animation: m-fade 0.12s ease-out; }
   .menu-screen { animation-duration: 0.12s; }
   .rv-in { animation: none; }
   .rv-tag { animation: m-fade 0.12s both; }

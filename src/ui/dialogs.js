@@ -5,7 +5,7 @@ import { developOn, developScore } from '../engine/develop.js';
 import { resIcon, resCard, devCard, icon, RES_NAMES } from './icons.js';
 import { flagURL } from './flags.js';
 import { esc, cardsHtml, DEV_INFO, rulesHtml } from './text.js';
-import { t, isZh, getLang } from '../i18n/index.js';
+import { t, isZh, getLang, N_ } from '../i18n/index.js';
 import { reduced } from './motion.js';
 
 function el(tag, cls, html) {
@@ -111,9 +111,8 @@ export class Dialogs {
     ghost.appendChild(m);
     this.layer.after(ghost);
     this.ghost = ghost;
-    const side = m.classList.contains('side-page');
     const out = { duration: 150, easing: 'cubic-bezier(.5,0,.9,.4)', fill: 'forwards' };
-    m.animate(side ? [{ translate: '0 0' }, { translate: '-56px 0' }] : [{ translate: '0 0', scale: 1 }, { translate: '0 6px', scale: 0.98 }], out);
+    m.animate([{ translate: '0 0', scale: 1 }, { translate: '0 6px', scale: 0.98 }], out);
     ghost.animate([{ opacity: 1 }, { opacity: 0 }], out);
     setTimeout(() => ghost.remove(), 190);
   }
@@ -557,73 +556,96 @@ export class Dialogs {
   }
 
   settings(settings, onChange) {
-    const body = el('div');
-    const render = () => {
-      body.innerHTML = '';
-      const g = el('div', 'form-grid');
-      const seg = (label, key, opts) => {
-        g.appendChild(el('label', '', label));
-        const s = el('div', 'seg');
-        for (const [val, text] of opts) {
-          const b = el('button', settings[key] === val ? 'on' : '', text);
-          b.type = 'button';
-          b.addEventListener('click', () => {
-            settings[key] = val;
-            if (key === 'quality') settings.qualityPicked = true; // chosen by hand: no more automatic default
-            if (key === 'ui') settings.uiPicked = true;
-            onChange(settings, key);
-            render();
-          });
-          s.appendChild(b);
-        }
-        g.appendChild(s);
-      };
-      // the language first, its row the same in both languages so that either reader finds it
-      // (changing it reloads the page: main.js)
-      // i18n-keep: each language's name in its own words
-      seg('Language', 'lang', [
-        ['en', 'English'],
-        ['zh', '中文'],
-      ]);
-      // (its Chinese marked as Chinese: read so, and left alone by the English page's check)
-      g.lastChild.lastChild.lang = 'zh-Hant';
-      // i18n-keep: the label in both languages
-      g.lastChild.previousSibling.innerHTML = 'Language / <span lang="zh-Hant">語言</span>';
-      seg(t('電腦速度'), 'speed', [
-        ['slow', t('慢')],
-        ['normal', t('普通')],
-        ['fast', t('快')],
-        ['turbo', t('極快')],
-      ]);
-      seg(t('畫面品質'), 'quality', [
-        ['high', t('高')],
-        ['medium', t('中')],
-        ['low', t('低')],
-      ]);
-      seg(t('幀率'), 'fps', [
-        ['eco', t('省電 30')],
-        ['std', t('標準 60')],
-        ['max', t('不限')],
-      ]);
-      seg(t('效能資訊'), 'perfInfo', [
-        [false, t('隱藏')],
-        [true, t('顯示')],
-      ]);
-      seg(t('音效'), 'sound', [
-        [true, t('開')],
-        [false, t('關')],
-      ]);
-      seg(t('介面風格'), 'ui', [
-        ['atlas', t('製圖桌')],
-        ['classic', t('經典')],
-        ['clean', t('清爽')],
-      ]);
-      body.appendChild(g);
-      body.appendChild(el('p', 'lead', t('畫面品質會在下一局或重新載入地圖時套用。幀率是地圖在動（移動鏡頭、建造）時每秒畫幾次；靜止時只剩海浪和羊在動，會自動降到一半，視窗不在前景時更低，電腦比較不會熱。')));
-    };
-    render();
+    const body = settingsForm(settings, onChange);
     return this.open({ kind: 'settings', title: t('設定'), body, cls: 'narrow' });
   }
+}
+
+// The settings as rows of choices: the in-game dialog (compact: a grid and a note under it) and the
+// home screen's Settings page (paged: each row in its section, what it does under it). onChange(settings,
+// key) after each choice; the rows are drawn again.
+const SECTIONS = [
+  [N_('一般'), ['lang', 'speed', 'sound']],
+  [N_('畫面'), ['ui', 'quality', 'fps', 'perfInfo']],
+];
+const ABOUT = {
+  speed: N_('電腦對手每一步之間等多久。'),
+  quality: N_('下一局或重新載入地圖時套用；低品質比較省電。'),
+  fps: N_('地圖在動時每秒畫幾次；靜止時自動降到一半，視窗不在前景時更低，電腦比較不會熱。'),
+  ui: N_('對局中的面板與對話框的樣子。'),
+  perfInfo: N_('在地圖左下角顯示幀率、顯示卡時間與解析度；回報卡頓時請截這個。'),
+  sound: N_('擲骰、建造、得到資源的聲音。'),
+};
+export function settingsForm(settings, onChange, { paged = false } = {}) {
+  const body = el('div', paged ? 'set-form paged' : 'set-form');
+  const rows = {
+    // the language first, its row the same in both languages so that either reader finds it
+    // (changing it reloads the page: main.js)
+    // i18n-keep: each language's name in its own words
+    lang: ['Language', [['en', 'English'], ['zh', '中文']]],
+    speed: [t('電腦速度'), [['slow', t('慢')], ['normal', t('普通')], ['fast', t('快')], ['turbo', t('極快')]]],
+    quality: [t('畫面品質'), [['high', t('高')], ['medium', t('中')], ['low', t('低')]]],
+    fps: [t('幀率'), [['eco', t('省電 30')], ['std', t('標準 60')], ['max', t('不限')]]],
+    perfInfo: [t('效能資訊'), [[false, t('隱藏')], [true, t('顯示')]]],
+    sound: [t('音效'), [[true, t('開')], [false, t('關')]]],
+    ui: [t('介面風格'), [['atlas', t('製圖桌')], ['classic', t('經典')], ['clean', t('清爽')]]],
+  };
+  const order = ['lang', 'speed', 'quality', 'fps', 'perfInfo', 'sound', 'ui'];
+  const render = () => {
+    body.innerHTML = '';
+    const row = (g, key) => {
+      const [label, opts] = rows[key];
+      const lab = el('label', 'set-label', esc(label));
+      const s = el('div', 'seg');
+      for (const [val, text] of opts) {
+        const b = el('button', settings[key] === val ? 'on' : '', esc(text));
+        b.type = 'button';
+        b.addEventListener('click', () => {
+          settings[key] = val;
+          if (key === 'quality') settings.qualityPicked = true; // chosen by hand: no more automatic default
+          if (key === 'ui') settings.uiPicked = true;
+          onChange(settings, key);
+          render();
+        });
+        s.appendChild(b);
+      }
+      if (key === 'lang') {
+        // (its Chinese marked as Chinese: read so, and left alone by the English page's check)
+        s.lastChild.lang = 'zh-Hant';
+        // i18n-keep: the label in both languages
+        lab.innerHTML = 'Language / <span lang="zh-Hant">語言</span>';
+      }
+      if (!paged) {
+        g.appendChild(lab);
+        g.appendChild(s);
+        return;
+      }
+      // (a page: what the choice is about under its name, the choice beside them)
+      const r = el('div', 'set-row');
+      const words = el('div', 'set-text');
+      words.appendChild(lab);
+      if (ABOUT[key]) words.appendChild(el('p', 'set-about', esc(t(ABOUT[key]))));
+      r.append(words, s);
+      g.appendChild(r);
+    };
+    if (!paged) {
+      const g = el('div', 'form-grid');
+      for (const k of order) row(g, k);
+      body.appendChild(g);
+      body.appendChild(el('p', 'lead', t('畫面品質會在下一局或重新載入地圖時套用。幀率是地圖在動（移動鏡頭、建造）時每秒畫幾次；靜止時只剩海浪和羊在動，會自動降到一半，視窗不在前景時更低，電腦比較不會熱。')));
+      return;
+    }
+    for (const [head, keys] of SECTIONS) {
+      const sec = el('section', 'set-sec pg-sheet panel');
+      sec.appendChild(el('h4', 'set-head', esc(t(head))));
+      const g = el('div', 'set-rows');
+      for (const k of keys) row(g, k);
+      sec.appendChild(g);
+      body.appendChild(sec);
+    }
+  };
+  render();
+  return body;
 }
 
 export { legalRoadEdges };

@@ -221,9 +221,10 @@ export function leaveScreen(scr, { ms = 150 } = {}) {
   scr.inert = true;
   scr.setAttribute('aria-hidden', 'true');
   scr.classList.add('leaving');
-  for (const e of scr.querySelectorAll('[id], [data-k]')) {
+  for (const e of scr.querySelectorAll('[id], [data-k], [data-go]')) {
     e.removeAttribute('id');
     e.removeAttribute('data-k');
+    e.removeAttribute('data-go');
   }
   let gone = false;
   const done = () => {
