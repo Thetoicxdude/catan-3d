@@ -4,10 +4,11 @@
 import { accountsAvailable, currentUser, onUser, loadUser, renderSignIn, signOut, forgetMe } from '../net/account.js';
 import { PALETTE, NAME_MAX } from './menu.js';
 import { flagURL } from './flags.js';
-import { coinHtml, shardHtml } from './cards-ui.js';
+import { cardFace, rarityTag } from './cards-ui.js';
+import { blueprintName } from './develop-ui.js';
 import { cards as collection, onCards } from '../meta/store.js';
-import { MISSIONS, missionState } from '../meta/collection.js';
-import { BUILDING_IDS, BASIC } from '../engine/develop.js';
+import { MISSIONS, RARITIES, ALL_CARDS, rarityOf, owns, missionState, ownedBlueprint } from '../meta/collection.js';
+import { BLUEPRINT_SIZE } from '../engine/develop.js';
 import { emblemSvg } from './emblems.js';
 import { fadeIn } from './motion.js';
 import { esc } from './text.js';
@@ -104,7 +105,8 @@ function recordHtml(u) {
 }
 
 // The Profile page. host: the page shell (pages.js); opts: settings, onChange(settings) (the name and
-// the colour, kept at once), dialogs() (signing in), go(page) (to the Cards and Missions pages).
+// the colour, kept at once), dialogs() (signing in), go(page) (to the Cards and Missions pages). Under
+// the nation, the collection and the record: the blueprint the nation takes into its next game.
 export function profilePage(host, { settings, onChange, dialogs }) {
   let closed = false;
   const body = el('div', 'profile-page');
@@ -121,7 +123,8 @@ export function profilePage(host, { settings, onChange, dialogs }) {
       <p class="pf-note">${t('在對局和官方房間裡，大家看到的就是這面旗、這個名字和顏色。')}</p>
     </section>
     <section class="pf-coll pg-sheet panel"></section>
-    ${accountsAvailable() ? '<section class="pf-record pg-sheet panel"></section>' : ''}`;
+    ${accountsAvailable() ? '<section class="pf-record pg-sheet panel"></section>' : ''}
+    <section class="pf-deck pg-sheet panel"></section>`;
 
   // ── the nation: its flag, name and colour ──
   const flag = body.querySelector('.pf-flag img');
@@ -155,20 +158,25 @@ export function profilePage(host, { settings, onChange, dialogs }) {
   });
   paintId();
 
-  // ── the building cards collected so far ──
+  // ── the building cards collected so far (and of each rarity) ──
   const coll = body.querySelector('.pf-coll');
   const paintColl = () => {
     const c = collection();
-    const all = BUILDING_IDS.length + BASIC.length;
-    const have = c.own.length + BASIC.length;
+    const all = ALL_CARDS.length;
+    const have = ALL_CARDS.filter((k) => owns(c, k)).length;
+    const rars = RARITIES.map((r) => {
+      const ks = ALL_CARDS.filter((k) => rarityOf(k) === r);
+      const n = ks.filter((k) => owns(c, k)).length;
+      return `<span class="pf-rar${n === ks.length ? ' full' : ''}">${rarityTag(r)}<b class="num">${n}<small>/${ks.length}</small></b></span>`;
+    }).join('');
     const done = MISSIONS.filter((m) => missionState(c, m.id).got).length;
     coll.innerHTML = `
       <h4 class="pg-h">${t('收藏')}</h4>
       <div class="pf-tally">
         <div class="pf-meter"><span class="pf-big num">${have}<small>/${all}</small></span><span class="pf-what">${t('建築卡')}</span><span class="pf-bar" aria-hidden="true"><i style="translate:${Math.round((100 * have) / all) - 100}% 0"></i></span></div>
         <div class="pf-meter"><span class="pf-big num">${done}<small>/${MISSIONS.length}</small></span><span class="pf-what">${t('完成的任務')}</span><span class="pf-bar" aria-hidden="true"><i style="translate:${Math.round((100 * done) / MISSIONS.length) - 100}% 0"></i></span></div>
-        <div class="pf-purse">${coinHtml(c.coins)}${shardHtml(c.shards)}</div>
       </div>
+      <div class="pf-rars">${rars}</div>
       <div class="pf-links"></div>`;
     const links = coll.querySelector('.pf-links');
     if (host.go) {
@@ -176,8 +184,25 @@ export function profilePage(host, { settings, onChange, dialogs }) {
       links.appendChild(btn(`${emblemSvg('missions', 22)}<span>${esc(t('任務'))}</span>`, 'ghost', () => host.go('missions')));
     }
   };
+  // ── the blueprint in use: its cards, its name, where it is changed ──
+  const deck = body.querySelector('.pf-deck');
+  const paintDeck = () => {
+    const i = [0, 1, 2].includes(settings.bpCur) ? settings.bpCur : 0;
+    const bp = ownedBlueprint(collection(), settings.bps && settings.bps[i]);
+    deck.innerHTML = `<h4 class="pg-h">${t('使用中的藍圖')}</h4>
+      <div class="pf-deckrow">
+        <div class="pf-cards">${bp.map((k) => cardFace(k, { small: true })).join('')}${'<span class="pf-empty" aria-hidden="true"></span>'.repeat(Math.max(0, BLUEPRINT_SIZE - bp.length))}</div>
+        <div class="pf-deckinfo"><b>${esc(t('藍圖 {n}', { n: i + 1 }))}</b><small class="num">${bp.length}/${BLUEPRINT_SIZE}${bp.length >= BLUEPRINT_SIZE ? ' · ' + esc(blueprintName(bp)) : ''}</small></div>
+      </div>`;
+    if (host.go) deck.querySelector('.pf-deckinfo').appendChild(btn(esc(t('在「卡牌」更換')), 'ghost', () => host.go('cards')));
+  };
   paintColl();
-  const unCards = onCards(() => !closed && paintColl());
+  paintDeck();
+  const unCards = onCards(() => {
+    if (closed) return;
+    paintColl();
+    paintDeck();
+  });
 
   // ── the account: signing in, or the record so far ──
   const rec = body.querySelector('.pf-record');

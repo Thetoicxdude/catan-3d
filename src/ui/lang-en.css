@@ -46,5 +46,7 @@ html:lang(en) .hm-name input { font-size: 17px; }
 /* the blueprint on a phone: seven cards across leave no room for an English name; the picture says it
    (the card opened below names it) */
 @media (max-width: 520px) {
-  html:lang(en) .cp-slots .cc.small .cc-name { display: none; }
+  html:lang(en) .cp-slots .cc.small .cc-name, html:lang(en) .pf-cards .cc.small .cc-name { display: none; }
 }
+/* a small card's English name: two lines kept for every one, so that a row of them is even */
+html:lang(en) .cc.small .cc-name { min-height: 2.3em; display: flex; align-items: center; justify-content: center; font-size: 10.5px; line-height: 1.12; }

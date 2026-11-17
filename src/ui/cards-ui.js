@@ -11,13 +11,12 @@
 // (cardDetail), where the resources are large enough to read.
 // host (the page shell): mount(el) puts the page's body in place; bals() is where the coins and shards
 // are shown (filled by the page that counts them); go(page, opts) goes to another page.
-import { BUILDINGS, BUILDING_IDS, DIRS, DIR_NAMES, BLUEPRINT_SIZE, WONDER_VP, SCORE_VP, BASIC, BASIC_NAMES, isWonder, isBasic } from '../engine/develop.js';
+import { BUILDINGS, DIR_NAMES, BLUEPRINT_SIZE, WONDER_VP, SCORE_VP, BASIC_NAMES, isWonder, isBasic } from '../engine/develop.js';
 import { COSTS } from '../engine/engine.js';
-import { POOL, MISSIONS, STARTER, DRAW_COST, DRAW10_COST, COINS, owns, ownedBlueprint, missionFor, missionOf, missionState, claim, claimable, draw, buy, priceOf, dupShards, chanceOf, seen, slotNew } from '../meta/collection.js';
+import { POOL, MISSIONS, STARTER, DRAW_COST, DRAW10_COST, COINS, RARITIES, ALL_CARDS, rarityOf, owns, ownedBlueprint, missionFor, missionOf, missionState, claim, claimable, draw, buy, priceOf, dupShards, chanceOf, seen, slotNew } from '../meta/collection.js';
 import { cards as collection, commit, onCards } from '../meta/store.js';
 import { DIR_COLOR, BUILDING_TEXT, buildingName, blueprintName } from './develop-ui.js';
 import { buildingIcon, icon, resIcon, RES_NAMES } from './icons.js';
-import { emblemSvg } from './emblems.js';
 import { fly, burst, count, pop, stamp, shake, fadeIn, whenShown, EASE, reduced } from './motion.js';
 import { sfx } from './sfx.js';
 import { t, N_, list } from '../i18n/index.js';
@@ -52,8 +51,61 @@ const BASIC_TEXT = {
 };
 const KIND = { func: N_('功能建築'), score: N_('計分建築'), wonder: N_('世界奇觀') };
 export const cardName = (k) => (isBasic(k) ? t(BASIC_NAMES[k]) : buildingName(k));
+// a card's direction (the dot on its kind line); its frame is its rarity (rarityColor)
 export const cardColor = (k) => (isBasic(k) ? BASIC_COLOR : DIR_COLOR[BUILDINGS[k].dir]);
 export const cardIcon = (k, size) => (isBasic(k) ? icon(BASIC_FIGURE[k], size) : buildingIcon(k, size));
+
+// ── rarity (meta/collection.js rarityOf): the colour of the card's frame, and a gem cut for each, so
+// that the shape tells it as well as the colour (basic: none, common: round, rare: four sides, epic:
+// six, legendary: eight). The colours are collection.css's .r-*: the frame's light, middle and dark. ──
+export const RARITY_NAMES = { basic: N_('基本§rarity'), common: N_('普通§rarity'), rare: N_('稀有'), epic: N_('史詩'), legendary: N_('傳說') };
+export const RARITY_COLOR = { basic: '#a4abb3', common: '#62b046', rare: '#3f8fe0', epic: '#a95ce0', legendary: '#efa72e' };
+export const rarityColor = (k) => RARITY_COLOR[rarityOf(k)];
+const GEMS = {};
+const pts2 = (pts) => pts.map((p) => p.map((v) => v.toFixed(2)).join(',')).join(' ');
+export function gemSvg(r) {
+  if (r === 'basic' || !RARITY_COLOR[r]) return '';
+  if (GEMS[r]) return GEMS[r];
+  // (the frame's colours inside a card, which a card not owned mutes; elsewhere the rarity's own)
+  const c1 = 'var(--r1, var(--c1))';
+  const c2 = 'var(--r2, var(--c2))';
+  const c3 = 'var(--r3, var(--c3))';
+  if (r === 'common')
+    return (GEMS[r] = `<svg class="gem-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.4" style="fill:${c3}" stroke="#120b04" stroke-width="1.2"/><circle cx="12" cy="12" r="7.6" style="fill:${c2}"/><path d="M6.3 9.6a6.4 6.4 0 0 1 6.9-4.6" fill="none" style="stroke:${c1}" stroke-width="2.3" stroke-linecap="round"/><circle cx="9" cy="8.3" r="1.3" fill="#fff" opacity=".85"/></svg>`);
+  const n = r === 'rare' ? 4 : r === 'epic' ? 6 : 8;
+  const a0 = r === 'legendary' ? -Math.PI / 2 + Math.PI / 8 : -Math.PI / 2;
+  const at = (rad, i) => [12 + rad * Math.cos(a0 + (i * 2 * Math.PI) / n), 12 + rad * Math.sin(a0 + (i * 2 * Math.PI) / n)];
+  const outer = Array.from({ length: n }, (_, i) => at(11, i));
+  const inner = Array.from({ length: n }, (_, i) => at(r === 'rare' ? 5.2 : 6, i));
+  // (each facet lit from the upper left)
+  let facets = '';
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const mid = a0 + ((i + 0.5) * 2 * Math.PI) / n;
+    const lit = 0.7 * (Math.cos(mid) + Math.sin(mid));
+    facets += `<polygon points="${pts2([outer[i], outer[j], inner[j], inner[i]])}" style="fill:${lit < -0.35 ? c1 : lit < 0.35 ? c2 : c3}"/>`;
+  }
+  return (GEMS[r] =
+    `<svg class="gem-svg" viewBox="0 0 24 24" aria-hidden="true"><polygon points="${pts2(outer)}" stroke="#120b04" stroke-width="1.6" stroke-linejoin="round" style="fill:${c3}"/>${facets}` +
+    `<polygon points="${pts2(inner)}" style="fill:${c2}"/><polygon points="${pts2([inner[n - 1], inner[0], [12, 12]])}" fill="#fff" opacity=".55"/></svg>`);
+}
+// a rarity's gem and name, on its own (the collection's filter, the profile, the shop)
+export const rarityTag = (r) => `<span class="rar r-${r}">${gemSvg(r) || '<i class="gem-none" aria-hidden="true"></i>'}<span>${esc(t(RARITY_NAMES[r]))}</span></span>`;
+// a legendary card's crown, on the top of its frame
+const CROWN =
+  '<svg class="cc-crown" viewBox="0 0 38 20" aria-hidden="true"><path d="M4 16 L3 5.5 L11 10.5 L19 2.5 L27 10.5 L35 5.5 L34 16 Z" style="fill:var(--r2)" stroke="#2a1606" stroke-width="1.2" stroke-linejoin="round"/>' +
+  '<path d="M5.5 13.5 L5 8.5 L11 12.4 L19 5.2 L27 12.4 L33 8.5 L32.5 13.5 Z" style="fill:var(--r1)" opacity=".55"/><rect x="4" y="15" width="30" height="4" rx="1" style="fill:var(--r3)" stroke="#2a1606" stroke-width="1.1"/>' +
+  '<circle cx="3" cy="5.5" r="2" style="fill:var(--r1)" stroke="#2a1606" stroke-width=".9"/><circle cx="19" cy="2.5" r="2.2" style="fill:var(--r1)" stroke="#2a1606" stroke-width=".9"/><circle cx="35" cy="5.5" r="2" style="fill:var(--r1)" stroke="#2a1606" stroke-width=".9"/><circle cx="19" cy="17" r="1.4" fill="#d2402e"/></svg>';
+// The back of a building card (drawing): a compass rose over the island's hexagon, in gold on deep
+// green. Drawn here, used whole (the frame round it: collection.css .cc-back).
+const CARD_BACK =
+  '<svg class="cb-art" viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="#d8b56a" stroke-linejoin="round">' +
+  '<polygon points="50,8 86.4,29 86.4,71 50,92 13.6,71 13.6,29" stroke-width="2.2"/><polygon points="50,15 80.3,32.5 80.3,67.5 50,85 19.7,67.5 19.7,32.5" stroke-width="0.9" opacity=".7"/>' +
+  '<circle cx="50" cy="50" r="22" stroke-width="1.2" opacity=".8"/><circle cx="50" cy="50" r="27" stroke-width="0.6" stroke-dasharray="1.5 2.5" opacity=".7"/></g>' +
+  '<g fill="#e7c77c" stroke="#5a3d12" stroke-width=".6" stroke-linejoin="round"><polygon points="50,20 54.5,45.5 50,50 45.5,45.5"/><polygon points="50,80 45.5,54.5 50,50 54.5,54.5" fill="#b98d3e"/>' +
+  '<polygon points="80,50 54.5,54.5 50,50 54.5,45.5" fill="#b98d3e"/><polygon points="20,50 45.5,45.5 50,50 45.5,54.5"/>' +
+  '<polygon points="63,37 52.6,50 50,50 50,47.4" fill="#b98d3e" opacity=".9"/><polygon points="37,63 47.4,50 50,50 50,52.6" opacity=".9"/><polygon points="63,63 50,52.6 50,50 52.6,50" opacity=".9"/><polygon points="37,37 50,47.4 50,50 47.4,50" fill="#b98d3e" opacity=".9"/></g>' +
+  '<circle cx="50" cy="50" r="3.2" fill="#f3dc9c" stroke="#5a3d12" stroke-width=".6"/></svg>';
 // a card's points in a corner: 1, +3 (a scoring building), 5 (a wonder); the basic cards: a settlement
 // 1, a city 2 (none for the others)
 function ptsShort(k) {
@@ -63,18 +115,23 @@ function ptsShort(k) {
 }
 const kindLine = (k) => (isBasic(k) ? t('基本卡') : `${t(DIR_NAMES[BUILDINGS[k].dir])}・${t(KIND[BUILDINGS[k].kind])}`);
 
-// A card as a small collectible card: its colour's frame, the figure, name and kind, its points. marks:
-// locked (not owned: grey), on (in the blueprint shown), fresh (new), sel (opened).
-export function cardFace(k, { locked = false, on = false, fresh = false, sel = false, tag = 'div', small = false } = {}) {
+// A card as a collectible card: its rarity's metal frame round a dark body, the picture at the top with
+// the rarity's gem on its lower edge, the name and kind under it, the points in the corner (a legendary
+// card wears a crown). marks: locked (not owned: grey, the frame muted), on (in the blueprint shown),
+// fresh (new), sel (opened). small: no kind line and the small picture (the blueprint's places, the
+// missions' rewards, the pack); big: the card on its stand (the Cards page).
+export function cardFace(k, { locked = false, on = false, fresh = false, sel = false, tag = 'div', small = false, big = false } = {}) {
   const kind = isBasic(k) ? 'basic' : BUILDINGS[k].kind;
-  const cls = ['cc', 'k-' + kind, locked && 'locked', on && 'on', fresh && 'fresh', sel && 'sel', small && 'small'].filter(Boolean).join(' ');
+  const r = rarityOf(k);
+  const cls = ['cc', 'r-' + r, 'k-' + kind, locked && 'locked', on && 'on', fresh && 'fresh', sel && 'sel', small && 'small', big && 'big'].filter(Boolean).join(' ');
   const attrs = tag === 'button' ? ` type="button" aria-pressed="${sel}"` : '';
   const pts = ptsShort(k);
-  return `<${tag} class="${cls}" data-k="${k}" style="--dc:${cardColor(k)}"${attrs} title="${esc(cardName(k))}">
-    ${pts ? `<span class="cc-pts num">${pts}</span>` : ''}
-    <span class="cc-art"><span class="cc-pic" style="--pic:url(assets/cards/bld_${k}_s.webp)"></span>${cardIcon(k, small ? 30 : 44)}</span>
+  return `<${tag} class="${cls}" data-k="${k}" style="--dc:${cardColor(k)}"${attrs} title="${esc(`${cardName(k)} · ${t(RARITY_NAMES[r])}`)}">
+    ${r === 'legendary' ? CROWN : ''}${pts ? `<span class="cc-pts num">${pts}</span>` : ''}
+    <span class="cc-art"><span class="cc-pic" style="--pic:url(assets/cards/bld_${k}${small ? '_s' : ''}.webp)"></span>${cardIcon(k, big ? 84 : small ? 30 : 46)}</span>
+    <span class="cc-gem">${gemSvg(r)}</span>
     <b class="cc-name">${esc(cardName(k))}</b>
-    ${small ? '' : `<small class="cc-kind">${esc(kindLine(k))}</small>`}
+    ${small ? '' : `<small class="cc-kind"><i aria-hidden="true"></i>${esc(kindLine(k))}</small>`}
     ${fresh && !locked ? `<span class="cc-new">${esc(t('新'))}</span>` : ''}
   </${tag}>`;
 }
@@ -86,9 +143,11 @@ function costBig(cost) {
     .join('')}</span>`;
 }
 
-// A card opened: everything about it, the cost in large resource cards (a wonder: its three stages).
+// A card opened: the card itself, large, on a lit stand; its rarity and points; the cost in large
+// resource cards (a wonder: its three stages); what it asks and does.
 export function cardDetail(k, { on = false, locked = false } = {}) {
   const b = BUILDINGS[k];
+  const r = rarityOf(k);
   const pts = isBasic(k) ? (k === 'settlement' ? t('{n} 分', { n: 1 }) : k === 'city' ? t('{n} 分', { n: 2 }) : '') : b.kind === 'wonder' ? t('完工 {n} 分', { n: WONDER_VP }) : k === 'adventurers' ? t('持有最大騎士團時 +{n}', { n: SCORE_VP }) : k === 'post' ? t('持有最長道路時 +{n}', { n: SCORE_VP }) : t('{n} 分', { n: 1 });
   const cost = isBasic(k)
     ? costBig(COSTS[k])
@@ -98,9 +157,9 @@ export function cardDetail(k, { on = false, locked = false } = {}) {
   const words = isBasic(k)
     ? `<p class="cd-fx">${esc(t(BASIC_TEXT[k]))}</p><p class="cd-note">${esc(t('沒放進藍圖的話，這局就不能花錢蓋（開局照常放村莊和道路）。'))}</p>`
     : `<p class="cd-cond"><b>${esc(t('條件'))}</b>${esc(t(BUILDING_TEXT[k].cond))}</p><p class="cd-fx"><b>${esc(t('效果'))}</b>${esc(t(BUILDING_TEXT[k].fx))}</p>`;
-  return `<div class="cd${on ? ' on' : ''}${locked ? ' locked' : ''}" style="--dc:${cardColor(k)}">
-    <div class="cd-pic" style="--pic:url(assets/cards/bld_${k}.webp)" role="img" aria-label="${esc(cardName(k))}"></div>
-    <div class="cd-top"><span class="cd-ico">${cardIcon(k, 34)}</span><span class="cd-title"><b>${esc(cardName(k))}</b><small>${esc(kindLine(k))}</small></span>${pts ? `<span class="cd-pts">${esc(pts)}</span>` : ''}</div>
+  return `<div class="cd r-${r}${on ? ' on' : ''}${locked ? ' locked' : ''}" style="--dc:${cardColor(k)}">
+    <div class="cd-show" role="img" aria-label="${esc(cardName(k))}">${cardFace(k, { big: true, locked, on })}</div>
+    <div class="cd-meta">${rarityTag(r)}${pts ? `<span class="cd-pts">${esc(pts)}</span>` : ''}</div>
     <div class="cd-cost"><h6>${esc(b && b.kind === 'wonder' ? t('三個階段的花費') : t('花費'))}</h6>${cost}</div>
     ${words}
   </div>`;
@@ -119,31 +178,53 @@ function howToGet(c, k) {
 
 // ── the Cards page ──
 
+// an empty place in the blueprint: a building's elevation sketched in a draughtsman's lines
+const SKETCH =
+  '<svg class="cp-sketch" viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round">' +
+  '<path d="M9 33V18.5L20 9.5l11 9V33z"/><path d="M16.5 33v-7h7v7"/><path d="M12.5 21.5h4M23.5 21.5h4"/><path d="M5 36h30" stroke-dasharray="1.5 2.5"/>' +
+  '<path d="M5.5 18.5v14.5M4 18.5h3M4 33h3" stroke-width="0.9"/><path d="M20 4.5v3M9 7h22" stroke-width="0.9" stroke-dasharray="1.5 2"/></g></svg>';
+// the card shown when none is picked: the last one looked at (kept for the next visit)
+let looked = null;
+
 export function cardsPage(host, settings, save) {
   const c = collection();
   const body = el('div', 'cards-page');
   let cur = [0, 1, 2].includes(settings.bpCur) ? settings.bpCur : 0;
   let sel = null;
+  // the rarity the collection shows (null: every card)
+  let only = null;
+  let toTop = false;
   let flash = '';
   // (the blueprints keep to the cards owned: one shown with a card that went is put right)
   for (let i = 0; i < 3; i++) settings.bps[i] = ownedBlueprint(c, settings.bps[i]);
+  // the card on the stand: the one picked; else the last one looked at, a new one, the rarest owned
+  const shown = () => sel || (looked && ALL_CARDS.includes(looked) ? looked : c.fresh.find((k) => owns(c, k)) || [...ALL_CARDS].reverse().find((k) => owns(c, k)));
   const render = () => {
     const bp = settings.bps[cur];
     const tabs = [0, 1, 2]
       .map((i) => `<button type="button" class="cp-tab${i === cur ? ' on' : ''}" data-set="${i}" aria-pressed="${i === cur}"><b>${esc(t('藍圖 {n}', { n: i + 1 }))}</b><small>${i === settings.bpCur ? esc(t('使用中')) : `${settings.bps[i].length}/${BLUEPRINT_SIZE}`}</small></button>`)
       .join('');
-    const slots = Array.from({ length: BLUEPRINT_SIZE }, (_, i) => (bp[i] ? `<button type="button" class="cp-slot" data-slot="${bp[i]}" title="${esc(t('拿出藍圖'))}">${cardFace(bp[i], { small: true })}</button>` : `<span class="cp-slot empty"><i class="num">${i + 1}</i></span>`)).join('');
+    const slots = Array.from({ length: BLUEPRINT_SIZE }, (_, i) => (bp[i] ? `<button type="button" class="cp-slot" data-slot="${bp[i]}" title="${esc(t('拿出藍圖'))}">${cardFace(bp[i], { small: true })}</button>` : `<span class="cp-slot empty">${SKETCH}<i class="num">${i + 1}</i></span>`)).join('');
     const status = `${bp.length}/${BLUEPRINT_SIZE}${bp.length >= BLUEPRINT_SIZE ? ' · ' + esc(blueprintName(bp)) : ''}`;
     const face = (k) => cardFace(k, { tag: 'button', locked: !owns(c, k), on: bp.includes(k), fresh: c.fresh.includes(k), sel: k === sel });
-    const groups =
-      `<section class="cp-group" style="--dc:${BASIC_COLOR}"><h5>${esc(t('基本卡'))}</h5><div class="cc-grid">${BASIC.map(face).join('')}</div></section>` +
-      DIRS.map((d) => `<section class="cp-group" style="--dc:${DIR_COLOR[d]}"><h5>${esc(t(DIR_NAMES[d]))}</h5><div class="cc-grid">${BUILDING_IDS.filter((k) => BUILDINGS[k].dir === d).map(face).join('')}</div></section>`).join('');
+    // (every card in one grid, by rarity; the rarities' chips show one alone, and how many are owned)
+    const chips =
+      `<button type="button" class="cp-chip all${only ? '' : ' on'}" data-r="" aria-pressed="${!only}">${esc(t('全部'))}</button>` +
+      RARITIES.map((r) => {
+        const ks = ALL_CARDS.filter((k) => rarityOf(k) === r);
+        return `<button type="button" class="cp-chip${only === r ? ' on' : ''}" data-r="${r}" aria-pressed="${only === r}">${rarityTag(r)}<small class="num">${ks.filter((k) => owns(c, k)).length}/${ks.length}</small></button>`;
+      }).join('');
+    const cards = ALL_CARDS.filter((k) => !only || rarityOf(k) === only);
     // (the blueprint stays at the top of the page; the collection scrolls under it, kept where it was
     // as the page is drawn again)
     const was = body.querySelector('.cp-scroll');
-    const keep = was ? was.scrollTop : 0;
-    // (a blueprint sheet across the top; under it the collection, scrolling, and the card opened beside
-    // it — on a phone, a sheet coming up from below)
+    const keep = was && !toTop ? was.scrollTop : 0;
+    // (the chips' own row, scrolled sideways on a phone, stays where it was)
+    const chipsWas = body.querySelector('.cp-filter');
+    const chipsKeep = chipsWas ? chipsWas.scrollLeft : 0;
+    toTop = false;
+    // (a blueprint strip across the top; under it the collection, scrolling, and the card on its stand
+    // beside it — on a phone, a sheet coming up from below when a card is picked)
     body.innerHTML = `
       <section class="cp-deck">
         <div class="cp-tabs" role="group" aria-label="${esc(t('藍圖'))}">${tabs}</div>
@@ -153,14 +234,15 @@ export function cardsPage(host, settings, save) {
       </section>
       <div class="cp-scroll pg-sheet panel">
         <section class="cp-coll">
-          <h4>${esc(t('收藏'))} <span class="num">${c.own.length + BASIC.length}/${BUILDING_IDS.length + BASIC.length}</span></h4>
-          ${groups}
+          <div class="cp-head"><h4>${esc(t('收藏'))} <span class="num">${ALL_CARDS.filter((k) => owns(c, k)).length}/${ALL_CARDS.length}</span></h4><div class="cp-filter" role="group" aria-label="${esc(t('稀有度'))}">${chips}</div></div>
+          <div class="cc-grid cp-grid">${cards.map(face).join('')}</div>
         </section>
         <p class="cp-note">${esc(t('藍圖 7 張，含基本卡（道路、村莊、城市、發展卡）：沒帶的基本卡，這局就不能花錢蓋。開發不用卡牌。最多 1 座世界奇觀；開局帶「使用中」的那套。'))}</p>
       </div>
       <aside class="cp-detail pg-sheet panel" aria-live="polite"></aside>`;
     body.classList.toggle('picked', !!sel);
     if (keep) body.querySelector('.cp-scroll').scrollTop = keep;
+    if (chipsKeep) body.querySelector('.cp-filter').scrollLeft = chipsKeep;
     flash = '';
     // which blueprint the next game takes
     const use = body.querySelector('.cp-use');
@@ -193,12 +275,22 @@ export function cardsPage(host, settings, save) {
     );
     body.querySelectorAll('.cp-coll .cc[data-k]').forEach((b) =>
       b.addEventListener('click', () => {
-        const was = sel;
-        sel = b.dataset.k;
+        const was = shown();
+        sel = looked = b.dataset.k;
         // (a new card looked at loses its mark)
         if (seen(c, [sel])) commit();
         render();
         if (was !== sel) fadeIn(body.querySelector('.cp-detail'));
+      }),
+    );
+    // a rarity alone (again, or "all": every card)
+    body.querySelectorAll('.cp-chip[data-r]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const r = b.dataset.r || null;
+        only = r && r !== only ? r : null;
+        toTop = true;
+        render();
+        fadeIn(body.querySelector('.cp-grid'), { y: 6, ms: 180 });
       }),
     );
     paintDetail();
@@ -249,15 +341,17 @@ export function cardsPage(host, settings, save) {
   };
   // a card leaving the blueprint for nowhere in sight: it sinks a little and fades
   const dropAway = (look, from) => fly(look, from, { left: from.left + from.width * 0.1, top: from.top + 28, width: from.width * 0.8, height: from.height * 0.8 }, { ms: 260, arc: 0, fade: true });
-  // the selected card: everything it does, and putting it in or taking it out
+  // the card on the stand (the one picked, or the one looked at last): everything it does, and putting
+  // it in or taking it out
   const paintDetail = () => {
     const box = body.querySelector('.cp-detail');
-    if (!sel) {
+    const k = shown();
+    if (!k) {
       box.innerHTML = `<p class="cp-hint">${esc(t('點一張卡看它的效果，再放進藍圖或拿出來。'))}</p>`;
       return;
     }
     const bp = settings.bps[cur];
-    box.innerHTML = cardDetail(sel, { on: bp.includes(sel), locked: !owns(c, sel) });
+    box.innerHTML = cardDetail(k, { on: bp.includes(k), locked: !owns(c, k) });
     // (a phone: the card opened is a sheet over the collection, put away with this)
     const x = btn(icon('cross', 16), 'ghost icon-btn cp-x', () => {
       sel = null;
@@ -266,16 +360,21 @@ export function cardsPage(host, settings, save) {
     x.setAttribute('aria-label', t('關閉'));
     box.prepend(x);
     const acts = el('div', 'cp-acts');
-    if (!owns(c, sel)) {
-      const how = howToGet(c, sel);
+    if (!owns(c, k)) {
+      const how = howToGet(c, k);
       acts.appendChild(el('p', 'cp-how', `<span>${esc(how.text)}</span>`));
       if (how.tab && host.go) acts.appendChild(btn(how.tab === 'missions' ? esc(t('看任務')) : esc(t('去抽卡')), '', () => host.go(how.tab === 'missions' ? 'missions' : 'shop', { tab: 'draw' })));
-    } else if (bp.includes(sel)) {
-      acts.appendChild(btn(esc(t('拿出藍圖')), '', () => takeOut(sel)));
+    } else if (bp.includes(k)) {
+      acts.appendChild(
+        btn(esc(t('拿出藍圖')), '', () => {
+          looked = k;
+          takeOut(k);
+        }),
+      );
     } else {
       acts.appendChild(
         btn(esc(t('放進藍圖')), 'primary', () => {
-          const k = sel;
+          looked = k;
           // (the card as it is in the collection, to fly from there)
           const src = body.querySelector(`.cp-coll .cc[data-k="${k}"]`);
           const from = src && src.getBoundingClientRect();
@@ -297,7 +396,7 @@ export function cardsPage(host, settings, save) {
           landIn(k, look, from);
         }),
       );
-      if (isWonder(sel) && bp.some(isWonder)) acts.appendChild(el('p', 'cp-how', esc(t('藍圖只能帶 1 座世界奇觀：會換掉原本的那座'))));
+      if (isWonder(k) && bp.some(isWonder)) acts.appendChild(el('p', 'cp-how', esc(t('藍圖只能帶 1 座世界奇觀：會換掉原本的那座'))));
     }
     box.appendChild(acts);
   };
@@ -377,6 +476,10 @@ function wallet(host, c) {
   return { paint, settle, bump, rain };
 }
 
+// the pack's cards of one rarity under its gem and name, and a word on them (the draw's list, the shop)
+const tier = (r, face, note) =>
+  `<section class="sp-tier r-${r}"><div class="sp-tierhead">${rarityTag(r)}<small>${esc(note)}</small></div><div class="cc-grid shop">${POOL.filter((k) => rarityOf(k) === r).map(face).join('')}</div></section>`;
+
 // a new card goes into the blueprint in use when that has room
 function keeper(settings, save) {
   return (k) => {
@@ -410,22 +513,26 @@ export function shopPage(host, opts = {}) {
     balances();
   };
 
-  // drawing: the pack, one or ten, what came out (turning over one after another)
+  // drawing: the pack's banner (its legendary cards fanned out under a light), one or ten, what came
+  // out (turning over one after another), then every card in the pack by rarity, the ones owned in colour
   const paintDraw = (box) => {
     const total = POOL.length;
-    const wonders = POOL.filter(isWonder).length;
+    const wonders = POOL.filter(isWonder);
+    const fan = wonders.map((k, i) => `<div class="sp-fc" style="--i:${i - (wonders.length - 1) / 2}">${cardFace(k, { small: true })}</div>`).join('');
     box.innerHTML = `
-      <div class="sp-pack pg-sheet panel">
-        <div class="sp-packart" aria-hidden="true">${emblemSvg('cards', 74)}</div>
+      <div class="sp-banner pg-sheet panel">
+        <div class="sp-stage" aria-hidden="true"><div class="sp-fan">${fan}</div></div>
         <div class="sp-packinfo">
           <b>${esc(t('建築卡包'))}</b>
-          <p>${esc(t('{n} 種建築、{w} 座世界奇觀，抽到已經有的卡換成碎片（建築 {a}、奇觀 {b}）。', { n: total - wonders, w: wonders, a: dupShards(POOL.find((k) => !isWonder(k))), b: dupShards(POOL.find(isWonder)) }))}</p>
+          <p>${esc(t('{n} 種建築、{w} 座世界奇觀，抽到已經有的卡換成碎片（建築 {a}、奇觀 {b}）。', { n: total - wonders.length, w: wonders.length, a: dupShards(POOL.find((k) => !isWonder(k))), b: dupShards(wonders[0]) }))}</p>
+          <div class="sp-odds"><span>${esc(t('每次抽到'))}</span>${['epic', 'legendary'].map((r) => `${rarityTag(r)}<b class="num">${(POOL.filter((k) => rarityOf(k) === r).reduce((p, k) => p + chanceOf(k), 0) * 100).toFixed(1)}%</b>`).join('')}</div>
           <div class="sp-buy"></div>
         </div>
       </div>
       <div class="sp-reveal"></div>
-      <div class="sp-info pg-sheet panel">
-        <details class="sp-odds"><summary>${esc(t('每張卡的機率'))}</summary><div class="sp-oddlist">${POOL.map((k) => `<span>${buildingIcon(k, 14)}${esc(buildingName(k))}<b class="num">${(chanceOf(k) * 100).toFixed(1)}%</b></span>`).join('')}</div></details>
+      <div class="sp-pool pg-sheet panel">
+        <h4 class="pg-h">${esc(t('卡包裡的卡'))}</h4>
+        ${['epic', 'legendary'].map((r) => tier(r, (k) => cardFace(k, { small: true, locked: !owns(c, k) }), t('{n} 張，每張 {p}%', { n: POOL.filter((k) => rarityOf(k) === r).length, p: (chanceOf(POOL.find((k) => rarityOf(k) === r)) * 100).toFixed(1) }))).join('')}
         <p class="sp-earn">${esc(t('金幣怎麼來：打完一局 +{a}、獲勝 +{b}、線上房間 +{c}、每天第一局 +{d}，還有任務。', { a: COINS.game, b: COINS.win, c: COINS.online, d: COINS.daily }))}</p>
       </div>`;
     const buy1 = btn(`${esc(t('抽 1 次'))}${coinHtml(DRAW_COST)}`, 'primary sp-draw', () => doDraw(1));
@@ -440,7 +547,7 @@ export function shopPage(host, opts = {}) {
       // (a wonder's back glows gold for a moment before it turns over: collection.css .rv.wonder)
       r.innerHTML = reveal
         .map(
-          (x, i) => `<div class="rv${isWonder(x.k) ? ' wonder' : ''}" style="--i:${i}">${isWonder(x.k) ? '<i class="rv-glow" aria-hidden="true"></i>' : ''}<div class="rv-in"><div class="rv-back">${emblemSvg('cards', 40)}</div><div class="rv-face">${cardFace(x.k, { small: reveal.length > 1 })}</div></div>
+          (x, i) => `<div class="rv${isWonder(x.k) ? ' wonder' : ''}" style="--i:${i}">${isWonder(x.k) ? '<i class="rv-glow" aria-hidden="true"></i>' : ''}<div class="rv-in"><div class="rv-back cc-back">${CARD_BACK}</div><div class="rv-face">${cardFace(x.k, { small: reveal.length > 1 })}</div></div>
           <span class="rv-tag${x.fresh ? ' new' : ''}">${x.fresh ? esc(t('新卡！')) + (x.slotted ? `<small>${esc(t('已放進藍圖'))}</small>` : '') : `${icon('shard', 13)}+${x.shards}`}</span></div>`,
         )
         .join('');
@@ -501,11 +608,11 @@ export function shopPage(host, opts = {}) {
     setTimeout(() => skip.isConnected && skip.remove(), end + 300);
   };
 
-  // the shop: the cards of the pack for shards
+  // the shop: the cards of the pack for shards, by rarity
   const paintShop = (box) => {
-    box.innerHTML = `<p class="sp-lead">${esc(t('用抽到重複卡換來的碎片，兌換指定的卡。'))}</p><div class="cc-grid shop"></div>`;
-    const grid = box.querySelector('.cc-grid');
+    box.innerHTML = `<p class="sp-lead">${esc(t('用抽到重複卡換來的碎片，兌換指定的卡。'))}</p>${['epic', 'legendary'].map((r) => tier(r, () => '', t('每張 {n} 碎片', { n: priceOf(POOL.find((k) => rarityOf(k) === r)) }))).join('')}`;
     for (const k of POOL) {
+      const grid = box.querySelector(`.sp-tier.r-${rarityOf(k)} .cc-grid`);
       const cell = el('div', 'sp-item' + (owns(c, k) ? ' owned' : ''), cardFace(k, { locked: !owns(c, k) }));
       if (owns(c, k)) cell.appendChild(el('span', 'sp-owned', esc(t('已擁有'))));
       else {
@@ -626,7 +733,7 @@ export function deckLine(settings, onChange = null) {
   const i = [0, 1, 2].includes(settings.bpCur) ? settings.bpCur : 0;
   const bp = ownedBlueprint(c, settings.bps && settings.bps[i]);
   const box = el('div', 'deck-line');
-  const cardsHtml = bp.map((k) => `<span class="dk-card" style="--dc:${cardColor(k)}" title="${esc(cardName(k))}">${cardIcon(k, 16)}</span>`).join('') + '<span class="dk-card empty"></span>'.repeat(BLUEPRINT_SIZE - bp.length);
+  const cardsHtml = bp.map((k) => `<span class="dk-card" style="--dc:${rarityColor(k)}" title="${esc(cardName(k))}">${cardIcon(k, 16)}</span>`).join('') + '<span class="dk-card empty"></span>'.repeat(BLUEPRINT_SIZE - bp.length);
   box.innerHTML = `<span class="dl-name"><b>${esc(t('藍圖 {n}', { n: i + 1 }))}</b><small class="num">${bp.length}/${BLUEPRINT_SIZE}</small></span><span class="dk-cards">${cardsHtml}</span>`;
   if (onChange) box.appendChild(btn(esc(t('在「卡牌」更換')), 'ghost dl-change', onChange));
   else box.appendChild(el('small', 'dl-hint', esc(t('在主畫面的「卡牌」更換'))));

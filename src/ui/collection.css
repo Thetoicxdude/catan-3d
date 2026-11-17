@@ -2,73 +2,131 @@
    missions (the pages themselves: pages.css); the blueprint in use on the setup screen and in the room
    lobby; what a finished game earned. */
 
-/* ── a building as a collectible card: its direction's frame, the figure in a medallion ── */
+/* ── rarity (meta/collection.js rarityOf; cards-ui.js RARITY_COLOR is the middle colour): each card's
+   frame is its rarity's metal, light to dark; a glow round the epic and legendary ones ── */
+.r-basic { --c1: #eceff2; --c2: #a4abb3; --c3: #555c65; --cg: transparent; }
+.r-common { --c1: #d6f5b5; --c2: #62b046; --c3: #2b6420; --cg: transparent; }
+.r-rare { --c1: #c7e4ff; --c2: #3f8fe0; --c3: #1a4a8c; --cg: rgba(80, 150, 240, 0.22); }
+.r-epic { --c1: #f0cdff; --c2: #a95ce0; --c3: #55218a; --cg: rgba(176, 102, 236, 0.5); }
+.r-legendary { --c1: #fff4bf; --c2: #efa72e; --c3: #8f520b; --cg: rgba(255, 186, 64, 0.65); }
+/* a rarity on its own: its gem and name */
+.rar { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; white-space: nowrap; }
+.rar .gem-svg { flex: none; width: 17px; height: 17px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
+.gem-none { flex: none; width: 11px; height: 11px; margin: 0 3px; box-sizing: border-box; border-radius: 50%; background: var(--c2); box-shadow: 0 0 0 1.5px var(--c3); }
+
+/* ── a building as a collectible card: the rarity's metal frame round a dark body, the picture at the
+   top with the gem on its lower edge, the name and kind under it; the points on the corner, a crown on
+   a legendary card ── */
 .cc {
-  position: relative; flex: none; width: 128px; aspect-ratio: 5 / 6; box-sizing: border-box;
-  display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 12px 8px 9px;
-  border: 0; border-radius: 10px; font: inherit; text-align: center; color: #2b1b0e; cursor: default;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--dc) 30%, #f7edd4) 0 38%, #f4e8cb 38% 100%);
-  box-shadow: inset 0 0 0 3px var(--dc), inset 0 0 0 5px #f8f0dc, inset 0 0 0 6px color-mix(in srgb, var(--dc) 55%, #000), 0 3px 8px rgba(0, 0, 0, 0.32);
-  transition: transform 0.14s ease, box-shadow 0.14s ease;
+  --r1: var(--c1); --r2: var(--c2); --r3: var(--c3); --rg: var(--cg);
+  position: relative; isolation: isolate; flex: none; width: 132px; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: stretch; padding: 5px; border: 0; border-radius: 12px;
+  font: inherit; text-align: center; color: #f6eedb; cursor: default;
+  background: linear-gradient(140deg, var(--r1) 0%, var(--r2) 24%, var(--r3) 52%, var(--r2) 76%, var(--r1) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(20, 12, 4, 0.75), 0 4px 10px rgba(0, 0, 0, 0.38), 0 0 14px 1px var(--rg);
+  transition: translate 0.14s ease, box-shadow 0.14s ease;
+}
+/* (the body: dark, tinted with the rarity) */
+.cc::before {
+  content: ''; position: absolute; z-index: -1; inset: 5px; border-radius: 8px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--r3) 34%, #1d2026) 0%, #16181d 72%);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6), inset 0 0 0 2px color-mix(in srgb, var(--r1) 28%, transparent);
 }
 button.cc { cursor: pointer; }
-button.cc:focus-visible { transform: translateY(-3px); outline: none; box-shadow: inset 0 0 0 3px var(--dc), inset 0 0 0 5px #f8f0dc, inset 0 0 0 6px color-mix(in srgb, var(--dc) 55%, #000), 0 7px 14px rgba(0, 0, 0, 0.38); }
-@media (hover: hover) { button.cc:hover { transform: translateY(-3px); outline: none; box-shadow: inset 0 0 0 3px var(--dc), inset 0 0 0 5px #f8f0dc, inset 0 0 0 6px color-mix(in srgb, var(--dc) 55%, #000), 0 7px 14px rgba(0, 0, 0, 0.38); } }
-.cc.sel { transform: translateY(-3px); box-shadow: inset 0 0 0 3px var(--dc), inset 0 0 0 5px #f8f0dc, inset 0 0 0 6px color-mix(in srgb, var(--dc) 55%, #000), 0 0 0 3px #e9c46a, 0 7px 14px rgba(0, 0, 0, 0.38); }
+button.cc:focus-visible { outline: none; translate: 0 -3px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 0 0 2px #fff6d6, 0 0 0 4px rgba(20, 12, 4, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42), 0 0 16px 2px var(--rg); }
+@media (hover: hover) { button.cc:hover { translate: 0 -3px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(20, 12, 4, 0.75), 0 9px 16px rgba(0, 0, 0, 0.42), 0 0 18px 3px var(--rg); } }
+.cc.sel { translate: 0 -4px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 0 0 2px #fff6d6, 0 0 0 4px rgba(20, 12, 4, 0.6), 0 0 18px 4px color-mix(in srgb, var(--r2) 70%, transparent), 0 9px 16px rgba(0, 0, 0, 0.45); }
 .cc-art {
-  width: 62px; height: 62px; margin-top: 4px; flex: none; display: grid; place-items: center; border-radius: 50%; color: #fff7e2;
-  background: radial-gradient(circle at 38% 32%, color-mix(in srgb, var(--dc) 60%, #fff) 0%, var(--dc) 62%, color-mix(in srgb, var(--dc) 70%, #000) 100%);
-  box-shadow: 0 0 0 3px #f8f0dc, 0 0 0 4px color-mix(in srgb, var(--dc) 60%, #000), 0 3px 6px rgba(0, 0, 0, 0.3);
+  position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: 7px 7px 3px 3px; overflow: hidden; color: var(--r1);
+  background: radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--r2) 50%, #2b2e35), #15171b 82%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7);
 }
-.cc.k-wonder .cc-art { border-radius: 16px; }
-.cc-name { margin-top: 5px; font-family: var(--font-display); font-weight: 800; font-size: 14px; line-height: 1.15; color: #2b1b0e; }
-.cc-kind { font-size: 10.5px; line-height: 1.2; color: #5a4632; }
-.cc-pts {
-  position: absolute; top: 7px; left: 7px; min-width: 22px; height: 22px; padding: 0 5px; box-sizing: border-box; display: grid; place-items: center;
-  border-radius: 11px; background: #2b1b0e; color: #f3d48a; font-size: 12px; font-weight: 800; box-shadow: 0 0 0 2px #f8f0dc;
-}
-.cc.on::after {
-  content: '✓'; position: absolute; top: 7px; right: 7px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%;
-  background: var(--dc); color: #fff; font-size: 13px; font-weight: 900; box-shadow: 0 0 0 2px #f8f0dc;
-}
-.cc.locked { filter: grayscale(1) brightness(0.94); }
-.cc-new {
-  position: absolute; top: -7px; right: -7px; padding: 2px 7px; border-radius: 10px; background: #c0392b; color: #fff; font-size: 11px; font-weight: 800;
-  letter-spacing: 0.05em; box-shadow: 0 0 0 2px #f8f0dc, 0 2px 5px rgba(0, 0, 0, 0.4);
-}
-.cc.small { width: 72px; padding: 7px 4px 6px; gap: 1px; border-radius: 7px; }
-.cc.small .cc-art { width: 38px; height: 38px; margin-top: 3px; box-shadow: 0 0 0 2px #f8f0dc, 0 0 0 3px color-mix(in srgb, var(--dc) 60%, #000); }
-.cc.small.k-wonder .cc-art { border-radius: 10px; }
-.cc.small .cc-name { margin-top: 3px; font-size: 10.5px; }
-.cc.small .cc-pts { top: 3px; left: 3px; min-width: 17px; height: 17px; font-size: 10px; padding: 0 3px; }
-.cc.small.on::after { width: 16px; height: 16px; top: 3px; right: 3px; font-size: 10px; }
-.cc-grid { display: flex; flex-wrap: wrap; gap: 12px; }
-
+.cc-art > .ico { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6)); }
+.cc-art::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), inset 0 -18px 18px -14px rgba(0, 0, 0, 0.55); }
 /* with the asset pack: the card's picture (a Cycles render of the model on the map, tools/art/cards/
-   bldgcards.py) in a window under the band instead of the medallion; without it (the claude.ai page,
-   html.no-art) the medallion and its icon */
-.cc-pic, .cd-pic { display: none; }
-html:not(.no-art) .cc-art {
-  width: auto; height: auto; align-self: stretch; aspect-ratio: 4 / 3; margin-top: 2px; border-radius: 6px; overflow: hidden;
-  background: #3a3024; box-shadow: 0 0 0 2px #f8f0dc, 0 0 0 3px color-mix(in srgb, var(--dc) 60%, #000), 0 2px 5px rgba(0, 0, 0, 0.3);
+   bldgcards.py), a little closer than the whole render; without it (the claude.ai page, html.no-art)
+   the building's figure on the rarity's light */
+.cc-pic { display: none; }
+html:not(.no-art) .cc-pic { display: block; position: absolute; inset: 0; background: var(--pic) 50% 56% / 114% auto no-repeat, #3a3024; }
+html:not(.no-art) .cc-art > .ico { display: none; }
+.cc-gem { position: relative; z-index: 1; height: 0; display: flex; justify-content: center; }
+.cc-gem .gem-svg { width: 22px; height: 22px; margin-top: -12px; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.7)); }
+.cc-name { margin: 12px 4px 0; font-family: var(--font-display); font-weight: 800; font-size: 14px; line-height: 1.15; color: #fbf3df; text-shadow: 0 1px 2px #000; overflow-wrap: break-word; hyphens: auto; }
+.cc.r-basic .cc-name { margin-top: 9px; }
+.cc-kind { margin: 3px 4px 5px; font-size: 10.5px; line-height: 1.25; color: rgba(246, 238, 219, 0.68); }
+.cc-kind i { display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; background: var(--dc); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4); vertical-align: 1px; }
+.cc-pts {
+  position: absolute; z-index: 2; top: -6px; left: -6px; min-width: 26px; height: 26px; padding: 0 5px; box-sizing: border-box; display: grid; place-items: center;
+  border-radius: 13px; background: radial-gradient(circle at 40% 30%, #4a3622, #1c120a 75%); color: #ffd98a; font: 800 14px/1 var(--font-num);
+  box-shadow: 0 0 0 2px var(--r2), 0 0 0 3px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5);
 }
-html:not(.no-art) .cc.small .cc-art { width: auto; height: auto; margin-top: 1px; border-radius: 4px; }
-html:not(.no-art) .cc-art > :not(.cc-pic) { display: none; }
-html:not(.no-art) .cc-pic { display: block; width: 100%; height: 100%; background: var(--pic) center / cover no-repeat; }
-html:not(.no-art) .cd-pic {
-  display: block; width: 100%; max-width: 360px; aspect-ratio: 4 / 3; margin: 0 auto 2px; border-radius: 8px;
-  background: var(--pic) center / cover no-repeat, #3a3024; box-shadow: 0 0 0 2px var(--dc), 0 3px 8px rgba(0, 0, 0, 0.35);
+.cc.r-basic .cc-pts { box-shadow: 0 0 0 2px #c9ced4, 0 0 0 3px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5); }
+.cc-crown { position: absolute; z-index: 2; top: -11px; left: 50%; width: 38px; height: 20px; translate: -50% 0; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6)); pointer-events: none; }
+/* in the blueprint shown: a brass seal with a check */
+.cc.on::after {
+  content: '✓'; position: absolute; z-index: 2; top: -6px; right: -6px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%;
+  background: radial-gradient(circle at 40% 30%, #fff1c4, #d9a441 60%, #8a5a18); color: #2a1a0a; font-size: 14px; font-weight: 900; line-height: 1;
+  box-shadow: 0 0 0 1.5px #2a1a0a, 0 2px 4px rgba(0, 0, 0, 0.5);
 }
+/* not owned yet: the picture grey and dim, the frame's metal muted (its rarity still told) */
+.cc.locked { --r1: color-mix(in srgb, var(--c1) 55%, #8e9094); --r2: color-mix(in srgb, var(--c2) 45%, #6c6e73); --r3: color-mix(in srgb, var(--c3) 45%, #3c3e43); --rg: transparent; }
+.cc.locked .cc-art { filter: grayscale(1) brightness(0.6) contrast(0.92); }
+.cc.locked .cc-name { color: #cdc5b4; }
+.cc.locked .cc-pts { color: #c9bfa8; }
+.cc-new {
+  position: absolute; z-index: 3; top: -8px; right: -8px; padding: 2px 7px; border-radius: 10px; background: #d2402e; color: #fff; font-size: 11px; font-weight: 800;
+  letter-spacing: 0.05em; box-shadow: 0 0 0 2px #fff3dc, 0 2px 5px rgba(0, 0, 0, 0.4);
+}
+.cc.on .cc-new { right: 21px; }
+/* small: the blueprint's places, the missions' rewards (no kind line) */
+.cc.small { width: 84px; padding: 4px; border-radius: 9px; }
+.cc.small::before { inset: 4px; border-radius: 6px; }
+.cc.small .cc-art { border-radius: 5px 5px 2px 2px; }
+.cc.small .cc-gem .gem-svg { width: 16px; height: 16px; margin-top: -9px; }
+.cc.small .cc-name { margin: 8px 2px 4px; font-size: 11px; }
+.cc.small .cc-pts { top: -5px; left: -5px; min-width: 19px; height: 19px; padding: 0 4px; border-radius: 10px; font-size: 11px; }
+.cc.small .cc-crown { width: 28px; height: 15px; top: -9px; }
+.cc.small.on::after { width: 18px; height: 18px; top: -5px; right: -5px; font-size: 11px; }
+.cc.small .cc-new { top: -7px; right: -6px; padding: 1px 5px; font-size: 10px; }
+/* big: the card on its stand (the Cards page), the large picture */
+.cc.big { width: 230px; padding: 7px; border-radius: 16px; }
+.cc.big::before { inset: 7px; border-radius: 11px; }
+.cc.big .cc-art { border-radius: 10px 10px 4px 4px; }
+.cc.big .cc-gem .gem-svg { width: 32px; height: 32px; margin-top: -17px; }
+.cc.big .cc-name { margin: 17px 6px 0; font-size: 21px; }
+.cc.big .cc-kind { margin: 5px 6px 9px; font-size: 13px; }
+.cc.big .cc-kind i { width: 9px; height: 9px; }
+.cc.big .cc-pts { top: -9px; left: -9px; min-width: 36px; height: 36px; border-radius: 18px; font-size: 19px; }
+.cc.big .cc-crown { width: 56px; height: 30px; top: -17px; }
+.cc.big.on::after { width: 32px; height: 32px; top: -9px; right: -9px; font-size: 18px; }
+.cc-grid { display: flex; flex-wrap: wrap; gap: 16px 14px; }
 
-/* ── a card opened (cardDetail): its cost in resource cards large enough to read ── */
-.cd { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; border-radius: 10px; border: 2px solid var(--dc); background: color-mix(in srgb, var(--dc) 7%, transparent); }
-.cd.locked { filter: grayscale(1); }
-.cd-top { display: flex; align-items: center; gap: 10px; }
-.cd-ico { flex: none; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; background: var(--dc); color: #fff7e2; }
-.cd-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.cd-title b { font-family: var(--font-display); font-size: 18px; line-height: 1.2; }
-.cd-title small { font-size: 12px; opacity: 0.75; }
-.cd-pts { flex: none; max-width: 9em; text-align: right; font-size: 12.5px; font-weight: 800; line-height: 1.25; color: var(--dc); }
+/* the back of a card (drawing): deep green, a gold rule, the compass rose (cards-ui.js CARD_BACK) */
+.cc-back {
+  display: grid; place-items: center; box-sizing: border-box; border-radius: 12px; padding: 12%;
+  background: radial-gradient(circle at 50% 44%, #2c5d55 0%, #183d37 52%, #0c2421 100%);
+  box-shadow: inset 0 0 0 3px #c9a35a, inset 0 0 0 6px #142f2a, inset 0 0 0 7px rgba(216, 181, 106, 0.55), 0 0 0 1px rgba(10, 6, 2, 0.8), 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+.cc-back .cb-art { width: 100%; height: auto; max-height: 100%; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); }
+
+/* ── a card opened (cardDetail): the card large on a lit stand, its rarity and points, the cost in
+   resource cards large enough to read ── */
+.cd { display: flex; flex-direction: column; gap: 10px; }
+.cd-show {
+  position: relative; display: grid; place-items: center; padding: 24px 12px 18px; border-radius: 10px; overflow: hidden;
+  background: radial-gradient(ellipse 56% 60% at 50% 46%, color-mix(in srgb, var(--c2) 46%, #2a231c) 0%, #18130e 74%, #100c08 100%);
+  box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+/* (the light falling on it from above, and the stand it sits on) */
+.cd-show::before { content: ''; position: absolute; left: 50%; top: -30%; width: 70%; height: 90%; translate: -50% 0; pointer-events: none; background: radial-gradient(ellipse 50% 50% at 50% 0%, rgba(255, 244, 214, 0.18), transparent 70%); }
+.cd-show::after { content: ''; position: absolute; left: 50%; bottom: 8px; width: 62%; height: 16px; translate: -50% 0; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.55), transparent); }
+.cd-show .cc.big { position: relative; z-index: 1; width: min(220px, 74%); }
+.cd.locked .cd-show { background: radial-gradient(ellipse 56% 60% at 50% 46%, #33302c 0%, #18130e 74%, #100c08 100%); }
+.cd-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; }
+.cd-meta .rar { font-family: var(--font-display); font-size: 15px; letter-spacing: 0.08em; color: var(--c2); }
+.cd-meta .rar .gem-svg { width: 20px; height: 20px; }
+html.ui3 .cd-meta .rar, html.ui3 .cp-chip .rar { color: color-mix(in srgb, var(--c3) 80%, #000); }
+.cd-pts { flex: none; max-width: 14em; text-align: right; font-size: 12.5px; font-weight: 800; line-height: 1.25; opacity: 0.85; }
 .cd-cost h6 { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; opacity: 0.75; }
 .cb-row { display: flex; flex-wrap: wrap; gap: 8px 14px; }
 .cb { display: inline-flex; align-items: center; gap: 7px; }
@@ -78,19 +136,19 @@ html:not(.no-art) .cd-pic {
 .cb-n small { font-size: 11.5px; opacity: 0.8; }
 .cd-stage { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
 .cd-stage + .cd-stage { border-top: 1px dashed var(--line); }
-.cd-stage > i { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--dc); color: #fff; font-style: normal; font-size: 12px; font-weight: 800; }
+.cd-stage > i { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--c3); color: #fff; font-style: normal; font-size: 12px; font-weight: 800; }
 .cd-cond, .cd-fx, .cd-note { margin: 0; font-size: 13.5px; line-height: 1.6; }
 .cd-cond b, .cd-fx b { display: block; font-size: 12px; letter-spacing: 0.06em; opacity: 0.75; }
 .cd-note { font-size: 12.5px; opacity: 0.8; }
 
-/* ── the Cards page ── */
+/* ── the Cards page (its place on the page: pages.css) ── */
 /* the blueprint stays at the top of the page and the collection scrolls under it, so that a card put
    in the blueprint is always seen landing there */
 .cards-page { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
-.cp-deck { flex: none; padding: 10px 12px 8px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.07); }
-.cp-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-right: -8px; padding-right: 8px; }
-.cp-scroll > .cp-note { margin: 0 0 12px; }
-.cp-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.cp-deck { position: relative; flex: none; padding: 10px 12px 8px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.07); }
+.cp-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.cp-scroll > .cp-note { margin: 14px 0 4px; }
+.cp-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .cp-tab {
   display: flex; flex-direction: column; align-items: center; min-width: 88px; padding: 5px 12px; border-radius: 7px; border: 1px solid var(--line);
   background: none; color: inherit; font: inherit; cursor: pointer; opacity: 0.72;
@@ -99,43 +157,57 @@ html:not(.no-art) .cd-pic {
 .cp-tab small { font-size: 11px; opacity: 0.85; }
 .cp-tab.on { opacity: 1; border-color: var(--brass-hi); box-shadow: inset 0 0 0 1px var(--brass-hi); }
 .cp-slots { display: flex; flex-wrap: wrap; gap: 8px; }
-.cp-slot { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 7px; }
-.cp-slot:focus-visible .cc { transform: translateY(-2px); }
-@media (hover: hover) { .cp-slot:hover .cc { transform: translateY(-2px); } }
+.cp-slot { display: flex; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 9px; }
+.cp-slot > .cc { width: 100%; }
+.cp-slot:focus-visible .cc { translate: 0 -2px; }
+@media (hover: hover) { .cp-slot:hover .cc { translate: 0 -2px; } }
 .cp-slot:focus-visible { outline: none; }
-.cp-slot.empty { width: 72px; aspect-ratio: 5 / 6; box-sizing: border-box; display: grid; place-items: center; border: 2px dashed var(--line); cursor: default; opacity: 0.55; }
-.cp-slot.empty i { font-style: normal; font-size: 18px; }
-.cp-deckbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; flex-wrap: wrap; }
+/* an empty place: a building sketched in a draughtsman's pale lines, and its number */
+.cp-slot.empty {
+  position: relative; width: 84px; aspect-ratio: 84 / 96; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 1.5px dashed rgba(186, 214, 236, 0.55); border-radius: 9px; cursor: default; color: rgba(196, 222, 242, 0.75);
+  background: radial-gradient(circle at 50% 40%, rgba(64, 120, 170, 0.32), rgba(22, 48, 74, 0.28) 70%);
+}
+.cp-sketch { width: 46%; height: auto; }
+.cp-slot.empty i { font-style: normal; font-size: 13px; font-weight: 700; opacity: 0.85; }
+.cp-deckbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .cp-status { font-weight: 700; }
 .cp-inuse { font-family: var(--font-display); font-weight: 700; color: var(--brass-hi); }
 .cp-note { margin: 8px 0 0; font-size: 12.5px; line-height: 1.55; opacity: 0.8; }
-.cp-flash { margin: 6px 0 0; color: #e2604e; font-weight: 700; }
-.cp-main { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 18px; align-items: start; }
-.cp-coll h4 { margin: 0 0 8px; font-family: var(--font-display); font-size: 16px; letter-spacing: 0.1em; }
+/* "the blueprint is full": a slip over the strip's lower edge (no room taken from the page) */
+.cp-flash {
+  position: absolute; z-index: 3; left: 50%; bottom: -14px; translate: -50% 0; margin: 0; padding: 4px 14px; border-radius: 999px; white-space: nowrap;
+  background: #2a140c; color: #ffb39e; font-weight: 700; font-size: 13px; box-shadow: 0 0 0 1px rgba(255, 160, 130, 0.5), 0 4px 10px rgba(0, 0, 0, 0.5);
+  animation: cp-flash 2.6s ease-out forwards;
+}
+@keyframes cp-flash { 0% { opacity: 0; } 8%, 80% { opacity: 1; } 100% { opacity: 0; } }
+/* the collection: its count and the rarities' chips, then every card in one grid */
+.cp-head { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.cp-coll h4 { margin: 0; font-family: var(--font-display); font-size: 16px; letter-spacing: 0.1em; white-space: nowrap; }
 .cp-coll h4 .num { margin-left: 6px; font-size: 13px; opacity: 0.75; letter-spacing: 0; }
-.cp-group { margin-bottom: 14px; }
-.cp-group h5 { margin: 0 0 7px; font-family: var(--font-display); font-size: 13.5px; letter-spacing: 0.12em; color: var(--dc); }
-.cp-detail { position: sticky; top: 0; display: flex; flex-direction: column; gap: 10px; }
+.cp-filter { display: flex; gap: 6px; flex-wrap: wrap; }
+.cp-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: 999px; border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.08); color: inherit; font: inherit; font-size: 13px; cursor: pointer;
+}
+.cp-chip.all { padding: 4px 12px; font-weight: 700; }
+.cp-chip small { font-size: 11.5px; opacity: 0.75; }
+.cp-chip .rar { color: var(--c2); }
+.cp-chip:focus-visible { outline: none; border-color: var(--brass-hi); }
+@media (hover: hover) { .cp-chip:hover { border-color: var(--brass-hi); } }
+.cp-chip.on { border-color: var(--brass-hi); box-shadow: inset 0 0 0 1px var(--brass-hi); background: rgba(240, 207, 122, 0.14); }
+.cp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 20px 14px; padding: 6px 4px 4px 6px; }
+.cp-grid > .cc { width: 100%; }
+.cp-detail { display: flex; flex-direction: column; gap: 10px; }
 .cp-hint { margin: 0; padding: 14px; border-radius: 8px; border: 1px dashed var(--line); font-size: 13px; line-height: 1.6; opacity: 0.8; }
 .cp-acts { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .cp-how { margin: 0; display: flex; gap: 6px; align-items: flex-start; font-size: 13px; line-height: 1.55; }
 .cp-how .ico { flex: none; margin-top: 2px; }
-@media (max-width: 900px) {
-  .cp-main { grid-template-columns: minmax(0, 1fr); }
-  .cp-detail { position: static; order: -1; }
-}
 @media (max-width: 520px) {
-  .cc { width: 104px; padding: 10px 6px 8px; }
-  .cc-art { width: 50px; height: 50px; }
-  .cc-art .ico { width: 36px; height: 36px; }
+  .cc { width: 108px; }
   .cc-name { font-size: 12.5px; }
-  .cc-grid { gap: 9px; }
-  .cp-slots { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-  .cp-slots .cc.small, .cp-slot.empty { width: 100%; }
-  .cp-slots .cc.small { padding: 5px 2px 4px; }
-  .cc.small .cc-art { width: 30px; height: 30px; }
-  .cc.small .cc-art .ico { width: 22px; height: 22px; }
-  .cc.small .cc-name { font-size: 9px; }
+  .cc-kind { font-size: 9.5px; }
+  .cc-grid { gap: 14px 10px; }
 }
 
 /* ── the Draw & Shop page ── */
@@ -150,15 +222,29 @@ html:not(.no-art) .cd-pic {
 }
 .sp-tab.on { opacity: 1; border-bottom-color: var(--brass-hi); }
 .sp-tab .badge { margin-left: 6px; display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: #c0392b; color: #fff; font-size: 11px; font-style: normal; vertical-align: 1px; }
-.sp-pack { display: flex; gap: 18px; align-items: center; }
-.sp-packart {
-  flex: none; width: 112px; aspect-ratio: 5 / 7; border-radius: 10px; display: grid; place-items: center;
-  background: radial-gradient(circle at 50% 40%, #2f5a4c 0%, #183a33 60%, #0e2621 100%);
-  box-shadow: inset 0 0 0 3px #c9a35a, inset 0 0 0 6px #183a33, inset 0 0 0 7px rgba(201, 163, 90, 0.6), 0 4px 10px rgba(0, 0, 0, 0.4);
+/* the pack's banner: its legendary cards fanned out under a light, beside what the pack holds and the
+   draws */
+.sp-banner { display: flex; gap: 22px; align-items: center; }
+/* (nothing on the stage is clipped: turned cards inside a rounded clip are not painted by every browser,
+   so the fan is kept inside it and the light drawn within it) */
+.sp-stage {
+  position: relative; flex: none; width: 400px; max-width: 46%; height: 214px; border-radius: 10px;
+  background: radial-gradient(ellipse 34% 56% at 50% 0%, rgba(255, 238, 200, 0.16), transparent), radial-gradient(ellipse 52% 64% at 50% 64%, rgba(255, 196, 92, 0.42) 0%, rgba(120, 72, 22, 0.25) 46%, transparent 72%), radial-gradient(ellipse 80% 90% at 50% 40%, #2a2016 0%, #15100b 70%, #0d0a07 100%);
+  box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.14);
 }
+.sp-fan { position: absolute; left: 50%; bottom: 34px; width: 0; height: 0; }
+.sp-fc { position: absolute; left: 0; bottom: 0; translate: calc(-50% + var(--i) * 52px) calc(var(--i) * var(--i) * 4px); rotate: calc(var(--i) * 7deg); transform-origin: 50% 100%; z-index: calc(10 - var(--i) * var(--i)); }
+.sp-fc .cc.small { width: 100px; }
+.sp-fc .cc.small .cc-name { font-size: 12px; }
 .sp-packinfo { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .sp-packinfo > b { font-family: var(--font-display); font-size: 18px; }
 .sp-packinfo p { margin: 0; font-size: 13px; line-height: 1.55; opacity: 0.85; }
+/* what one draw gives, by rarity */
+.sp-odds { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.sp-odds > span:first-child { opacity: 0.75; }
+.sp-odds .rar { color: var(--c2); }
+html.ui3 .sp-odds .rar { color: color-mix(in srgb, var(--c3) 80%, #000); }
+.sp-odds b { margin-left: -8px; font-size: 14px; }
 .sp-buy { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .btn.sp-draw { display: inline-flex; align-items: center; gap: 8px; }
 .btn.sp-draw .cur { padding: 1px 7px; border-radius: 10px; background: rgba(0, 0, 0, 0.22); }
@@ -168,12 +254,8 @@ html:not(.no-art) .cd-pic {
 .rv { display: flex; flex-direction: column; align-items: center; gap: 7px; }
 .rv-in { position: relative; transform-style: preserve-3d; animation: rv-flip 0.6s calc(0.15s + var(--i) * 0.13s) both cubic-bezier(0.3, 0.8, 0.3, 1.1); }
 .rv-face, .rv-back { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-.rv-back {
-  position: absolute; inset: 0; transform: rotateY(180deg); border-radius: 10px; display: grid; place-items: center;
-  background: radial-gradient(circle at 50% 40%, #2f5a4c 0%, #183a33 60%, #0e2621 100%);
-  box-shadow: inset 0 0 0 3px #c9a35a, inset 0 0 0 6px #183a33, 0 3px 8px rgba(0, 0, 0, 0.35);
-}
-.sp-reveal.ten .rv-back { border-radius: 7px; }
+.rv-back.cc-back { position: absolute; inset: 0; transform: rotateY(180deg); }
+.sp-reveal.ten .rv-back { border-radius: 9px; }
 @keyframes rv-flip { 0% { transform: rotateY(180deg) scale(0.92); } 70% { transform: rotateY(-10deg) scale(1.04); } 100% { transform: rotateY(0) scale(1); } }
 .rv-tag { display: flex; flex-direction: column; align-items: center; font-size: 12px; font-weight: 700; animation: rv-tag 0.3s calc(0.6s + var(--i) * 0.13s) both; }
 .rv-tag:not(.new) { flex-direction: row; gap: 3px; }
@@ -201,13 +283,18 @@ html:not(.no-art) .cd-pic {
 @keyframes rv-glow { 0% { opacity: 0; scale: 0.6; } 35% { opacity: 1; scale: 1; } 60% { opacity: 1; scale: 1.08; } 100% { opacity: 0; scale: 1.3; } }
 /* ten at once: turn them all over */
 .rv-skip { display: block; margin: 2px auto 4px; }
-.rv:has(.rv-tag.new) .cc { box-shadow: inset 0 0 0 3px var(--dc), inset 0 0 0 5px #f8f0dc, inset 0 0 0 6px color-mix(in srgb, var(--dc) 55%, #000), 0 0 16px 3px rgba(240, 196, 90, 0.85); }
+/* (a new card: a light round it as well as its rarity's glow) */
+.rv:has(.rv-tag.new) .cc { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 0 0 1px rgba(20, 12, 4, 0.75), 0 0 0 3px rgba(255, 236, 170, 0.85), 0 0 22px 6px rgba(240, 196, 90, 0.75); }
 .sp-reveal.ten .cc { width: 96px; }
-.sp-odds { margin: 10px 0 0; font-size: 12.5px; }
-.sp-odds summary { cursor: pointer; opacity: 0.8; }
-.sp-oddlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; margin-top: 8px; }
-.sp-oddlist span { display: flex; align-items: center; gap: 5px; }
-.sp-oddlist b { margin-left: auto; }
+/* (ten: two rows of five) */
+.sp-reveal.ten { display: grid; grid-template-columns: repeat(5, auto); justify-content: center; }
+/* every card in the pack, by rarity: the ones owned in colour */
+.sp-tier + .sp-tier { margin-top: 16px; }
+.sp-tierhead { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.sp-tierhead .rar { font-family: var(--font-display); font-size: 15px; letter-spacing: 0.08em; color: var(--c2); }
+html.ui3 .sp-tierhead .rar { color: color-mix(in srgb, var(--c3) 80%, #000); }
+.sp-tierhead small { font-size: 12.5px; opacity: 0.75; }
+.sp-tier .cc-grid { gap: 18px 12px; }
 .sp-earn, .sp-lead { margin: 10px 0 0; font-size: 12.5px; line-height: 1.6; opacity: 0.8; }
 .sp-lead { margin: 0 0 12px; }
 .sp-note { margin: 12px 0 0; font-weight: 700; color: var(--brass-hi); }
@@ -224,17 +311,21 @@ html:not(.no-art) .cd-pic {
 .ms-bar i { display: block; width: 100%; height: 100%; border-radius: 3px; background: var(--brass-hi); }
 .ms-row.done .ms-bar i { background: #3f9a4a; }
 .ms-text small { font-size: 11.5px; opacity: 0.75; }
-.ms-reward .cc.small { width: 54px; padding: 5px 3px 4px; }
-.ms-reward .cc.small .cc-art { width: 28px; height: 28px; }
-.ms-reward .cc.small .cc-art .ico { width: 20px; height: 20px; }
-.ms-reward .cc.small .cc-name { font-size: 9.5px; }
+.ms-reward .cc.small { width: 62px; padding: 3px; border-radius: 7px; }
+.ms-reward .cc.small::before { inset: 3px; border-radius: 5px; }
+.ms-reward .cc.small .cc-name { margin: 6px 1px 3px; font-size: 9.5px; }
+.ms-reward .cc.small .cc-gem .gem-svg { width: 13px; height: 13px; margin-top: -7px; }
+.ms-reward .cc.small .cc-pts { min-width: 16px; height: 16px; top: -4px; left: -4px; font-size: 9.5px; padding: 0 3px; }
 .ms-act { text-align: right; }
 .ms-act .btn { min-height: 0; padding: 5px 12px; }
 .ms-got { font-size: 12px; opacity: 0.7; }
 .ms-row.got { opacity: 0.62; }
 @media (max-width: 520px) {
-  .sp-pack { flex-direction: column; align-items: stretch; }
-  .sp-packart { width: 84px; align-self: center; }
+  .sp-banner { flex-direction: column; align-items: stretch; gap: 14px; }
+  .sp-stage { width: auto; max-width: none; height: 168px; }
+  .sp-fc { translate: calc(-50% + var(--i) * 46px) calc(var(--i) * var(--i) * 3px); }
+  .sp-fc .cc.small { width: 80px; }
+  .sp-fc .cc.small .cc-name { font-size: 10px; }
   .sp-reveal.ten .cc { width: 60px; }
   .ms-row { grid-template-columns: minmax(0, 1fr) 64px; }
   .ms-act { grid-column: 1 / -1; text-align: left; }

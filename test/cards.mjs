@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { BUILDING_IDS, PRESETS, BASIC, isWonder, validBlueprint } from '../src/engine/develop.js';
 import {
   STARTER, FIRST_BLUEPRINT, MISSION_CARDS, POOL, MISSIONS, DRAW_COST, DRAW10_COST, COINS, newCollection, fitCollection, mergeCollections, owns, ownedBlueprint,
-  claim, claimable, missionState, missionFor, observe, gameOver, draw, buy, pick, priceOf, dupShards, chanceOf, seen, slotNew,
+  claim, claimable, missionState, missionFor, observe, gameOver, draw, buy, pick, priceOf, dupShards, chanceOf, seen, slotNew, RARITIES, rarityOf, ALL_CARDS,
 } from '../src/meta/collection.js';
 
 let passed = 0;
@@ -51,6 +51,16 @@ test('the cards: four basic ones and three buildings to start with (a full bluep
   assert.equal(POOL.length, 12);
   assert.equal(POOL.filter(isWonder).length, 5);
   assert.deepEqual([...STARTER, ...MISSION_CARDS, ...POOL].sort(), BUILDING_IDS.slice().sort());
+  // rarity: how a card is had (the frame's colour)
+  const by = (r) => ALL_CARDS.filter((k) => rarityOf(k) === r);
+  assert.deepEqual(RARITIES, ['basic', 'common', 'rare', 'epic', 'legendary']);
+  assert.deepEqual(by('basic'), BASIC);
+  assert.deepEqual(by('common').sort(), STARTER.slice().sort());
+  assert.deepEqual(by('rare').sort(), MISSION_CARDS.slice().sort());
+  assert.deepEqual(by('epic').sort(), POOL.filter((k) => !isWonder(k)).sort());
+  assert.deepEqual(by('legendary').sort(), POOL.filter(isWonder).sort());
+  assert.equal(ALL_CARDS.length, BASIC.length + BUILDING_IDS.length);
+  assert.deepEqual(ALL_CARDS.map(rarityOf), RARITIES.flatMap((r) => by(r).map(() => r)));
   for (const k of MISSION_CARDS) assert.ok(missionFor(k), 'a mission gives ' + k);
   assert.ok(Math.abs(POOL.reduce((n, k) => n + chanceOf(k), 0) - 1) < 1e-9);
   assert.ok(chanceOf('gardens') < chanceOf('guild'), 'wonders are rarer');

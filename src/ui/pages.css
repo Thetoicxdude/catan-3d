@@ -122,39 +122,41 @@ html:not(.ui3) .pg-h { background: var(--gold-text, none); -webkit-background-cl
 @keyframes pg-rail { from { transform: translateX(-100%); } }
 @keyframes pg-rise { from { opacity: 0; transform: translateY(14px); } }
 
-/* ───────── the Cards page: the blueprint on a walnut tray across the top; the collection, scrolling,
-   on the left; the card opened on the right ───────── */
-.pg-main:has(> .pg-cards) { overflow: hidden; display: flex; flex-direction: column; padding-bottom: calc(20px + var(--safe-b)); }
-.pg-body.pg-cards { flex: 1; min-height: 0; max-width: 1400px; }
+/* ───────── the Cards page: the blueprint on a narrow walnut strip across the top (its three sets, the
+   seven places, what it is and whether it is in use); the collection, scrolling, on the left; the card on
+   its stand on the right. The strip is kept low so that the collection and the stand have the height. ───────── */
+.pg-main:has(> .pg-cards) { overflow: hidden; display: flex; flex-direction: column; padding-bottom: calc(18px + var(--safe-b)); }
+.pg-body.pg-cards { flex: 1; min-height: 0; max-width: 1480px; }
 .pg-cards .cards-page {
-  height: 100%; display: grid; gap: 16px 18px;
-  grid-template-columns: minmax(0, 1fr) clamp(300px, 27vw, 390px); grid-template-rows: auto minmax(0, 1fr);
+  height: 100%; display: grid; gap: 14px 18px;
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 27vw, 380px); grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas: "deck deck" "coll detail";
 }
 .pg-cards .cp-deck {
-  grid-area: deck; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "tabs . bar" "slots slots slots" "flash flash flash";
-  align-items: center; gap: 10px 16px; padding: 12px 18px 14px; border-radius: 8px; color: #f2e4c4;
-  background: radial-gradient(ellipse 70% 120% at 50% 0%, rgba(255, 220, 160, 0.1), rgba(255, 220, 160, 0) 70%), linear-gradient(180deg, #4b321d 0%, #3a2715 55%, #2b1c0e 100%);
+  grid-area: deck; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "tabs slots bar";
+  align-items: center; gap: 6px 18px; padding: 9px 16px; border-radius: 8px; color: #f2e4c4;
+  background: radial-gradient(ellipse 60% 140% at 50% 0%, rgba(255, 220, 160, 0.1), rgba(255, 220, 160, 0) 70%), linear-gradient(180deg, #4b321d 0%, #3a2715 55%, #2b1c0e 100%);
   border: 1px solid #1c1108; box-shadow: inset 0 0 0 1px rgba(232, 196, 128, 0.38), inset 0 3px 14px rgba(0, 0, 0, 0.45), 0 10px 24px rgba(0, 0, 0, 0.5);
 }
-.pg-cards .cp-tabs { grid-area: tabs; margin: 0; }
-.pg-cards .cp-deckbar { grid-area: bar; margin: 0; }
-.pg-cards .cp-slots { grid-area: slots; display: grid; grid-template-columns: repeat(7, minmax(0, 112px)); justify-content: center; gap: 12px; }
-.pg-cards .cp-flash { grid-area: flash; margin: 0; text-align: center; color: #ff9c86; }
-.pg-cards .cp-slot .cc.small, .pg-cards .cp-slot.empty { width: 100%; }
-.pg-cards .cp-slot .cc.small { padding: 9px 6px 8px; border-radius: 9px; }
-.pg-cards .cp-slot .cc.small .cc-name { font-size: 12.5px; }
-.pg-cards .cp-slot .cc.small .cc-pts { min-width: 20px; height: 20px; font-size: 11px; }
-.pg-cards .cp-slot.empty { border-color: rgba(232, 196, 128, 0.45); color: #e8d3a3; }
-.pg-cards .cp-tab { border-color: rgba(232, 196, 128, 0.35); color: #f2e4c4; }
+.pg-cards .cp-tabs { grid-area: tabs; flex-direction: column; flex-wrap: nowrap; gap: 4px; }
+.pg-cards .cp-tab { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 12px; min-width: 132px; padding: 4px 10px; border-color: rgba(232, 196, 128, 0.35); color: #f2e4c4; }
 .pg-cards .cp-tab.on { border-color: #f0cf7a; box-shadow: inset 0 0 0 1px #f0cf7a, 0 0 10px rgba(255, 206, 100, 0.3); background: rgba(255, 220, 160, 0.08); }
-.pg-cards .cp-status { font-size: 15px; color: #f6d98a; }
+.pg-cards .cp-slots { grid-area: slots; display: grid; grid-template-columns: repeat(7, minmax(0, 88px)); justify-content: center; gap: 10px; }
+.pg-cards .cp-slot .cc.small, .pg-cards .cp-slot.empty { width: 100%; }
+.pg-cards .cp-deckbar { grid-area: bar; flex-direction: column; align-items: flex-end; justify-content: center; gap: 7px; max-width: 200px; text-align: right; }
+.pg-cards .cp-status { font-size: 14.5px; color: #f6d98a; }
 .pg-cards .cp-inuse { color: #f6d98a; }
-.pg-cards .cp-scroll { grid-area: coll; margin: 0; padding: 16px 12px 16px 20px; }
+.pg-cards .cp-scroll { grid-area: coll; margin: 0; padding: 14px 14px 14px 18px; }
 .pg-cards .cp-detail { grid-area: detail; position: static; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px 16px; }
 .pg-cards .cp-x { display: none; }
 .pg-cards .cp-hint { margin: auto 0; text-align: center; }
 .pg-cards .cp-detail:has(> .cp-hint) { justify-content: center; }
+/* (low windows: a smaller stand, so that what the card does still shows under it) */
+@media (max-height: 760px) and (min-width: 761px) {
+  .pg-cards .cd-show { padding: 18px 10px 14px; }
+  .pg-cards .cd-show .cc.big { width: min(180px, 64%); }
+  .pg-cards .cd-show .cc.big .cc-name { font-size: 18px; margin-top: 15px; }
+}
 
 /* ───────── Draw & Shop, Missions: a column in the middle ───────── */
 .pg-body.pg-shop, .pg-body.pg-missions { max-width: 940px; }
@@ -165,26 +167,32 @@ html:not(.ui3) .pg-h { background: var(--gold-text, none); -webkit-background-cl
 }
 .pg-shop .sp-tab:hover { border-color: #f0cf7a; }
 .pg-shop .sp-tab.on { color: #fff1d6; border-color: rgba(255, 196, 160, 0.6); background: var(--threads), var(--cloth); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5); }
-.pg-shop .sp-pack { gap: 24px; padding: 20px 24px; }
-.pg-shop .sp-packart { width: 132px; }
-.pg-shop .sp-packart .emblem { width: 86px; height: 86px; }
-.pg-shop .sp-packinfo > b { font-size: 21px; }
-.pg-shop .sp-reveal { min-height: 0; margin: 22px 0 10px; gap: 16px; }
+.pg-shop .sp-banner { gap: 26px; padding: 16px 24px 16px 16px; }
+.pg-shop .sp-packinfo > b { font-size: 22px; }
+.pg-shop .sp-reveal { gap: 16px; }
 .pg-shop .sp-reveal:not(.ten) .cc { width: 168px; }
 .pg-shop .sp-reveal:not(.ten) .cc-name { font-size: 17px; }
 .pg-shop .sp-reveal.ten .cc { width: 112px; }
 .pg-shop .rv-tag { color: #f2e4c4; text-shadow: 0 1px 2px #000; font-size: 13px; }
 .pg-shop .rv-tag.new { color: #ffcf6e; }
 .pg-shop .rv-skip { color: #f2e4c4; }
-.pg-shop .sp-info { margin-top: 18px; padding: 12px 20px 14px; }
-.pg-shop .sp-info .sp-earn { margin-top: 8px; }
+/* the cards drawn: on a dark stage under a light, so that each card's frame and glow show */
+.pg-shop .sp-reveal {
+  margin: 18px 0 0; padding: 26px 18px 18px; border-radius: 12px;
+  background: radial-gradient(ellipse 60% 70% at 50% 40%, rgba(255, 214, 140, 0.16), transparent 70%), linear-gradient(180deg, rgba(22, 16, 10, 0.9), rgba(12, 9, 6, 0.92));
+  box-shadow: inset 0 0 0 1px rgba(232, 196, 128, 0.35), 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+.pg-shop .sp-reveal + .rv-skip { margin-top: 10px; }
+.pg-shop .sp-pool { margin-top: 18px; padding: 16px 22px 18px; }
+.pg-shop .sp-pool .sp-earn { margin-top: 16px; }
 /* what just happened (a reward taken, a card traded): a slip kept in sight at the foot of the page */
 .pg-body .sp-note {
   position: sticky; bottom: 4px; z-index: 2; width: fit-content; max-width: 100%; box-sizing: border-box; margin: 14px auto 0; padding: 7px 16px; border-radius: 999px;
   background: rgba(20, 13, 6, 0.9); color: #f6d98a; border: 1px solid rgba(232, 196, 128, 0.5); text-align: center; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 .pg-shop .sp-shop { padding: 18px 22px 22px; }
-.pg-shop .cc-grid.shop { justify-content: center; }
+.pg-shop .sp-shop .cc { width: 116px; }
+.pg-shop .sp-shop .cc-name { font-size: 13px; }
 .pg-missions .sp-missions { padding: 18px 24px 20px; }
 .pg-missions .ms-row { grid-template-columns: minmax(0, 1fr) 84px 92px; padding: 11px 4px; }
 .pg-missions .ms-text b { font-size: 15px; }
@@ -192,11 +200,29 @@ html:not(.ui3) .pg-h { background: var(--gold-text, none); -webkit-background-cl
 
 /* ───────── Profile: the nation on the left, the collection and the record on the right ───────── */
 .pg-body.pg-profile { max-width: 1060px; }
-.profile-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "nation coll" "nation rec"; gap: 18px; align-items: start; }
-.profile-page:not(:has(.pf-record)) { grid-template-areas: "nation coll"; }
-.pf-nation { grid-area: nation; display: flex; flex-direction: column; }
+.profile-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "nation coll" "nation rec" "deck deck"; gap: 18px; align-items: start; }
+.profile-page:not(:has(.pf-record)) { grid-template-areas: "nation coll" "deck deck"; }
+.pf-nation { grid-area: nation; display: flex; flex-direction: column; align-self: stretch; }
 .pf-coll { grid-area: coll; }
 .pf-record { grid-area: rec; }
+.pf-deck { grid-area: deck; }
+/* the collection of each rarity */
+.pf-rars { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.pf-rar { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.pf-rar .rar { color: var(--c2); }
+html.ui3 .pf-rar .rar { color: color-mix(in srgb, var(--c3) 80%, #000); }
+.pf-rar b { font-size: 15px; }
+.pf-rar b small { font-size: 11.5px; opacity: 0.7; }
+.pf-rar.full b { color: var(--c2); }
+html.ui3 .pf-rar.full b { color: color-mix(in srgb, var(--c3) 85%, #000); }
+/* the blueprint in use: its seven cards in a row, its name and where it is changed */
+.pf-deckrow { display: flex; align-items: center; gap: 14px 24px; flex-wrap: wrap; }
+.pf-cards { display: flex; gap: 12px; flex-wrap: wrap; padding: 8px 0 2px 6px; }
+.pf-cards .cc.small { width: 92px; }
+.pf-empty { width: 92px; aspect-ratio: 92 / 104; box-sizing: border-box; border: 1.5px dashed var(--line); border-radius: 9px; opacity: 0.6; }
+.pf-deckinfo { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-left: auto; }
+.pf-deckinfo b { font-family: var(--font-display); font-size: 17px; letter-spacing: 0.06em; }
+.pf-deckinfo small { font-size: 13px; color: var(--ink-dim); }
 .pf-banner { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 10px 0 6px; }
 .pf-flag { display: block; line-height: 0; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.55)); }
 .pf-flag img { display: block; width: 180px; height: 120px; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 4px #a07a4a, 0 0 0 6px #2a1a0e; }
@@ -218,8 +244,6 @@ html:not(.ui3) .profile-page .pf-name.hm-name input[type="text"] { color: #3a241
 .pf-what { font-size: 12.5px; letter-spacing: 0.08em; color: var(--ink-dim); }
 .pf-bar { display: block; height: 6px; border-radius: 3px; overflow: hidden; background: rgba(0, 0, 0, 0.22); }
 .pf-bar i { display: block; width: 100%; height: 100%; border-radius: 3px; background: var(--brass-hi); }
-.pf-purse { grid-column: 1 / -1; display: flex; gap: 18px; font-size: 17px; }
-.pf-purse .cur .ico { width: 20px; height: 20px; }
 .pf-links { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .pf-links .btn { gap: 6px; }
 .pf-links .emblem { width: 22px; height: 22px; }
@@ -267,6 +291,7 @@ html.ui3 .pg-missions { --u3-vig: var(--u3-ink-compass); }
 html.ui3 .pf-nation { --u3-vig: var(--u3-ink-castle); }
 html.ui3 .pf-coll { --u3-vig: var(--u3-ink-chest); }
 html.ui3 .pf-record { --u3-vig: var(--u3-ink-elementShield); }
+html.ui3 .pf-deck { --u3-vig: var(--u3-ink-flag); }
 html.ui3 .pg-settings { --u3-vig: var(--u3-ink-waterWheel); }
 html.ui3 .pg-cards .cp-deck { color: var(--u3-cream); }
 html.ui3 .set-row .seg { border-color: rgba(74, 46, 24, 0.4); }
@@ -337,26 +362,47 @@ html.ui3 .pf-record .ac-recent li { background: rgba(255, 250, 235, 0.38); }
   /* (the bar stays where the home screen's bar was: only the page's own part comes in) */
   .menu-screen.page:not(.leaving) .pg-rail { animation: none; }
 
-  /* the Cards page: the blueprint over the collection; the card opened comes up from below */
+  /* the Cards page: the blueprint over the collection (its sets in a row of tabs, the seven places in a
+     row, the use under them); the card picked comes up from below on its stand */
   .pg-main:has(> .pg-cards) { padding-bottom: 10px; }
   .pg-cards .cards-page { display: flex; flex-direction: column; gap: 10px; }
-  .pg-cards .cp-deck { flex: none; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tabs tabs" "slots slots" "bar bar" "flash flash"; gap: 8px; padding: 9px 9px 10px; }
-  .pg-cards .cp-tabs { flex-wrap: nowrap; gap: 4px; }
-  .pg-cards .cp-tab { flex: 1 1 0; min-width: 0; padding: 4px 4px; }
-  .pg-cards .cp-slots { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-  .pg-cards .cp-slot .cc.small { padding: 5px 2px 4px; border-radius: 6px; }
-  .pg-cards .cp-slot .cc.small .cc-name { font-size: 9px; }
-  .pg-cards .cp-slot .cc.small .cc-pts { min-width: 15px; height: 15px; font-size: 9px; padding: 0 2px; }
-  .pg-cards .cp-scroll { flex: 1; min-height: 0; padding: 12px 8px 12px 12px; }
+  .pg-cards .cp-deck { flex: none; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tabs tabs" "slots slots" "bar bar"; gap: 8px; padding: 8px 8px 9px; }
+  .pg-cards .cp-tabs { flex-direction: row; gap: 4px; }
+  .pg-cards .cp-tab { flex: 1 1 0; min-width: 0; flex-direction: column; align-items: center; gap: 0; padding: 3px 4px; }
+  .pg-cards .cp-tab b { font-size: 13px; }
+  .pg-cards .cp-slots { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+  .pg-cards .cp-slot .cc.small { padding: 3px; border-radius: 7px; }
+  .pg-cards .cp-slot .cc.small::before { inset: 3px; border-radius: 5px; }
+  .pg-cards .cp-slot .cc.small .cc-name { margin: 6px 1px 3px; font-size: 9px; }
+  .pg-cards .cp-slot .cc.small .cc-gem .gem-svg { width: 12px; height: 12px; margin-top: -7px; }
+  .pg-cards .cp-slot .cc.small .cc-pts { min-width: 15px; height: 15px; top: -4px; left: -4px; font-size: 9px; padding: 0 2px; }
+  .pg-cards .cp-slot .cc.small .cc-crown { width: 20px; height: 11px; top: -7px; }
+  .pg-cards .cp-slot.empty { border-radius: 7px; }
+  .pg-cards .cp-deckbar { flex-direction: row; align-items: center; justify-content: space-between; max-width: none; text-align: left; }
+  .pg-cards .cp-deckbar .btn { min-height: 0; padding: 5px 12px; }
+  .pg-cards .cp-scroll { flex: 1; min-height: 0; padding: 12px 10px 12px 12px; }
+  .pg-cards .cp-head { gap: 8px; margin-bottom: 12px; }
+  .pg-cards .cp-filter { flex-wrap: nowrap; overflow-x: auto; margin: 0 -10px 0 -2px; padding: 2px 10px 4px 2px; scrollbar-width: none; }
+  .pg-cards .cp-chip { flex: none; }
+  .pg-cards .cp-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 10px; }
   .pg-cards .cp-detail { display: none; }
   .pg-cards .cards-page.picked .cp-detail {
-    display: flex; position: fixed; z-index: 4; left: 0; right: 0; top: auto; bottom: var(--bar); max-height: min(72vh, calc(100% - var(--bar) - 70px));
+    display: flex; position: fixed; z-index: 4; left: 0; right: 0; top: auto; bottom: var(--bar); max-height: min(78vh, calc(100% - var(--bar) - 60px));
     border-radius: 14px 14px 0 0; padding: 14px 14px 16px; box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.55);
     animation: pg-sheet 0.24s var(--e-out, ease-out) backwards;
   }
-  .pg-cards .cp-x { display: inline-flex; align-self: flex-end; margin: -6px -6px -34px 0; position: relative; z-index: 1; }
-  /* (its picture smaller, and what to do with it always in reach at the sheet's foot) */
-  .pg-cards .cp-detail .cd-pic { max-width: 250px; }
+  .pg-cards .cp-x {
+    display: inline-flex; align-self: flex-end; margin: 4px 4px -40px 0; position: relative; z-index: 2; width: 34px; height: 34px; padding: 0; border-radius: 50%;
+    justify-content: center; align-items: center; color: #f6eedb; background: rgba(12, 9, 6, 0.72); border: 1px solid rgba(246, 238, 219, 0.35);
+  }
+  /* (the card on its stand smaller, and what to do with it always in reach at the sheet's foot) */
+  .pg-cards .cd-show { padding: 18px 10px 14px; }
+  .pg-cards .cd-show .cc.big { width: 158px; }
+  .pg-cards .cd-show .cc.big .cc-name { margin-top: 13px; font-size: 16px; }
+  .pg-cards .cd-show .cc.big .cc-kind { font-size: 11px; }
+  .pg-cards .cd-show .cc.big .cc-pts { min-width: 28px; height: 28px; font-size: 15px; top: -7px; left: -7px; }
+  .pg-cards .cd-show .cc.big .cc-gem .gem-svg { width: 24px; height: 24px; margin-top: -13px; }
+  .pg-cards .cd-show .cc.big .cc-crown { width: 42px; height: 22px; top: -13px; }
   .pg-cards .cp-detail .cp-acts {
     position: sticky; bottom: -16px; z-index: 1; margin: 0 -14px -16px; padding: 12px 14px 14px;
     background: linear-gradient(180deg, transparent 0, var(--sheet-bg) 16px);
@@ -364,13 +410,32 @@ html.ui3 .pf-record .ac-recent li { background: rgba(255, 250, 235, 0.38); }
   @keyframes pg-sheet { from { transform: translateY(40%); opacity: 0; } }
 
   .pg-shop .sp-tab { min-width: 0; flex: 1 1 0; padding: 7px 10px; font-size: 14.5px; }
-  .pg-shop .sp-pack { padding: 14px; gap: 12px; }
+  .pg-shop .sp-banner { padding: 12px; gap: 12px; }
+  .pg-shop .sp-reveal { padding: 20px 8px 12px; }
+  .pg-shop .sp-pool { padding: 12px 14px 14px; }
   .pg-shop .sp-reveal:not(.ten) .cc { width: 128px; }
   .pg-shop .sp-reveal.ten .cc { width: 60px; }
+  .pg-shop .sp-reveal.ten { gap: 10px 6px; }
+  .pg-shop .sp-reveal.ten .cc.small { padding: 3px; border-radius: 7px; }
+  .pg-shop .sp-reveal.ten .cc.small::before { inset: 3px; border-radius: 5px; }
+  .pg-shop .sp-reveal.ten .cc.small .cc-name { margin: 6px 1px 3px; font-size: 9px; }
+  .pg-shop .sp-reveal.ten .cc.small .cc-gem .gem-svg { width: 12px; height: 12px; margin-top: -7px; }
+  .pg-shop .sp-reveal.ten .cc.small .cc-pts { min-width: 15px; height: 15px; top: -4px; left: -4px; font-size: 9px; padding: 0 2px; }
+  .pg-shop .sp-reveal.ten .cc.small .cc-crown { width: 20px; height: 11px; top: -7px; }
+  .pg-shop .rv-tag { font-size: 11px; }
   .pg-missions .sp-missions { padding: 12px 14px 14px; }
   .pg-missions .ms-row { grid-template-columns: minmax(0, 1fr) 64px; }
-  .profile-page { grid-template-columns: minmax(0, 1fr); grid-template-areas: "nation" "coll" "rec"; gap: 12px; }
-  .profile-page:not(:has(.pf-record)) { grid-template-areas: "nation" "coll"; }
+  .profile-page { grid-template-columns: minmax(0, 1fr); grid-template-areas: "nation" "coll" "deck" "rec"; gap: 12px; }
+  .profile-page:not(:has(.pf-record)) { grid-template-areas: "nation" "coll" "deck"; }
+  .pf-cards { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; width: 100%; padding: 6px 0 0; }
+  .pf-cards .cc.small, .pf-empty { width: 100%; }
+  .pf-cards .cc.small { padding: 3px; border-radius: 7px; }
+  .pf-cards .cc.small::before { inset: 3px; border-radius: 5px; }
+  .pf-cards .cc.small .cc-name { margin: 6px 1px 3px; font-size: 9px; }
+  .pf-cards .cc.small .cc-gem .gem-svg { width: 12px; height: 12px; margin-top: -7px; }
+  .pf-cards .cc.small .cc-pts { min-width: 15px; height: 15px; top: -4px; left: -4px; font-size: 9px; padding: 0 2px; }
+  .pf-cards .cc.small .cc-crown { width: 20px; height: 11px; top: -7px; }
+  .pf-deckinfo { margin-left: 0; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
   .pf-flag img { width: 132px; height: 88px; }
   html.ui3 .pf-flag img { width: 96px; height: 138px; }
   .set-sec { padding: 12px 14px 6px; }
@@ -406,4 +471,8 @@ html.ui3 .pf-record .ac-recent li { background: rgba(255, 250, 235, 0.38); }
 @media (min-width: 761px) and (max-width: 999px), (min-width: 761px) and (max-aspect-ratio: 1 / 1) {
   .menu-screen.home { padding-left: calc(var(--safe-l) + 94px); }
   .pg-cards .cards-page { grid-template-columns: minmax(0, 1fr) 280px; }
+  .pg-cards .cp-deck { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tabs bar" "slots slots"; }
+  .pg-cards .cp-tabs { flex-direction: row; }
+  .pg-cards .cp-tab { min-width: 0; }
+  .pg-cards .cp-deckbar { flex-direction: row; align-items: center; max-width: none; }
 }

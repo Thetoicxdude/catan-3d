@@ -21,7 +21,8 @@ def check(name, ok, info=''):
     print(('PASS ' if ok else 'FAIL ') + name, info)
 
 # the human to move, dice rolled, nothing pending, plenty in hand
-MY_TURN = """() => { const g = __game, s = g.state; window.__autoHuman = false; s.current = 0; s.rolled = true; s.pending = null; s.trade = null; s.used = {}; for (const r of ['wood','brick','wool','grain','ore']) s.players[0].res[r] = 12; g.refresh(); }"""
+# the human's turn, taken over (a computer's move already on its timer is called off: it would land after)
+MY_TURN = """() => { const g = __game, s = g.state; window.__autoHuman = false; clearTimeout(g.timer); g.timer = null; g.thinking = null; s.current = 0; s.rolled = true; s.pending = null; s.trade = null; s.used = {}; for (const r of ['wood','brick','wool','grain','ore']) s.players[0].res[r] = 12; g.refresh(); }"""
 # labels on the map sit where they are anchored (as ui6.py checks)
 CHECK = r"""() => {
   const layer = document.querySelector('.map-labels');

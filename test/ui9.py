@@ -36,7 +36,8 @@ RECORD = """window.__anims = [];
 ANIMS = "(since) => window.__anims.slice(since)"
 NANIMS = "() => window.__anims.length"
 CARDS = "() => window.__cards.get()"
-MY_TURN = """() => { const g = __game, s = g.state; window.__autoHuman = false; s.current = 0; s.rolled = true; s.pending = null; s.trade = null; for (const r of ['wood','brick','wool','grain','ore']) s.players[0].res[r] = 12; g.refresh(); }"""
+# the human's turn, taken over (a computer's move already on its timer is called off: it would land after)
+MY_TURN = """() => { const g = __game, s = g.state; window.__autoHuman = false; clearTimeout(g.timer); g.timer = null; g.thinking = null; s.current = 0; s.rolled = true; s.pending = null; s.trade = null; for (const r of ['wood','brick','wool','grain','ore']) s.players[0].res[r] = 12; g.refresh(); }"""
 
 def init(own, coins=0, bps=None):
     return RECORD + "\nwindow.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; if (!localStorage.getItem('catan3d-settings-v1')) { localStorage.setItem('catan3d-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: 'low', qualityPicked: true, opponents: 3, bps: %s, bpCur: 0, bpv: 2 })); localStorage.setItem('catan3d-cards-v1', JSON.stringify({ own: %s, coins: %d })); }" % (json.dumps(bps or [FIVE, FIVE, FIVE]), json.dumps(own), coins)

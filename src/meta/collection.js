@@ -33,6 +33,18 @@ export const MISSION_CARDS = ['shipyard', 'camp', 'academy'];
 // what the draws give
 export const POOL = BUILDING_IDS.filter((k) => !STARTER.includes(k) && !MISSION_CARDS.includes(k));
 
+// How hard a card is to have (2026-11-17: the colour of the card's frame): basic (everyone's), common
+// (a new player's three), rare (the missions'), epic (the buildings drawn), legendary (the wonders)
+export const RARITIES = ['basic', 'common', 'rare', 'epic', 'legendary'];
+export function rarityOf(k) {
+  if (isBasic(k)) return 'basic';
+  if (STARTER.includes(k)) return 'common';
+  if (MISSION_CARDS.includes(k)) return 'rare';
+  return isWonder(k) ? 'legendary' : 'epic';
+}
+// every card (the basic ones first), rarest last; within a rarity in BUILDING_IDS order
+export const ALL_CARDS = RARITIES.flatMap((r) => [...BASIC, ...BUILDING_IDS].filter((k) => rarityOf(k) === r));
+
 // a draw: each building of the pool 10 parts in 85, each wonder 3
 export const WEIGHT = { building: 10, wonder: 3 };
 export const DRAW_COST = 100;

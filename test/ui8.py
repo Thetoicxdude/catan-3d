@@ -2,7 +2,8 @@
 # a new player's home screen (a full first blueprint: the four basic cards and three buildings; the
 # welcome present waiting on the Missions tab, the side bar's five tabs on the left), taking it on the
 # Missions page (the whole screen), a draw (into the collection: the blueprint is full), the shop (shards
-# for a card), the Cards page (the basic cards and the 18 buildings, the ones not owned grey, a card
+# for a card), the pack's banner and its twelve cards, the Cards page (the basic cards and the 18
+# buildings framed by rarity, the ones not owned grey, the rarities' chips, the stand never empty, a card
 # opened with its cost, another blueprint without the development card taken into use), the setup
 # showing that blueprint, a campaign where it is played (no development cards for money; the computers
 # with seven cards each), a mission done in play, and the coins and missions of the finished game; the
@@ -21,7 +22,8 @@ def check(name, ok, info=''):
 
 CARDS = "() => window.__cards.get()"
 SETTINGS = "() => JSON.parse(localStorage.getItem('catan3d-settings-v1'))"
-MY_TURN = """() => { const g = __game, s = g.state; window.__autoHuman = false; s.current = 0; s.rolled = true; s.pending = null; s.trade = null; s.used = {}; for (const r of ['wood','brick','wool','grain','ore']) s.players[0].res[r] = 12; g.refresh(); }"""
+# the human's turn, taken over (a computer's move already on its timer is called off: it would land after)
+MY_TURN = """() => { const g = __game, s = g.state; window.__autoHuman = false; clearTimeout(g.timer); g.timer = null; g.thinking = null; s.current = 0; s.rolled = true; s.pending = null; s.trade = null; s.used = {}; for (const r of ['wood','brick','wool','grain','ore']) s.players[0].res[r] = 12; g.refresh(); }"""
 
 async def main():
     srv = serve()
@@ -81,6 +83,9 @@ async def main():
         s = await page.evaluate(SETTINGS)
         check('a draw: 100 coins, a card of the pack into the collection (the blueprint is full)', c['coins'] == 100 and len(got) == 1 and got[0] in c['own'] and len(c['own']) == 4 and (s.get('bps') or [first])[0] == first, (c['coins'], got, s.get('bps')))
         await page.screenshot(path=f'{SP}/ui8-draw.png')
+        pack = await page.evaluate("() => ({ fan: [...document.querySelectorAll('.sp-fan .cc')].map((c) => c.dataset.k), pool: [...document.querySelectorAll('.sp-pool .cc')].map((c) => [c.dataset.k, !c.classList.contains('locked')]) })")
+        drawn = [k for k, mine in pack['pool'] if mine]
+        check('the pack\'s banner fans out its wonders; under it the twelve cards of the pack, the one drawn in colour', sorted(pack['fan']) == ['gardens', 'greatWall', 'library', 'lighthouse', 'royalRoad'] and len(pack['pool']) == 12 and drawn == got, pack)
         ten = await page.locator('.btn.sp-draw >> nth=1').is_disabled()
         check('ten draws need 900 coins', ten)
 
@@ -105,6 +110,19 @@ async def main():
         lock_icons = await page.locator('.cp-coll .cc .cc-lock, .cp-coll .cc .cc-cost').count()
         c = await page.evaluate(CARDS)
         check('the Cards page: the 4 basic cards and the 18 buildings, the ones not owned grey only, no costs on them', n == 22 and locked == 18 - len(c['own']) and lock_icons == 0, (n, locked, lock_icons))
+        # rarity: each card's frame by how it is had, in that order (basic, common, rare, epic, legendary);
+        # a gem cut for each but the basic cards, a crown on the legendary ones
+        rar = await page.evaluate("() => { const cs = [...document.querySelectorAll('.cp-coll .cc')]; const r = (c) => [...c.classList].find((x) => x.startsWith('r-')); return { order: cs.map(r), gems: cs.filter((c) => c.querySelector('.cc-gem svg')).length, crowns: cs.filter((c) => c.querySelector('.cc-crown')).map((c) => c.dataset.k), shipyard: r(document.querySelector('.cp-coll .cc[data-k=\"shipyard\"]')), frame: getComputedStyle(document.querySelector('.cp-coll .cc[data-k=\"granary\"]')).backgroundImage.includes('gradient') }; }")
+        want = ['r-basic'] * 4 + ['r-common'] * 3 + ['r-rare'] * 3 + ['r-epic'] * 7 + ['r-legendary'] * 5
+        check('every card framed by its rarity, basic to legendary; a gem on all but the basic cards, a crown on the wonders', rar['order'] == want and rar['gems'] == 18 and sorted(rar['crowns']) == ['gardens', 'greatWall', 'library', 'lighthouse', 'royalRoad'] and rar['shipyard'] == 'r-rare' and rar['frame'], rar)
+        # the card on its stand before any is picked (the stand is never empty), and the rarity's chips
+        stand = await page.evaluate("() => { const d = document.querySelector('.cp-detail .cd'); return d ? { k: d.querySelector('.cc.big').dataset.k, acts: !!document.querySelector('.cp-detail .cp-acts .btn') } : null; }")
+        check('the stand shows a card before any is picked, with what to do with it', stand and stand['k'] and stand['acts'], stand)
+        await page.click('.cp-chip[data-r="legendary"]')
+        only = await page.evaluate("() => [...document.querySelectorAll('.cp-coll .cc')].map((c) => c.dataset.k)")
+        await page.click('.cp-chip[data-r="legendary"]')
+        back = await page.locator('.cp-coll .cc').count()
+        check('a rarity\'s chip shows its cards alone, and again all of them', sorted(only) == ['gardens', 'greatWall', 'library', 'lighthouse', 'royalRoad'] and back == 22, (only, back))
         await page.click('.cp-coll .cc[data-k="shipyard"]')
         how = await page.inner_text('.cp-detail')
         costs = await page.locator('.cp-detail .cb').count()
@@ -217,6 +235,8 @@ async def main():
         # a card opened: a sheet from below, its button in reach, the header still there
         await page.click('.cp-coll .cc[data-k="guild"]')
         await page.wait_for_timeout(500)
+        # (where it comes to rest: a slow page may still be raising it)
+        await page.evaluate("() => document.querySelector('.cp-detail').getAnimations().forEach((a) => a.finish())")
         sheet = await page.evaluate("() => { const d = document.querySelector('.cp-detail').getBoundingClientRect(); const a = document.querySelector('.cp-acts').getBoundingClientRect(); const bar = document.querySelector('.pg-rail').getBoundingClientRect(); return { top: Math.round(d.top), bottom: Math.round(d.bottom), acts: Math.round(a.bottom), bar: Math.round(bar.top) }; }")
         check('a card opened on a phone: a sheet over the bar, its button in sight', sheet['bottom'] <= sheet['bar'] + 1 and sheet['top'] > 60 and sheet['acts'] <= sheet['bottom'] + 1, sheet)
         await page.screenshot(path=f'{SP}/ui8-phone-cards.png')
