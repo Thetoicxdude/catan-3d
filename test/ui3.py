@@ -3,7 +3,7 @@ import asyncio, sys, os, json, time, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')  # screenshots
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')  # screenshots
 os.makedirs(SP, exist_ok=True)
 JS_HELPERS = """(() => {
 window.__snap = () => { const c = __game.map.camera; c.target.copy(c.goal); c.h = c.goalH; c.apply(); };
@@ -25,7 +25,7 @@ async def main():
         ctx = await b.new_context(viewport={'width': 1280, 'height': 800})
         page = await ctx.new_page()
         if not os.environ.get('ASSETS'): await page.add_init_script('window.__noAssets = true;')  # UI-flow test: skip the asset pack
-        await page.add_init_script("window.__mapFps = 0.12; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh', speed:'turbo', follow:false, quality:'low'}));")
+        await page.add_init_script("window.__mapFps = 0.12; localStorage.setItem('hexverse-settings-v1', JSON.stringify({lang:'zh', speed:'turbo', follow:false, quality:'low'}));")
         logs = []
         page.on('console', lambda m: logs.append(f'[{m.type}] {m.text}') if m.type in ('error','warning') else None)
         page.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))

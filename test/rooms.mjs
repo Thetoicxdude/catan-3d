@@ -60,7 +60,7 @@ function client(peer, room = ROOM, opts) {
 
 const A = client('peeraaaa01');
 await A.opened;
-A.send({ t: 'hello', id: 0, p: { app: 'catan3d', x: 1 } });
+A.send({ t: 'hello', id: 0, p: { app: 'hexverse', x: 1 } });
 const snapA = await A.next((m) => m.t === 'snap');
 ok(snapA.me === 'peeraaaa01' && snapA.peers.length === 0, 'first peer gets an empty snapshot');
 
@@ -75,7 +75,7 @@ ok(joinB.p.peer === 'peerbbbb01' && joinB.p.presence.y === 2, 'first peer is tol
 A.send({ t: 'pres', id: 7, p: { x: 2, gone: null } });
 ok((await A.next((m) => m.t === 'ack')).id === 7, 'presence patch acknowledged');
 const upd = await B.next((m) => m.t === 'upd');
-ok(upd.p.peer === 'peeraaaa01' && upd.p.presence.x === 2 && upd.p.presence.app === 'catan3d', 'patch merged and broadcast');
+ok(upd.p.peer === 'peeraaaa01' && upd.p.presence.x === 2 && upd.p.presence.app === 'hexverse', 'patch merged and broadcast');
 
 A.send({ t: 'pres', id: 8, p: { big: 'x'.repeat(4100) } });
 const err = await A.next((m) => m.t === 'err');

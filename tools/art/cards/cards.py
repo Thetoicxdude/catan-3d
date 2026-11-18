@@ -6,7 +6,7 @@
 import bpy, bmesh, math, random, sys, os
 from mathutils import Vector, Matrix, Euler, noise
 
-U = '/mnt/user-data/uploads/Claude/catan-assets/'
+U = os.environ['ART_SRC'].rstrip('/') + '/'  # the folder of the original (uploaded) art
 T1 = U + 'textures/'
 T2 = U + 'round2/textures/'
 M1 = U + 'models/'

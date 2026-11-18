@@ -408,7 +408,7 @@ vWNrm = normalize(mat3(modelMatrix) * objectNormal);`,
       )
       .replace('#include <fog_fragment>', TERRAIN_FRAG_POST + '\n#include <fog_fragment>');
   };
-  mat.customProgramCacheKey = () => 'catan-terrain-v6';
+  mat.customProgramCacheKey = () => 'hexverse-terrain-v6';
 
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;

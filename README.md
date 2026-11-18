@@ -1,8 +1,8 @@
-# 卡坦島 3D 戰略版（Catan 3D: Strategy Edition）
+# Hexverse
 
-*An online Catan on a 3D strategy map — in English (the default) or Traditional Chinese (Settings → Language).*
+*A hex-island strategy game on a 3D map — settle, trade and build, in English (the default) or Traditional Chinese (Settings → Language).*
 
-線上可玩的卡坦島（基本版規則、5–6 人擴充、航海家，以及自己設計的長局「發展模式」：37 格的島、在主畫面用收集來的建築卡組成的 7 格藍圖（任務、抽卡與商店）、地塊開發與世界奇觀）。介面有英文（預設）與繁體中文，在設定的第一列切換。地圖是可以旋轉、傾斜的 3D 戰略地圖，資源卡與發展卡都是寫實卡面。可以跟電腦對戰、在同一台裝置輪流玩，也可以線上多人：開房、用代碼或邀請連結加入、快速配對、觀戰、斷線重連。
+線上可玩的六角格島嶼策略遊戲：在島上開拓村莊與城市、交易資源、爭取勝利分數。有標準島嶼、5–6 人的大島、好幾座島與船的航海劇本、玩家自己畫的地圖；自己設計的長局「發展模式」（地塊開發、特殊建築、世界奇觀與建築卡收藏）即將推出。介面有英文（預設）與繁體中文，在設定的第一列切換。地圖是可以旋轉、傾斜的 3D 戰略地圖，資源卡與發展卡都是寫實卡面。可以跟電腦對戰、在同一台裝置輪流玩，也可以線上多人：開房、用代碼或邀請連結加入、快速配對、觀戰、斷線重連。
 
 ## 專案結構
 
@@ -34,22 +34,23 @@ npm run dev        # 打包後啟動本機伺服器：http://127.0.0.1:8787
 3. 建置設定：
    - Build command：`npm run build`
    - Deploy command：`npx wrangler deploy`（預設值）
-4. 按 **Deploy**。網址會是 `https://catan-3d.<你的子網域>.workers.dev`。
+4. 按 **Deploy**。網址會是 `https://<Worker 名稱>.<你的子網域>.workers.dev`（Worker 名稱就是 `wrangler.jsonc` 的 `name`）。
 
-之後每次推送到 `main` 分支都會自動部署；推送到其他分支會產生預覽網址，不影響正式版。
+之後每次推送到 `main` 分支都會自動部署；其他分支的建置會失敗、沒有預覽網址（有 Durable Object 的 Worker 不產生預覽網址），要試新版用本機 `npm run dev`。
 
 ## 測試
 
 ```sh
 npm test                                  # 翻譯檢查、規則單元測試、網路序列化、300 局完整模擬
 python3 test/english.py                   # 英文介面：畫面上不能出現中文
+python3 test/soon.py                      # 上線時的樣子：發展模式關著（即將推出）、出處的位置、舊存檔搬家
 node test/rooms.mjs                       # 房間伺服器協定（需先執行 npm run dev）
 python3 test/ui1.py                       # 瀏覽器介面流程（Playwright；ui1 到 ui4）
 python3 test/online.py                    # 線上對局（瀏覽器內的模擬房間）
 ROOMS=ws python3 test/online.py           # 同一場線上對局，改走真正的房間伺服器
 ```
 
-Python 測試會把截圖存到 `SHOTS` 環境變數指定的資料夾（預設是系統暫存資料夾下的 `catan-shots`）。
+Python 測試會把截圖存到 `SHOTS` 環境變數指定的資料夾（預設是系統暫存資料夾下的 `hexverse-shots`）。
 
 ## 免費額度（Workers Free 方案）
 
@@ -62,9 +63,13 @@ Python 測試會把截圖存到 `SHOTS` 環境變數指定的資料夾（預設�
 
 一場四人線上對局大約寫入幾百列、用掉幾百次請求，測試階段的用量遠低於上限。
 
-## 素材來源（全部 CC0）
+## 素材來源
 
-- [Poly Haven](https://polyhaven.com)：植物、岩石、地表、城堡、碼頭、帆船、道具與照片材質。
-- Daniel74（[Blend Swap](https://www.blendswap.com/blends/view/75519) 等四棟）：中世紀木構房屋。
-- [Quaternius](https://quaternius.com) Farm Animals：農場動物。
-- 資源卡與發展卡的卡面：用上述素材在 Blender（Cycles）擺拍算圖。
+遊戲裡的出處說明在「規則」的最後一節與設定頁的最底下。
+
+- [Poly Haven](https://polyhaven.com)（CC0）：植物、岩石、地表、城堡、碼頭、帆船、道具與照片材質。
+- Daniel74（[Blend Swap](https://www.blendswap.com/blends/view/75519) 等四棟，CC0）：中世紀木構房屋。
+- [Quaternius](https://quaternius.com) Farm Animals（CC0）：農場動物。
+- [Kenney](https://kenney.nl)（CC0）：Cartography Pack、UI Pack - Adventure、Fantasy UI Borders、Medals。
+- 圖示：[game-icons.net](https://game-icons.net)（Lorc、Delapouite 等作者，[CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)）。
+- 資源卡、發展卡與建築卡的卡面：用上述 CC0 素材在 Blender（Cycles）擺拍算圖。

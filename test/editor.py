@@ -6,14 +6,14 @@ import asyncio, sys, os, json, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')
 os.makedirs(SP, exist_ok=True)
 results = {}
 def check(name, ok, info=''):
     results[name] = bool(ok)
     print(('PASS ' if ok else 'FAIL ') + name, info)
 
-INIT = "window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true }));"
+INIT = "window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; localStorage.setItem('hexverse-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true }));"
 FACTS = "[...document.querySelectorAll('.ed-facts div b')].map((b) => +b.textContent)"
 MSGS = "[...document.querySelectorAll('.ed-msgs li')].map((li) => li.className + ':' + li.textContent)"
 
@@ -72,9 +72,9 @@ async def main():
         check('a second island drawn in one stroke', facts[2] == 2 and facts[0] == 19 + 3 + 8, f'{facts}')
         check('the island options appear with ships', '開局' in side and '外島加分' in side, side.replace('\n', ' ')[:200])
         draft = await page.evaluate('__screen().draft')
-        stored = await page.evaluate("JSON.parse(localStorage.getItem('catan3d-drafts-v1') || '[]')")
+        stored = await page.evaluate("JSON.parse(localStorage.getItem('hexverse-drafts-v1') || '[]')")
         await page.wait_for_timeout(600)
-        stored = await page.evaluate("JSON.parse(localStorage.getItem('catan3d-drafts-v1') || '[]')")
+        stored = await page.evaluate("JSON.parse(localStorage.getItem('hexverse-drafts-v1') || '[]')")
         check('the draft is saved as it is drawn', len(stored) == 1 and len(stored[0]['draft']['cells']) == len(draft['cells']), f"{len(stored)} drafts")
         await page.screenshot(path=f'{SP}/editor-drawn.png')
         # the island in 3D
@@ -115,7 +115,7 @@ async def main():
         await page.screenshot(path=f'{SP}/editor-play.png')
         # after a reload, with the draft gone, the campaign still carries its map (saved now: when our
         # nation opens, nothing has been played yet to save)
-        await page.evaluate("__game.save(); localStorage.removeItem('catan3d-drafts-v1')")
+        await page.evaluate("__game.save(); localStorage.removeItem('hexverse-drafts-v1')")
         await page.reload()
         await page.wait_for_selector('.menu-screen.home', timeout=90000)
         await page.click('[data-k="continue"]')

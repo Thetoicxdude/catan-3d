@@ -129,9 +129,9 @@ async def main(out, W, H):
     os.makedirs(out, exist_ok=True)
     # (the same island and the same villages every time: the page's randomness seeded)
     seed = int(os.environ.get('SEED', '7'))
-    init = ("window.__testHooks = true; Math.random = (() => { let s = %d; return () => ((s = (s * 16807) %% 2147483647) / 2147483647); })();"
+    init = ("window.__developOpen = true; window.__testHooks = true; Math.random = (() => { let s = %d; return () => ((s = (s * 16807) %% 2147483647) / 2147483647); })();"
             " crypto.getRandomValues = (a) => { for (let i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 4294967296) >>> 0; return a; };"
-            " localStorage.setItem('catan3d-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: 'high', qualityPicked: true, mode: 'develop', opponents: 3, bps: [['road','settlement','city','dev','granary','market','gardens']], bpCur: 0, bpv: 2 }));") % seed
+            " localStorage.setItem('hexverse-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: 'high', qualityPicked: true, mode: 'develop', opponents: 3, bps: [['road','settlement','city','dev','granary','market','gardens']], bpCur: 0, bpv: 2 }));") % seed
     srv = serve()
     async with async_playwright() as p:
         b = await p.chromium.launch(args=['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])

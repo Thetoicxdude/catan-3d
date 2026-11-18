@@ -1,4 +1,4 @@
-// The wonders of the development mode, on the deserts (the design of record: Claude Docs「卡坦島：發展模式
+// The wonders of the development mode, on the deserts (the design of record: Claude Docs「Hexverse：發展模式
 // 美術設計」): each in its three stages while it goes up (1: the foundations and the first level with a
 // treadwheel crane; 2: half built, wrapped in scaffolding; 3: only the top missing, scaffolding on the
 // upper part), complete (the owner's flags and banners) and as the ruin a destroyed one leaves.

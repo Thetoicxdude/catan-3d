@@ -15,7 +15,7 @@ ART = os.environ.get('ART') == '1'
 MAP = os.environ.get('MAP', 'base-4')
 TURNS = int(os.environ.get('TURNS', '4'))
 MODE = os.environ.get('MODE', '')
-INIT = "window.__noAssets = %s; window.__testHooks = true; window.__mapFps = 4; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: '%s', qualityPicked: true, opponents: 3%s }));" % ('false' if ART else 'true', Q, ", mode: 'develop'" if MODE == 'develop' else '')
+INIT = "window.__developOpen = true; window.__noAssets = %s; window.__testHooks = true; window.__mapFps = 4; localStorage.setItem('hexverse-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: '%s', qualityPicked: true, opponents: 3%s }));" % ('false' if ART else 'true', Q, ", mode: 'develop'" if MODE == 'develop' else '')
 # (the development mode) every model on the map at once: the buildings beside cities, a facility at both
 # levels on every terrain, the wonders at their stages, then one destroyed and one gone up a stage
 SHOWCASE = r"""() => {

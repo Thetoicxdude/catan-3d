@@ -207,9 +207,6 @@
 }
 .hm-medal:hover .emblem, .hm-medal:focus-visible .emblem { transform: translateY(-2px) rotate(-6deg); box-shadow: inset 0 2px 0 rgba(255, 226, 180, 0.25), 0 0 0 2px #2a1a0e, 0 0 14px rgba(255, 214, 120, 0.6); }
 .hm-medal:focus-visible { outline: none; }
-.hm-credits { position: absolute; left: max(22px, var(--safe-l)); bottom: calc(12px + var(--safe-b)); margin: 0; max-width: min(330px, calc(50% - 2 * var(--cw) - 70px)); font-size: 11px; line-height: 1.55; color: #9f957f; text-shadow: 0 1px 3px #000; }
-.hm-credits a { color: #d9bf82; text-decoration: none; border-bottom: 1px solid rgba(217, 191, 130, 0.35); }
-.hm-credits .ver { display: block; color: #776f60; font-family: var(--font-num); letter-spacing: 0.05em; }
 
 @media (max-width: 760px) {
   .menu-screen.home { --cw: calc((100vw - 32px - 3 * 8px) / 4); padding: calc(10px + var(--safe-t)) max(14px, var(--safe-r)) calc(10px + var(--safe-b)) max(14px, var(--safe-l)); }
@@ -253,5 +250,4 @@
   .hm-medals { position: absolute; top: calc(12px + var(--safe-t)); right: max(14px, var(--safe-r)); bottom: auto; gap: 8px; }
   .hm-medal { font-size: 0; gap: 0; }
   .hm-medal .emblem { width: 40px; height: 40px; padding: 5px; border-width: 2px; }
-  .hm-credits { position: static; max-width: none; margin-top: 10px; text-align: center; }
 }

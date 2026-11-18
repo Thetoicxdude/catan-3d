@@ -9,7 +9,7 @@ import asyncio, sys, os, json, time, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')
 os.makedirs(SP, exist_ok=True)
 MAP = os.environ.get('MAP', 'sea-1')
 VP, TOKENS = {'sea-1': (14, 26), 'sea-2': (13, 22), 'sea-3': (12, 16), 'sea-9': (12, 22),
@@ -55,7 +55,7 @@ async def main():
         ctx = await b.new_context(viewport={'width': 1280, 'height': 800})
         page = await ctx.new_page()
         page.set_default_timeout(120000)
-        await page.add_init_script("window.__noAssets = true; window.__mapFps = 0.5; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true }));")
+        await page.add_init_script("window.__noAssets = true; window.__mapFps = 0.5; localStorage.setItem('hexverse-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true }));")
         logs = []
         page.on('console', lambda m: logs.append(f'[{m.type}] {m.text}') if m.type in ('error', 'warning') else None)
         page.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))

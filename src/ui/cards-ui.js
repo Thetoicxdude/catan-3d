@@ -410,7 +410,7 @@ export function cardsPage(host, settings, save) {
 const WONDER_GLOW = 450;
 // the missions' progress as last shown (this browser): a bar that has gone up since grows to its new
 // length the next time it is shown (after a game)
-const SEEN_KEY = 'catan3d-ms-seen';
+const SEEN_KEY = 'hexverse-ms-seen';
 const readSeen = () => {
   try {
     return JSON.parse(localStorage.getItem(SEEN_KEY)) || {};

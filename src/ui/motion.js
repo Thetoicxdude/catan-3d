@@ -1,4 +1,4 @@
-// The interface's small motions (the design of record: Claude Docs「卡坦島：互動與動畫設計」,
+// The interface's small motions (the design of record: Claude Docs「Hexverse：互動與動畫設計」,
 // https://claude.ai/artifact/75edUnM1A6RTPtdR1G5AVa):
 //   installPress  every control pressed shrinks a little at once and springs back when let go
 //   shake         what cannot be done shakes its head (the reason is said elsewhere)
@@ -22,9 +22,10 @@ const can = (el) => !!(el && el.animate);
 // ── press ──
 
 // what shrinks when pressed: buttons and the cards that act like them; not the home screen's game
-// cards (their own lift), the map editor's grid, fields, or anything disabled or shut (.off: it shakes)
+// cards (their own lift), the map editor's grid, fields, or anything disabled or shut (.off: it shakes;
+// .soon, not open yet: it shakes and says so, soon.js)
 const PRESSABLE = 'button, [role="button"], .cc';
-const SKIP = '.hm-card, .ed-board, [data-nopress]';
+const SKIP = '.hm-card, .ed-board, [data-nopress], .soon';
 export function installPress(root = document) {
   let cur = null;
   const release = () => {

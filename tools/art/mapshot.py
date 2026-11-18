@@ -18,7 +18,7 @@ PICK = [x for x in os.environ.get('PICK', '').split(',') if x]
 H = float(os.environ.get('H', '24'))
 os.makedirs(OUT, exist_ok=True)
 ALL = ['aqueduct', 'granary', 'market', 'shipyard', 'guild', 'barracks', 'wall', 'mercenaries', 'adventurers', 'post', 'camp', 'academy', 'press', 'gardens', 'lighthouse', 'greatWall', 'royalRoad', 'library']
-INIT = "window.__testHooks = true; localStorage.setItem('catan3d-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: '%s', qualityPicked: true, mode: 'develop', opponents: 3, bps: [['road','settlement','city','dev','granary','market','gardens']], bpCur: 0, bpv: 2 })); localStorage.setItem('catan3d-cards-v1', JSON.stringify({ own: %s }));" % (Q, json.dumps(ALL))
+INIT = "window.__developOpen = true; window.__testHooks = true; localStorage.setItem('hexverse-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: '%s', qualityPicked: true, mode: 'develop', opponents: 3, bps: [['road','settlement','city','dev','granary','market','gardens']], bpCur: 0, bpv: 2 })); localStorage.setItem('hexverse-cards-v1', JSON.stringify({ own: %s }));" % (Q, json.dumps(ALL))
 WONDERS = json.loads(os.environ['WONDERS']) if os.environ.get('WONDERS') else [['lighthouse', 'done', 1], ['library', 'done', 2], ['greatWall', 'ruin', 3]]
 SETUP = r"""(wonders) => {
   const g = __game, s = g.state, G = __geo();

@@ -1,4 +1,4 @@
-# The interface's motions (src/ui/motion.js; the design: Claude Docs「卡坦島：互動與動畫設計」): a control
+# The interface's motions (src/ui/motion.js; the design: Claude Docs「Hexverse：互動與動畫設計」): a control
 # pressed shrinks and springs back; the Cards page (a card flying into the blueprint and landing, one
 # taken out with the rest closing the gap, a full blueprint shaking, "in use" stamped, the detail fading
 # in); a page and a dialog leaving leave a picture of themselves that nobody can click or find, gone at
@@ -12,7 +12,7 @@ import asyncio, sys, os, json, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')
 os.makedirs(SP, exist_ok=True)
 results = {}
 def check(name, ok, info=''):
@@ -40,7 +40,7 @@ CARDS = "() => window.__cards.get()"
 MY_TURN = """() => { const g = __game, s = g.state; window.__autoHuman = false; clearTimeout(g.timer); g.timer = null; g.thinking = null; s.current = 0; s.rolled = true; s.pending = null; s.trade = null; for (const r of ['wood','brick','wool','grain','ore']) s.players[0].res[r] = 12; g.refresh(); }"""
 
 def init(own, coins=0, bps=None):
-    return RECORD + "\nwindow.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; if (!localStorage.getItem('catan3d-settings-v1')) { localStorage.setItem('catan3d-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: 'low', qualityPicked: true, opponents: 3, bps: %s, bpCur: 0, bpv: 2 })); localStorage.setItem('catan3d-cards-v1', JSON.stringify({ own: %s, coins: %d })); }" % (json.dumps(bps or [FIVE, FIVE, FIVE]), json.dumps(own), coins)
+    return RECORD + "\nwindow.__developOpen = true; window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; if (!localStorage.getItem('hexverse-settings-v1')) { localStorage.setItem('hexverse-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: 'low', qualityPicked: true, opponents: 3, bps: %s, bpCur: 0, bpv: 2 })); localStorage.setItem('hexverse-cards-v1', JSON.stringify({ own: %s, coins: %d })); }" % (json.dumps(bps or [FIVE, FIVE, FIVE]), json.dumps(own), coins)
 
 async def route(r):
     u = r.request.url
@@ -92,7 +92,7 @@ async def main():
         await page.click('.cp-acts .btn.primary')
         flying = await page.evaluate("() => ({ flyers: document.querySelectorAll('.m-fly .m-flyer').length, hidden: getComputedStyle(document.querySelector('.cp-slot[data-slot=\"shipyard\"] .cc')).visibility })")
         await page.wait_for_timeout(1500)
-        landed = await page.evaluate("() => ({ flyers: document.querySelectorAll('.m-fly .m-flyer').length, shown: getComputedStyle(document.querySelector('.cp-slot[data-slot=\"shipyard\"] .cc')).visibility, bp: JSON.parse(localStorage.getItem('catan3d-settings-v1')).bps[0] })")
+        landed = await page.evaluate("() => ({ flyers: document.querySelectorAll('.m-fly .m-flyer').length, shown: getComputedStyle(document.querySelector('.cp-slot[data-slot=\"shipyard\"] .cc')).visibility, bp: JSON.parse(localStorage.getItem('hexverse-settings-v1')).bps[0] })")
         a = await page.evaluate(ANIMS, n0)
         check('a card put in the blueprint flies there and its place bounces as it lands', flying['flyers'] == 1 and flying['hidden'] == 'hidden' and landed['flyers'] == 0 and landed['shown'] == 'visible' and landed['bp'] == FIVE + ['shipyard'] and any('m-flyer' in x['cls'] and 'translate' in x['props'] for x in a) and any('cp-slot' in x['cls'] and x['props'] == ['scale'] for x in a), (flying, landed))
         await page.screenshot(path=f'{SP}/ui9-cards.png')
@@ -100,7 +100,7 @@ async def main():
         await page.click('.cp-slot[data-slot="city"]')
         a = await page.evaluate(ANIMS, n0)
         moved = sorted(x['kind'] for x in a if 'cp-slot' in x['cls'] and x['props'] == ['translate'])
-        bp = await page.evaluate("() => JSON.parse(localStorage.getItem('catan3d-settings-v1')).bps[0]")
+        bp = await page.evaluate("() => JSON.parse(localStorage.getItem('hexverse-settings-v1')).bps[0]")
         check('a card taken out: the ones after it close the gap, it flies back', moved == ['dev', 'market', 'shipyard'] and bp == ['road', 'settlement', 'dev', 'market', 'shipyard'] and any('m-flyer' in x['cls'] for x in a), (moved, bp))
         await page.wait_for_timeout(800)
         # filled up, then one more: the blueprint shakes

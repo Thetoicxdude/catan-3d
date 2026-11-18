@@ -2,7 +2,7 @@ import asyncio, sys, os, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')  # screenshots
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')  # screenshots
 os.makedirs(SP, exist_ok=True)
 async def main():
     srv = serve()
@@ -11,7 +11,7 @@ async def main():
         for mock, w, h in [(True, 1100, 700), (False, 1100, 700), (True, 400, 820)]:
             ctx = await b.new_context(viewport={'width': w, 'height': h})
             page = await ctx.new_page()
-            await page.add_init_script("try { const k = 'catan3d-settings-v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (!s.lang) { s.lang = 'zh'; localStorage.setItem(k, JSON.stringify(s)); } } catch (e) {}")  # these checks read the Chinese words
+            await page.add_init_script("try { const k = 'hexverse-settings-v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (!s.lang) { s.lang = 'zh'; localStorage.setItem(k, JSON.stringify(s)); } } catch (e) {}")  # these checks read the Chinese words
             await page.add_init_script(f"window.__mapFps = 0.15; {'window.__mockRoom = true;' if mock else ''}")
             async def route(r):
                 u = r.request.url

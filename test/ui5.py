@@ -6,7 +6,7 @@ import asyncio, sys, os, json, time, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')
 os.makedirs(SP, exist_ok=True)
 TURNS = os.environ.get('TURNS', 'paired')
 SFX = '' if TURNS == 'paired' else '-' + TURNS  # screenshot names
@@ -45,7 +45,7 @@ async def main():
         ctx = await b.new_context(viewport={'width': W, 'height': H})
         page = await ctx.new_page()
         page.set_default_timeout(120000)
-        await page.add_init_script("window.__noAssets = true; window.__mapFps = 0.5; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true }));")
+        await page.add_init_script("window.__noAssets = true; window.__mapFps = 0.5; localStorage.setItem('hexverse-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true }));")
         logs = []
         page.on('console', lambda m: logs.append(f'[{m.type}] {m.text}') if m.type in ('error', 'warning') else None)
         page.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))

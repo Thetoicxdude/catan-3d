@@ -1,6 +1,6 @@
 # 素材製作腳本（參考用）
 
-`assets/` 裡的寫實素材都是用這些腳本從 CC0 原始素材做出來的。原始素材（Poly Haven 的模型與貼圖、Blend Swap 的房屋、Quaternius 的動物）體積太大，沒有放進 repo，腳本裡的路徑也是當初工作環境的路徑，要重做素材時需要先下載原始素材並調整路徑。
+`assets/` 裡的寫實素材都是用這些腳本從 CC0 原始素材做出來的。原始素材（Poly Haven 的模型與貼圖、Blend Swap 的房屋、Quaternius 的動物）體積太大，沒有放進 repo；要重做素材時先下載原始素材，用環境變數 `ART_SRC` 指向放原始素材的資料夾（`cards/cards.py`、`terrain.py`、`rocks.mjs`、`bldg/jobs.sh` 讀它），其他腳本裡的路徑是當初工作環境的路徑，需要時再調整。
 
 | 腳本 | 用途 |
 | --- | --- |

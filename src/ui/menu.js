@@ -8,6 +8,9 @@ import { cards } from '../meta/store.js';
 import { t, tx, untx, N_, getLang } from '../i18n/index.js';
 import { deckLine } from './cards-ui.js';
 import { leaveScreen } from './motion.js';
+import { GAME_NAME } from '../meta/brand.js';
+import { developOpen } from '../meta/features.js';
+import { comingSoon, soonText } from './soon.js';
 
 // (each colour's name is a key: t(p.name))
 export const PALETTE = [
@@ -155,7 +158,8 @@ export function houseRulesNotes(s) {
 // Settings saved by an older version: five opponent seats, a known map, an opponent count that fits it.
 export function fitSettings(s) {
   s.map = mapDef(s.map).id;
-  if (s.mode !== 'develop') s.mode = 'standard';
+  // (the development mode closed: features.js)
+  if (s.mode !== 'develop' || !developOpen()) s.mode = 'standard';
   const def = mapFor(s);
   if (s.turns !== 'sbp') s.turns = 'paired';
   // (the points to win were a number for the standard islands only: 8, 10 or 12)
@@ -353,7 +357,7 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
   scr.innerHTML = `
     <div class="title-block">
       <div class="eyebrow">Single Player · Island Campaign</div>
-      <h1>${t('單人遊戲')}<span>${t('卡坦島 3D 戰略版')}</span></h1>
+      <h1>${t('單人遊戲')}<span>${GAME_NAME}</span></h1>
       <p>${t('和電腦對手，或同一台裝置上的朋友輪流，在立體戰略地圖上開拓、交易、築城。率先取得勝利分數的國家，將統一整座島嶼。')}</p>${buildLabel()}
     </div>
     <div class="setup-card panel">
@@ -424,7 +428,15 @@ export function showMenu(root, { settings, hasSave, onStart, onContinue, onRules
       const b = el('button', settings.mode === val ? 'on' : '', text);
       b.type = 'button';
       b.dataset.mode = val;
+      // (the development mode not open yet: greyed, "Coming soon")
+      const soon = val === 'develop' && !developOpen();
+      if (soon) {
+        b.classList.add('soon');
+        b.setAttribute('aria-disabled', 'true');
+        b.title = soonText();
+      }
       b.addEventListener('click', () => {
+        if (soon) return comingSoon(b);
         if (settings.mode === val) return;
         settings.mode = val;
         // (the development mode: four players unless fewer were chosen; back to the island's own count)

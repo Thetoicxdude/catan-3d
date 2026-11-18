@@ -1,5 +1,10 @@
 // Boot: title screen over a live island preview → campaign. Handles saves and settings.
+// (first: the browser's keys moved from the game's earlier name, before anything reads them)
+import './meta/keys.js';
+import { GAME_NAME } from './meta/brand.js';
+import { developOpen, readDevSwitch, pageOpen } from './meta/features.js';
 import { createGame, ensureMap } from './engine/engine.js';
+import { developOn } from './engine/develop.js';
 import { GEO } from './engine/geometry.js';
 import { randomSeed } from './engine/rng.js';
 import { MapView } from './render/scene.js';
@@ -27,7 +32,9 @@ import { showPage, PAGES } from './ui/pages.js';
 import { cards as collection, commit as commitCards } from './meta/store.js';
 import { gameOver as cardsGameOver, observe as cardsObserve, MISSIONS } from './meta/collection.js';
 
-const SETTINGS_KEY = 'catan3d-settings-v1';
+const SETTINGS_KEY = 'hexverse-settings-v1';
+// (the development mode's switch in the address: features.js; before the settings are read)
+readDevSwitch();
 const app = document.getElementById('app');
 // every control pressed answers at once; a choice among a few slides over to the new one (motion.js)
 installPress(document);
@@ -58,7 +65,7 @@ function readSettings() {
 function useLanguage(s) {
   setLang(s && s.lang === 'zh' ? 'zh' : 'en');
   document.documentElement.lang = isZh() ? 'zh-Hant' : 'en';
-  document.title = t('卡坦島 3D 戰略版');
+  document.title = GAME_NAME;
 }
 // i18n-keep: a default name of old saves, and the one that replaced it
 const RENAMED = { 白楊共和國: '碧海共和國' };
@@ -108,7 +115,7 @@ function myMaps() {
 myMaps();
 // published maps opened lately (kept on this device with their drafts, so the campaign menu lists
 // them and a campaign set up on one keeps it after a reload)
-const SEEN_KEY = 'catan3d-maps-seen-v1';
+const SEEN_KEY = 'hexverse-maps-seen-v1';
 const seenMaps = new Map();
 try {
   const list = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]');
@@ -316,8 +323,8 @@ function onSettingsChange(s, key) {
 
 // A new language: the page starts again in it (every word on it, the default names, the map's labels),
 // back where it was: the campaign on this device saved and resumed, an online room joined again.
-const RESUME_KEY = 'catan3d-resume';
-const PAGE_KEY = 'catan3d-page';
+const RESUME_KEY = 'hexverse-resume';
+const PAGE_KEY = 'hexverse-page';
 function relaunch() {
   try {
     if (game && !game.destroyed && !session) {
@@ -341,16 +348,22 @@ function applyLook(s) {
   if (map && s) map.setOptions({ fps: s.fps, stats: s.perfInfo });
 }
 
+// the campaign saved on this device, if it can be carried on (one in the development mode waits while
+// that is closed: features.js)
+function savePlayable() {
+  const save = loadSave();
+  return !!save && (developOpen() || !developOn(save.state));
+}
+
 function openMenu() {
   closeMenus();
   // (matchmaking keeps the page light while it waits: it may have gone on while a page was shown)
   if (map) map.holdAssets(!!matching);
   menu = showHome(app, {
     settings,
-    hasSave: !!loadSave(),
+    hasSave: savePlayable(),
     seed: previewSeed,
     seconds: window.__mmSeconds || 60,
-    version: buildInfo(),
     getLobby: homeLobby,
     // any other way to play leaves the official matchmaking first
     onSingle: () => stopMatch().then(openSetup),
@@ -385,6 +398,8 @@ function openMenu() {
 // page was opened from when not the home screen ({ label, fn }: the single-player setup); o.tab: the
 // Draw & Shop page's tab.
 function openPage(page, o = {}) {
+  // (a page of the development mode while it is closed: features.js)
+  if (!pageOpen(page)) return openMenu();
   closeMenus();
   menu = showPage(app, page, {
     settings,
@@ -393,6 +408,7 @@ function openPage(page, o = {}) {
     save: (s) => saveSettings(s),
     onChange: (s) => onSettingsChange(s),
     onSettings: (s, key) => settingsChosen(s, key),
+    version: buildInfo(),
     dialogs: menuDialogs,
     onHome: o.back ? o.back.fn : () => openMenu(),
     // (the matchmaking in the header: the home screen's board shows it)
@@ -855,7 +871,8 @@ function hookGame() {
   // counts is one player against the computer, or online (not several players at one device)
   const counts = () => !!g.net || g.players.filter((p) => p.kind === 'human').length === 1;
   g.onWatch = (view, events) => {
-    if (!counts() || g.viewer < 0) return;
+    // (no missions while the development mode is closed: features.js)
+    if (!developOpen() || !counts() || g.viewer < 0) return;
     const done = cardsObserve(collection(), view, g.viewer, events);
     if (!done) return;
     commitCards();
@@ -864,7 +881,8 @@ function hookGame() {
   // a finished campaign: coins and missions for the building cards, and the signed-in player's record
   g.onGameOver = (r) => {
     if (!r) return;
-    const out = cardsGameOver(collection(), r, g.view(), g.viewer, localDay());
+    // (no coins nor missions while the development mode, whose they are, is closed: features.js)
+    const out = developOpen() ? cardsGameOver(collection(), r, g.view(), g.viewer, localDay()) : null;
     if (out) {
       g.rewards = out;
       commitCards();
@@ -1062,7 +1080,7 @@ function boot(data) {
   } catch {
     /* storage unavailable */
   }
-  if (PAGES.includes(page)) openPage(page);
+  if (PAGES.includes(page) && pageOpen(page)) openPage(page);
   else openMenu();
   showPreview(false);
 }

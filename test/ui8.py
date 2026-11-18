@@ -13,7 +13,7 @@ import asyncio, sys, os, json, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')
 os.makedirs(SP, exist_ok=True)
 results = {}
 def check(name, ok, info=''):
@@ -21,7 +21,7 @@ def check(name, ok, info=''):
     print(('PASS ' if ok else 'FAIL ') + name, info)
 
 CARDS = "() => window.__cards.get()"
-SETTINGS = "() => JSON.parse(localStorage.getItem('catan3d-settings-v1'))"
+SETTINGS = "() => JSON.parse(localStorage.getItem('hexverse-settings-v1'))"
 # the human's turn, taken over (a computer's move already on its timer is called off: it would land after)
 MY_TURN = """() => { const g = __game, s = g.state; window.__autoHuman = false; clearTimeout(g.timer); g.timer = null; g.thinking = null; s.current = 0; s.rolled = true; s.pending = null; s.trade = null; s.used = {}; for (const r of ['wood','brick','wool','grain','ore']) s.players[0].res[r] = 12; g.refresh(); }"""
 
@@ -33,7 +33,7 @@ async def main():
         page = await ctx.new_page()
         page.set_default_timeout(120000)
         # a new player: no cards stored yet
-        await page.add_init_script("window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; if (!localStorage.getItem('catan3d-settings-v1')) localStorage.setItem('catan3d-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: 'low', qualityPicked: true, mode: 'develop', opponents: 3 }));")
+        await page.add_init_script("window.__developOpen = true; window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; if (!localStorage.getItem('hexverse-settings-v1')) localStorage.setItem('hexverse-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: 'low', qualityPicked: true, mode: 'develop', opponents: 3 }));")
         logs = []
         page.on('console', lambda m: logs.append(f'[{m.type}] {m.text}') if m.type in ('error', 'warning') else None)
         page.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))
@@ -207,7 +207,7 @@ async def main():
         check('a game is counted once', again == 0, again)
 
         # back home: rewards waiting (the development, the game, the win)
-        await page.evaluate("() => localStorage.removeItem('catan3d-save-v1')")
+        await page.evaluate("() => localStorage.removeItem('hexverse-save-v1')")
         await page.goto('http://127.0.0.1:8765/dist/index.test.html')
         await page.wait_for_selector('.menu-screen.home', timeout=60000)
         badge = await page.inner_text('.hm-tab[data-k="missions"] .hm-badge')

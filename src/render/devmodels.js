@@ -1,4 +1,4 @@
-// The development mode's models (the design of record: Claude Docs「卡坦島：發展模式美術設計」,
+// The development mode's models (the design of record: Claude Docs「Hexverse：發展模式美術設計」,
 // https://claude.ai/artifact/7XW87u6o6g7CfbaE2iFWbX): the special buildings beside the settlements and the
 // development facilities on the hexes (the wonders on the deserts are in devwonders.js), built with the
 // kit in devkit.js. Each has an outline of its own (arches, a cylinder under a cone, striped awnings, a

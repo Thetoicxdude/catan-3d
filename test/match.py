@@ -7,7 +7,7 @@ from shot import serve, THREE
 from playwright.async_api import async_playwright
 # ROOMS=ws: play over the real room server (`npx wrangler dev --port 8787`) instead of the in-browser mock
 ROOMJS = "window.__rooms = 'ws://127.0.0.1:8787/rooms/';" if os.environ.get('ROOMS') == 'ws' else 'window.__mockRoom = true;'
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')  # screenshots
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')  # screenshots
 os.makedirs(SP, exist_ok=True)
 N = int(os.environ.get('N', '3'))
 SECS = os.environ.get('MM', '20')
@@ -30,7 +30,7 @@ async def main():
             pg = await ctx.new_page()
             pg.set_default_navigation_timeout(180000)  # the other pages keep this software-rendered browser busy
             NOA = '' if os.environ.get('ASSETS') else 'window.__noAssets = true; '  # UI-flow test: skip the asset pack
-            await pg.add_init_script(NOA + f"window.__mapFps = 0.1; {ROOMJS} window.__mmSeconds = {SECS}; window.__perf = 100; window.__keySlot = '{names[i]}'; localStorage.setItem('catan3d-settings-v1', JSON.stringify({{lang:'zh', speed:'turbo', follow:false, quality:'low', name: '{names[i]}'}}));")
+            await pg.add_init_script(NOA + f"window.__developOpen = true; window.__mapFps = 0.1; {ROOMJS} window.__mmSeconds = {SECS}; window.__perf = 100; window.__keySlot = '{names[i]}'; localStorage.setItem('hexverse-settings-v1', JSON.stringify({{lang:'zh', speed:'turbo', follow:false, quality:'low', name: '{names[i]}'}}));")
             pg.on('pageerror', lambda e, i=i: logs.append(f'[p{i} pageerror] {e}'))
             pg.on('console', lambda m, i=i: logs.append(f'[p{i} {m.type}] {m.text}') if m.type == 'error' else None)
             await pg.goto('http://127.0.0.1:8765/dist/index.test.html')

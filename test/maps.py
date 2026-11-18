@@ -8,7 +8,7 @@ import asyncio, sys, os, json, subprocess, tempfile, time
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')
 os.makedirs(SP, exist_ok=True)
 SITE = os.environ.get('SITE', 'http://127.0.0.1:8787')
 KEYS = os.environ['KEYS']
@@ -20,7 +20,7 @@ def check(name, ok, info=''):
 def token(sub, name):
     return subprocess.check_output(['node', os.path.join(os.path.dirname(__file__), 'accounts.mjs'), '--token', KEYS, sub, name], text=True).strip()
 
-INIT = "window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true, name: NAME }));"
+INIT = "window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; localStorage.setItem('hexverse-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true, name: NAME }));"
 
 async def main():
     async with async_playwright() as p:

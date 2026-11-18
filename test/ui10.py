@@ -1,4 +1,4 @@
-# The second round of the interface's motions (the design: Claude Docs「卡坦島：互動與動畫設計」, P2 and
+# The second round of the interface's motions (the design: Claude Docs「Hexverse：互動與動畫設計」, P2 and
 # P3): the home screen fading over to the setup, a badge whose number went up bouncing, the official
 # room's shields lighting up as players sit down and its last three seconds coming up large; the Cards
 # page's blueprint staying at the top while the collection scrolls under it (and staying where it was
@@ -14,7 +14,7 @@ import asyncio, sys, os, json, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')
 os.makedirs(SP, exist_ok=True)
 results = {}
 def check(name, ok, info=''):
@@ -45,7 +45,7 @@ ANIMS = "(since) => window.__anims.slice(since)"
 NANIMS = "() => window.__anims.length"
 
 def init(lang='zh', mode='develop', coins=3000):
-    return RECORD + "\nwindow.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; if (!localStorage.getItem('catan3d-settings-v1')) { localStorage.setItem('catan3d-settings-v1', JSON.stringify({ lang: '%s', speed: 'turbo', quality: 'low', qualityPicked: true, opponents: 3, mode: '%s', bps: [%s, %s, %s], bpCur: 0, bpv: 2 })); localStorage.setItem('catan3d-cards-v1', JSON.stringify({ own: %s, coins: %d, prog: { welcome: 1, games10: 6 } })); localStorage.setItem('catan3d-ms-seen', JSON.stringify({ games10: 2 })); }" % (lang, mode, json.dumps(BP), json.dumps(BP), json.dumps(BP), json.dumps(ALL), coins)
+    return RECORD + "\nwindow.__developOpen = true; window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; if (!localStorage.getItem('hexverse-settings-v1')) { localStorage.setItem('hexverse-settings-v1', JSON.stringify({ lang: '%s', speed: 'turbo', quality: 'low', qualityPicked: true, opponents: 3, mode: '%s', bps: [%s, %s, %s], bpCur: 0, bpv: 2 })); localStorage.setItem('hexverse-cards-v1', JSON.stringify({ own: %s, coins: %d, prog: { welcome: 1, games10: 6 } })); localStorage.setItem('hexverse-ms-seen', JSON.stringify({ games10: 2 })); }" % (lang, mode, json.dumps(BP), json.dumps(BP), json.dumps(BP), json.dumps(ALL), coins)
 
 async def route(r):
     u = r.request.url
@@ -91,7 +91,7 @@ async def room(b):
     for name in ['"主持王國"', '"小明聯邦"']:
         pg = await ctx.new_page()
         pg.set_default_timeout(120000)
-        await pg.add_init_script(init() + "\nwindow.__mockRoom = true; window.__perf = 100; window.__keySlot = %s; { const s = JSON.parse(localStorage.getItem('catan3d-settings-v1')); s.name = %s; localStorage.setItem('catan3d-settings-v1', JSON.stringify(s)); }" % (name, name))
+        await pg.add_init_script(init() + "\nwindow.__mockRoom = true; window.__perf = 100; window.__keySlot = %s; { const s = JSON.parse(localStorage.getItem('hexverse-settings-v1')); s.name = %s; localStorage.setItem('hexverse-settings-v1', JSON.stringify(s)); }" % (name, name))
         await pg.goto('http://127.0.0.1:8765/dist/index.test.html')
         await pg.wait_for_selector('.menu-screen.home', timeout=60000)
         rooms.append(pg)
@@ -181,7 +181,7 @@ async def main():
         fly = await page.evaluate("() => document.querySelectorAll('.m-fly .m-flyer').length")
         await page.wait_for_timeout(1400)
         a = await page.evaluate(ANIMS, n0)
-        bp = await page.evaluate("() => JSON.parse(localStorage.getItem('catan3d-settings-v1')).bps[0]")
+        bp = await page.evaluate("() => JSON.parse(localStorage.getItem('hexverse-settings-v1')).bps[0]")
         after = await page.evaluate("() => { const s = document.querySelector('.cp-scroll'); return { scroll: s.scrollTop, max: s.scrollHeight - s.clientHeight, shown: getComputedStyle(document.querySelector('.cp-slot[data-slot=\"library\"] .cc')).visibility }; }")
         flyers = [x for x in a if 'm-flyer' in x['cls']]
         check('a wonder makes way: the old one fades out of its place as the new one flies in', fly == 2 and len(flyers) == 2 and 'library' in bp and 'gardens' not in bp and after['shown'] == 'visible', (fly, len(flyers), bp, after))
@@ -194,7 +194,7 @@ async def main():
         await page.wait_for_timeout(1200)
         a = await page.evaluate(ANIMS, n0)
         grew = [x for x in a if 'ms-bar' in x['parent'] and x['props'] == ['translate']]
-        seen = await page.evaluate("() => JSON.parse(localStorage.getItem('catan3d-ms-seen'))")
+        seen = await page.evaluate("() => JSON.parse(localStorage.getItem('hexverse-ms-seen'))")
         check("a mission's bar grows from where it was last seen", len(grew) == 1 and seen.get('games10') == 6, (len(grew), seen.get('games10')))
         n0 = await page.evaluate(NANIMS)
         await page.click('.pg-item[data-k="shop"]')

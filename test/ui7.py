@@ -9,7 +9,7 @@ import asyncio, sys, os, json, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')
 os.makedirs(SP, exist_ok=True)
 results = {}
 # a player who owns every card, with a blueprint of seven: the four basic cards, two buildings and a
@@ -51,7 +51,7 @@ async def main():
         ctx = await b.new_context(viewport={'width': 1366, 'height': 820})
         page = await ctx.new_page()
         page.set_default_timeout(120000)
-        await page.add_init_script("window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; if (!localStorage.getItem('catan3d-settings-v1')) localStorage.setItem('catan3d-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: 'low', qualityPicked: true, mode: 'develop', opponents: 3, bps: [%s, [], []], bpCur: 0 })); if (!localStorage.getItem('catan3d-cards-v1')) localStorage.setItem('catan3d-cards-v1', JSON.stringify({ own: %s }));" % (json.dumps(DECK), json.dumps(ALL)))
+        await page.add_init_script("window.__developOpen = true; window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; if (!localStorage.getItem('hexverse-settings-v1')) localStorage.setItem('hexverse-settings-v1', JSON.stringify({ lang: 'zh', speed: 'turbo', quality: 'low', qualityPicked: true, mode: 'develop', opponents: 3, bps: [%s, [], []], bpCur: 0 })); if (!localStorage.getItem('hexverse-cards-v1')) localStorage.setItem('hexverse-cards-v1', JSON.stringify({ own: %s }));" % (json.dumps(DECK), json.dumps(ALL)))
         logs = []
         page.on('console', lambda m: logs.append(f'[{m.type}] {m.text}') if m.type in ('error', 'warning') else None)
         page.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))

@@ -6,7 +6,7 @@ import { CELL_KINDS, LIMITS, checkDraft, normalizeDraft } from '../engine/custom
 import { esc } from './text.js';
 import { t, tx, N_, list } from '../i18n/index.js';
 
-const STORE = 'catan3d-drafts-v1';
+const STORE = 'hexverse-drafts-v1';
 
 // ── drafts on this device ──
 export function loadDrafts() {

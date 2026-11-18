@@ -3,7 +3,7 @@ import asyncio, sys, os, json, time, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')  # screenshots
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')  # screenshots
 os.makedirs(SP, exist_ok=True)
 async def main():
     srv = serve()
@@ -12,7 +12,7 @@ async def main():
         mobile = os.environ.get('MOBILE') == '1'
         ctx = await b.new_context(viewport={'width': 400, 'height': 820} if mobile else {'width': 1280, 'height': 800}, has_touch=mobile, is_mobile=mobile, device_scale_factor=1)
         page = await ctx.new_page()
-        await page.add_init_script("try { const k = 'catan3d-settings-v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (!s.lang) { s.lang = 'zh'; localStorage.setItem(k, JSON.stringify(s)); } } catch (e) {}")  # these checks read the Chinese words
+        await page.add_init_script("try { const k = 'hexverse-settings-v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (!s.lang) { s.lang = 'zh'; localStorage.setItem(k, JSON.stringify(s)); } } catch (e) {}")  # these checks read the Chinese words
         if not os.environ.get('ASSETS'): await page.add_init_script('window.__noAssets = true;')  # UI-flow test: skip the asset pack
         await page.add_init_script("window.__mapFps = 0.2;")
         logs = []

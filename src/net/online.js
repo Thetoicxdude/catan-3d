@@ -19,10 +19,12 @@ import { mapDef, MAP_LIST, DEFAULT_MAP, isBuiltIn, knownMap } from '../engine/ma
 import { mapsAvailable, publishedCode, loadPublished, cleanCode, CODE_RE } from './maps.js';
 import { openMapBrowser } from '../ui/maps-ui.js';
 import { t, tx, msg, list, terr } from '../i18n/index.js';
+import { developOpen } from '../meta/features.js';
+import { comingSoon, soonText } from '../ui/soon.js';
 
-const APP = 'catan3d';
+const APP = 'hexverse';
 const V = 1;
-const PREFIX = 'catan-';
+const PREFIX = 'hexverse-';
 const AWAY_MS = 30000;
 const ALPH = 'abcdefghjkmnpqrstuvwxyz23456789';
 
@@ -47,7 +49,7 @@ export function inviteLink(code) {
 }
 
 // The room this tab is in, so a reload (or a new published version) rejoins automatically.
-const ROOM_KEY = 'catan3d-room-v1';
+const ROOM_KEY = 'hexverse-room-v1';
 export function rememberRoom(code, role) {
   try {
     sessionStorage.setItem(ROOM_KEY, JSON.stringify({ code, role }));
@@ -882,14 +884,20 @@ export class HostSession {
       // the island and how many play (and on the large island, how the turn is shared)
       const lay = body.querySelector('.room-layout');
       const cur = mapDef(this.settings.map);
+      // (an option marked soon is not open yet: greyed, "Coming soon" when clicked)
       const segRow = (label, opts, on, pick, cls = '') => {
         const row = el('div', 'layout-row');
         row.appendChild(el('span', 'row-label', label));
         const seg = el('div', cls ? 'seg ' + cls : 'seg');
-        for (const [val, text] of opts) {
+        for (const [val, text, soon] of opts) {
           const b = el('button', val === on ? 'on' : '', text);
           b.type = 'button';
-          b.addEventListener('click', () => val !== on && pick(val));
+          if (soon) {
+            b.classList.add('soon');
+            b.setAttribute('aria-disabled', 'true');
+            b.title = soonText();
+          }
+          b.addEventListener('click', () => (soon ? comingSoon(b) : val !== on && pick(val)));
           seg.appendChild(b);
         }
         row.appendChild(seg);
@@ -901,7 +909,7 @@ export class HostSession {
         t('模式'),
         [
           ['standard', t('標準')],
-          ['develop', t('發展模式')],
+          ['develop', t('發展模式'), !developOpen()],
         ],
         dev ? 'develop' : 'standard',
         (m) => this.setMode(m),
@@ -1804,9 +1812,9 @@ export class MatchSession {
 export function showOnlineEntry(app, { settings, onHost, onJoin, onMatch, onBack, joinOnly = false }) {
   const scr = el('div', 'menu-screen online-screen');
   scr.innerHTML = joinOnly
-    ? `<div class="title-block"><div class="eyebrow">Join a Room</div><h1>${t('加入房間')}<span>${t('與朋友爭奪卡坦島')}</span></h1><p>${t('輸入朋友給你的房間代碼，或從下方挑一個開放中的房間。每個人只看得到自己的手牌，空位由電腦補上。')}</p></div>
+    ? `<div class="title-block"><div class="eyebrow">Join a Room</div><h1>${t('加入房間')}<span>${t('與朋友爭奪這座島')}</span></h1><p>${t('輸入朋友給你的房間代碼，或從下方挑一個開放中的房間。每個人只看得到自己的手牌，空位由電腦補上。')}</p></div>
     <div class="setup-card panel"><div class="modal-head"><h3>${t('加入房間')}</h3></div><div class="modal-body"></div><div class="modal-foot"></div></div>`
-    : `<div class="title-block"><div class="eyebrow">Online Campaign</div><h1>${t('線上對戰')}<span>${t('與朋友爭奪卡坦島')}</span></h1><p>${t('一位玩家建立房間當主持人，其他人輸入房間代碼加入。每個人只看得到自己的手牌，空位由電腦補上。')}</p></div>
+    : `<div class="title-block"><div class="eyebrow">Online Campaign</div><h1>${t('線上對戰')}<span>${t('與朋友爭奪這座島')}</span></h1><p>${t('一位玩家建立房間當主持人，其他人輸入房間代碼加入。每個人只看得到自己的手牌，空位由電腦補上。')}</p></div>
     <div class="setup-card panel"><div class="modal-head"><h3>${t('線上對戰')}</h3></div><div class="modal-body"></div><div class="modal-foot"></div></div>`;
   const body = scr.querySelector('.modal-body');
   const foot = scr.querySelector('.modal-foot');

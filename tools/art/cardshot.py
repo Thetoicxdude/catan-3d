@@ -12,7 +12,7 @@ H = int(sys.argv[4]) if len(sys.argv) > 4 else 860
 os.makedirs(OUT, exist_ok=True)
 ALL = ['aqueduct', 'granary', 'market', 'shipyard', 'guild', 'barracks', 'wall', 'mercenaries', 'adventurers', 'post', 'camp', 'academy', 'press', 'gardens', 'lighthouse', 'greatWall', 'royalRoad', 'library']
 LANG = os.environ.get('LANG_UI', 'zh')
-INIT = "window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; localStorage.setItem('catan3d-settings-v1', JSON.stringify({ lang: '%s', quality: 'low', qualityPicked: true, mode: 'develop', bps: [['road','settlement','city','dev','granary','market','gardens']], bpCur: 0, bpv: 2 })); localStorage.setItem('catan3d-cards-v1', JSON.stringify({ own: %s }));" % (LANG, json.dumps(ALL))
+INIT = "window.__developOpen = true; window.__noAssets = true; window.__testHooks = true; window.__mapFps = 0.5; localStorage.setItem('hexverse-settings-v1', JSON.stringify({ lang: '%s', quality: 'low', qualityPicked: true, mode: 'develop', bps: [['road','settlement','city','dev','granary','market','gardens']], bpCur: 0, bpv: 2 })); localStorage.setItem('hexverse-cards-v1', JSON.stringify({ own: %s }));" % (LANG, json.dumps(ALL))
 
 async def main():
     srv = serve()

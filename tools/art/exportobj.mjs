@@ -22,7 +22,7 @@ for (const item of list) {
     continue;
   }
   const b = m.build();
-  const lines = [`# ${item} (catan-3d devmodels.js)`, `mtllib ${item.replace(/:/g, '_')}.mtl`];
+  const lines = [`# ${item} (devmodels.js)`, `mtllib ${item.replace(/:/g, '_')}.mtl`];
   let vbase = 1;
   for (const [slot, g] of Object.entries(b.geos)) {
     const p = g.attributes.position;

@@ -1,6 +1,6 @@
 // End-to-end privacy for hands in online play: every seat has an ECDH P-256 key pair; the host
 // derives one AES-GCM key per remote seat and encrypts that seat's hand before publishing it.
-const KEY_STORE = 'catan3d-netkey-v1';
+const KEY_STORE = 'hexverse-netkey-v1';
 const subtle = () => (globalThis.crypto && globalThis.crypto.subtle) || null;
 
 export function cryptoAvailable() {

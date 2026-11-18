@@ -1,8 +1,9 @@
 # Terrain texture layers: albedo 1024 / normal 512 WebP per layer, plus each layer's mean colour.
 import json
+import os
 import numpy as np
 from PIL import Image
-SRC = '/mnt/user-data/uploads/Claude/catan-assets/textures'
+SRC = os.path.join(os.environ['ART_SRC'], 'textures')  # ART_SRC: the folder of the original (uploaded) art
 OUT = 'out/terrain'
 LAYERS = ['forest_leaves_04', 'forest_ground_04', 'red_laterite_soil_stones', 'leafy_grass', 'sparse_grass',
           'brown_mud_leaves_01', 'dirt_floor', 'rock_face', 'rocks_ground_01', 'sandy_gravel_02', 'coast_sand_01',

@@ -42,7 +42,7 @@ import { gameSetup } from '../ui/menu.js';
 import { t, terr, cap, list, low, msg } from '../i18n/index.js';
 import { placeName } from '../i18n/places.js';
 
-const SAVE_KEY = 'catan3d-save-v1';
+const SAVE_KEY = 'hexverse-save-v1';
 const SPEED = { slow: 1.7, normal: 1, fast: 0.45, turbo: 0.12 };
 const DELAY = {
   roll: 750,
@@ -1048,7 +1048,7 @@ export class Game {
           900,
         );
       }
-      banner = { html: cap(t('{who} 贏得了卡坦島！', { who: P(v.winner) })), buttons: [{ label: t('戰役結果'), onClick: () => this.dialogs.gameOver(this.ctx({ overExtra: this.overExtra ? this.overExtra() : null }), () => this.onExit && this.onExit(true), () => this.dialogs.close()) }] };
+      banner = { html: cap(t('{who} 贏得了這座島！', { who: P(v.winner) })), buttons: [{ label: t('戰役結果'), onClick: () => this.dialogs.gameOver(this.ctx({ overExtra: this.overExtra ? this.overExtra() : null }), () => this.onExit && this.onExit(true), () => this.dialogs.close()) }] };
     } else if (v.pending && v.pending.type === 'gold') {
       // (Seafarers) a gold field paid out, or gold was found in the fog (even in the opening): the
       // owners pick their resources

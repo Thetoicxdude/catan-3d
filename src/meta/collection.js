@@ -72,7 +72,7 @@ export function chanceOf(k) {
 //   count  added up over games (goal: how many)
 // reward: { card } or { coins }. The first one is a welcome present, done from the start.
 export const MISSIONS = [
-  { id: 'welcome', text: N_('歡迎來到卡坦島'), what: 'once', goal: 1, reward: { coins: 200 } },
+  { id: 'welcome', text: N_('歡迎來到 Hexverse'), what: 'once', goal: 1, reward: { coins: 200 } },
   { id: 'plot', text: N_('在發展模式開發 1 塊地'), what: 'once', goal: 1, reward: { card: 'shipyard' } },
   { id: 'devgame', text: N_('打完 1 局發展模式'), what: 'once', goal: 1, reward: { card: 'camp' } },
   { id: 'devwin', text: N_('贏 1 局發展模式'), what: 'once', goal: 1, reward: { card: 'academy' } },

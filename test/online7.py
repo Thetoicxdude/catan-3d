@@ -9,7 +9,7 @@ import asyncio, sys, os, json, time, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')
 os.makedirs(SP, exist_ok=True)
 BASIC = ['road', 'settlement', 'city', 'dev']
 PRESETS = {
@@ -22,9 +22,9 @@ ALL = ['aqueduct', 'granary', 'market', 'shipyard', 'guild', 'barracks', 'wall',
 # (the second player owns a few buildings only: of the Pioneers' blueprint they bring what they own)
 FEW = ['granary', 'market', 'aqueduct', 'post', 'camp']
 FRONTIER_OWNED = [k for k in FRONTIER if k in FEW or k in BASIC]
-INIT = """window.__mapFps = 0.12; window.__mockRoom = true; window.__perf = PERF; window.__keySlot = NAME; window.__noAssets = true;
-localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh', speed:'turbo', follow:false, quality:'low', qualityPicked:true, name: NAME, color: COLOR, opponents: 3, bps: BPS, bpCur: 0}));
-localStorage.setItem('catan3d-cards-v1', JSON.stringify({own: OWN}));"""
+INIT = """window.__developOpen = true; window.__mapFps = 0.12; window.__mockRoom = true; window.__perf = PERF; window.__keySlot = NAME; window.__noAssets = true;
+localStorage.setItem('hexverse-settings-v1', JSON.stringify({lang:'zh', speed:'turbo', follow:false, quality:'low', qualityPicked:true, name: NAME, color: COLOR, opponents: 3, bps: BPS, bpCur: 0}));
+localStorage.setItem('hexverse-cards-v1', JSON.stringify({own: OWN}));"""
 if os.environ.get('ROOMS') == 'ws': INIT = INIT.replace('window.__mockRoom = true;', "window.__rooms = 'ws://127.0.0.1:8787/rooms/';")
 CLIENT_STEP = """(async () => {
   const g = window.__game; if (!g || !g.client) return 'nogame';

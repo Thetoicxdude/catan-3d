@@ -5,6 +5,7 @@ import { GEO } from '../engine/geometry.js';
 import { t, N_, cap, list, low, isZh } from '../i18n/index.js';
 import { placeName } from '../i18n/places.js';
 import { BUILDING_NAMES, WONDER_VP, GRANARY_EXTRA, developOn } from '../engine/develop.js';
+import { developOpen } from '../meta/features.js';
 import { BUILDING_TEXT } from './develop-ui.js';
 
 // the development cards' names and what they do, in the language of the moment
@@ -388,25 +389,15 @@ function rulesZh(c) {
 <li><b>駛向新海岸</b>：主島和大島嶼一樣是 30 塊地形，東邊海峽的南北兩側有 10 塊小島（含 3 塊金礦）。<b>六座島嶼</b>：六座 5–6 塊地形的島，北三座、南三座，規則和四座島嶼相同（只有一座本島的話，外島最多 +10 分）。<b>霧島</b>：上下兩座島共 26 塊地形（含沙漠與 2 塊金礦，強盜從沙漠出發），東邊 25 格在霧裡。<b>新世界</b>：42 塊陸地（含 3 塊沙漠、4 塊金礦）隨機分成 3 到 5 座島。</li>
 <li>配對回合的第二位也可以移動一艘自己的船；特別建造階段不能移船。</li>
 </ul>
-<h4>發展模式</h4>
-<ul>
-<li>給熟悉標準規則的玩家的長局：4 人用 37 格的島（2–3 人 30 格），每人有道路 25、村莊 7、城市 5，銀行每種 30 張，發展卡 35 張（騎士 20、分數卡 6、其他各 3），<b>18 分</b>獲勝（可改 15 或 21）。</li>
-<li><b>藍圖</b>：每人帶 7 張卡入場，在主畫面的「卡牌」選好：基本卡（道路、村莊、城市、發展卡）和特殊建築，最多 1 座世界奇觀。沒帶的卡整局都不能花錢蓋（開局照常放村莊和道路；皇家大道的免費道路、大圖書館買發展卡不受影響）；開發不用卡牌。開局時所有人的藍圖公開。</li>
-<li><b>建築卡</b>：一開始有 4 張基本卡和糧倉、市集、水道橋，剛好 7 張；任務送穀倉系列的另外 3 張（造船廠、拓荒營地、學院），其他 7 種建築與 5 座世界奇觀在「抽卡・商店」用金幣抽，抽到重複的換成碎片，碎片在商店換指定的卡。金幣來自打完的對局、獲勝、線上房間、每天第一局與任務。電腦對手一律帶 7 張的預設藍圖（4 張基本卡＋3 座建築）。</li>
-<li><b>開發</b>：在你有聚落的地塊上蓋產量設施（每塊地只屬於一位開發者，沙漠和強盜所在的地塊不行）。這塊地每次產出時，你多拿 1 張蓋的時候選的資源；可以升到二級再多拿 1 張。一級 ${c({ wood: 1, brick: 1, wool: 1 })}（選其他資源再加 1 張小麥），二級 ${c({ grain: 2, ore: 2 })}（選其他資源再加 1 張羊毛）。強盜在這塊地上時開發也停產。</li>
-<li><b>特殊建築</b>：附在你自己的聚落旁，不佔路口、不截斷道路：村莊旁 1 座、城市旁 2 座。每種每人一座，建設條件只在蓋的時候檢查。功能建築各 1 分；冒險者公會在你持有最大騎士團時 +3，驛站在你持有最長道路時 +3。</li>
-<li><b>世界奇觀</b>：蓋在路口上有你聚落的沙漠，分三階段，每回合付一個階段；付清第三階段後，在你的下一回合開始時完工，得 <b>5 分</b>和加成。每座奇觀全場只有一座，開工就鎖定。</li>
-<li>強盜移到奇觀所在的沙漠時，擁有者可以立刻打出手上 1 張騎士保住它（算進最大騎士團）；不防衛的話奇觀被摧毀，已付的資源不退。你不能把強盜移到自己的奇觀上。</li>
-<li>每座建築的條件、費用和效果，在主畫面的「卡牌」與遊戲中的建造選單都看得到。</li>
-</ul>
+${developOpen() ? developZh(c) : ''}
 <h4>操作</h4>
 <ul>
 <li>滾輪或雙指縮放，拖曳或 WASD 平移；拉遠會切換成紙本地圖。</li>
 <li>轉動與傾斜：右鍵（或中鍵）拖曳、Q／E 旋轉、Z／X 或 Shift＋滾輪調整斜度、雙指旋轉；小地圖旁的羅盤與滑桿也可以調整，Home 回到預設視角。</li>
-<li>快捷鍵：R 擲骰、1 道路、2 村莊、3 城市、4 發展卡、5 船與 6 移船（航海家）或 5 開發（發展模式）、B 建造選單、T 交易、Space 結束回合、M 切換地圖模式、Esc 取消。</li>
+<li>快捷鍵：R 擲骰、1 道路、2 村莊、3 城市、4 發展卡、5 船與 6 移船（航海家）${developOpen() ? '或 5 開發（發展模式）' : ''}、B 建造選單、T 交易、Space 結束回合、M 切換地圖模式、Esc 取消。</li>
 </ul>
-<h4>素材</h4>
-<p>樹木、灌木、岩石、地表照片材質，以及城堡塔樓、木碼頭、帆船與道具來自 <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>；村莊與城市的中世紀木構房屋來自 <a href="https://www.blendswap.com/blends/view/75519" target="_blank" rel="noopener">Blend Swap 的 Daniel74</a>；有動畫的農場動物來自 <a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a>。皆為 CC0 公眾領域授權。</p>
+<h4>素材來源</h4>
+${creditsHtml()}
 </div>`;
 }
 
@@ -492,7 +483,36 @@ function rulesEn(c) {
 <li><b>Heading for New Shores</b>: the home island has 30 hexes like the Large Island, with 10 hexes of small islands north and south of the eastern strait (3 of them gold). <b>The Six Islands</b>: six islands of 5–6 hexes, three in the north and three in the south, with the rules of The Four Islands (with one home island, up to +10 VP from outer islands). <b>The Fog Islands</b>: two islands with 26 hexes between them (a desert and 2 gold fields; the robber starts in the desert), and 25 hexes of fog in the east. <b>New World</b>: 42 land hexes (3 deserts, 4 gold fields) split at random into 3 to 5 islands.</li>
 <li>The paired player may also move one of their own ships; no ships move in the special building phase.</li>
 </ul>
-<h4>Empire Mode</h4>
+${developOpen() ? developEn(c) : ''}
+<h4>Controls</h4>
+<ul>
+<li>Scroll or pinch to zoom, drag or WASD to pan; zooming far out switches to the paper map.</li>
+<li>Turn and tilt: drag with the right (or middle) button, Q / E to turn, Z / X or Shift + scroll to tilt, or turn with two fingers; the compass and slider beside the minimap work too, and Home goes back to the default view.</li>
+<li>Keys: R roll, 1 road, 2 settlement, 3 city, 4 development card, 5 ship and 6 move ship (Seafarers)${developOpen() ? ' or 5 improve (Empire Mode)' : ''}, B build menu, T trade, Space end turn, M map mode, Esc cancel.</li>
+</ul>
+<h4>Credits</h4>
+${creditsHtml()}
+</div>`;
+}
+
+// the development mode's part of the rules (shown once it is open: features.js)
+// i18n-keep: the Chinese rules
+function developZh(c) {
+  return `<h4>發展模式</h4>
+<ul>
+<li>給熟悉標準規則的玩家的長局：4 人用 37 格的島（2–3 人 30 格），每人有道路 25、村莊 7、城市 5，銀行每種 30 張，發展卡 35 張（騎士 20、分數卡 6、其他各 3），<b>18 分</b>獲勝（可改 15 或 21）。</li>
+<li><b>藍圖</b>：每人帶 7 張卡入場，在主畫面的「卡牌」選好：基本卡（道路、村莊、城市、發展卡）和特殊建築，最多 1 座世界奇觀。沒帶的卡整局都不能花錢蓋（開局照常放村莊和道路；皇家大道的免費道路、大圖書館買發展卡不受影響）；開發不用卡牌。開局時所有人的藍圖公開。</li>
+<li><b>建築卡</b>：一開始有 4 張基本卡和糧倉、市集、水道橋，剛好 7 張；任務送穀倉系列的另外 3 張（造船廠、拓荒營地、學院），其他 7 種建築與 5 座世界奇觀在「抽卡・商店」用金幣抽，抽到重複的換成碎片，碎片在商店換指定的卡。金幣來自打完的對局、獲勝、線上房間、每天第一局與任務。電腦對手一律帶 7 張的預設藍圖（4 張基本卡＋3 座建築）。</li>
+<li><b>開發</b>：在你有聚落的地塊上蓋產量設施（每塊地只屬於一位開發者，沙漠和強盜所在的地塊不行）。這塊地每次產出時，你多拿 1 張蓋的時候選的資源；可以升到二級再多拿 1 張。一級 ${c({ wood: 1, brick: 1, wool: 1 })}（選其他資源再加 1 張小麥），二級 ${c({ grain: 2, ore: 2 })}（選其他資源再加 1 張羊毛）。強盜在這塊地上時開發也停產。</li>
+<li><b>特殊建築</b>：附在你自己的聚落旁，不佔路口、不截斷道路：村莊旁 1 座、城市旁 2 座。每種每人一座，建設條件只在蓋的時候檢查。功能建築各 1 分；冒險者公會在你持有最大騎士團時 +3，驛站在你持有最長道路時 +3。</li>
+<li><b>世界奇觀</b>：蓋在路口上有你聚落的沙漠，分三階段，每回合付一個階段；付清第三階段後，在你的下一回合開始時完工，得 <b>5 分</b>和加成。每座奇觀全場只有一座，開工就鎖定。</li>
+<li>強盜移到奇觀所在的沙漠時，擁有者可以立刻打出手上 1 張騎士保住它（算進最大騎士團）；不防衛的話奇觀被摧毀，已付的資源不退。你不能把強盜移到自己的奇觀上。</li>
+<li>每座建築的條件、費用和效果，在主畫面的「卡牌」與遊戲中的建造選單都看得到。</li>
+</ul>
+`;
+}
+function developEn(c) {
+  return `<h4>Empire Mode</h4>
 <ul>
 <li>A long game for players who know the standard rules: a 37-hex island at four players (30 at two or three), 25 roads, 7 settlements and 5 cities each, 30 cards of each resource in the bank, 35 development cards (20 knights, 6 victory points, 3 of each other), and <b>18 VP</b> to win (15 or 21 if you like).</li>
 <li><b>Blueprint</b>: each player brings 7 cards, chosen under Cards on the home screen: basic cards (road, settlement, city, development card) and special buildings, at most one world wonder. A card left out cannot be paid for all game (the opening settlements and roads are placed as usual; the Royal Road's free road and the Great Library's card are not affected); improvements need no card. Everyone's blueprint is shown from the start.</li>
@@ -503,15 +523,21 @@ function rulesEn(c) {
 <li>When the robber is moved to a wonder's desert, its owner may play a knight from hand at once to save it (it counts toward the Largest Army); undefended, the wonder is destroyed and what was paid is not returned. You may not move the robber to your own wonder.</li>
 <li>Each building's condition, cost and effect are on the Cards page and in the game's build menu.</li>
 </ul>
-<h4>Controls</h4>
-<ul>
-<li>Scroll or pinch to zoom, drag or WASD to pan; zooming far out switches to the paper map.</li>
-<li>Turn and tilt: drag with the right (or middle) button, Q / E to turn, Z / X or Shift + scroll to tilt, or turn with two fingers; the compass and slider beside the minimap work too, and Home goes back to the default view.</li>
-<li>Keys: R roll, 1 road, 2 settlement, 3 city, 4 development card, 5 ship and 6 move ship (Seafarers) or 5 improve (Empire Mode), B build menu, T trade, Space end turn, M map mode, Esc cancel.</li>
-</ul>
-<h4>Credits</h4>
-<p>Trees, bushes, rocks, the photographic ground textures, the castle towers, wooden pier, sailing ships and props come from <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>; the medieval timber-framed houses of the settlements and cities come from <a href="https://www.blendswap.com/blends/view/75519" target="_blank" rel="noopener">Daniel74 on Blend Swap</a>; the animated farm animals come from <a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a>. All are CC0 (public domain).</p>
-</div>`;
+`;
+}
+
+const A = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+// Where the art and the icons come from: the rules' last section and the foot of the Settings page.
+// The icons are CC BY 3.0: their authors, the site and the licence are named wherever this is shown.
+export function creditsHtml() {
+  const ph = A('https://polyhaven.com', 'Poly Haven');
+  const qu = A('https://quaternius.com', 'Quaternius');
+  const ke = A('https://kenney.nl', 'Kenney');
+  const gi = A('https://game-icons.net', 'game-icons.net');
+  const by = A('https://creativecommons.org/licenses/by/3.0/', 'CC BY 3.0');
+  // i18n-keep: the Chinese credits
+  if (isZh()) return `<p class="credits">樹木、灌木、岩石、地表照片材質，以及城堡塔樓、木碼頭、帆船與道具來自 ${ph}；村莊與城市的中世紀木構房屋來自 ${A('https://www.blendswap.com/blends/view/75519', 'Blend Swap 的 Daniel74')}；有動畫的農場動物來自 ${qu}；介面的墨線插圖、蠟封、花飾與勳章來自 ${ke}。以上皆為 CC0 公眾領域授權。圖示來自 ${gi}（作者 Lorc、Delapouite 等），以 ${by} 授權。</p>`;
+  return `<p class="credits">Trees, bushes, rocks, the photographic ground textures, the castle towers, wooden pier, sailing ships and props come from ${ph}; the medieval timber-framed houses of the settlements and cities from ${A('https://www.blendswap.com/blends/view/75519', 'Daniel74 on Blend Swap')}; the animated farm animals from ${qu}; the interface's ink drawings, wax seals, flourishes and medals from ${ke}. All of these are CC0 (public domain). The icons come from ${gi} (by Lorc, Delapouite and others), under ${by}.</p>`;
 }
 
 export { icon };

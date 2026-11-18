@@ -7,9 +7,7 @@ const n = (x, one, many) => (Number(x) === 1 ? one : many);
 
 export const EN = {
   // ── the game's name, nations, colours ──
-  '卡坦島': 'Catan',
   '3D 戰略版': '3D Strategy Edition',
-  '卡坦島 3D 戰略版': 'Catan 3D: Strategy Edition',
   '曙光王國': 'Dawn Kingdom',
   '北境公國': 'Northmark Duchy',
   '蒼藍聯邦': 'Azure Federation',
@@ -531,7 +529,7 @@ export const EN = {
   '已選 {n} · 銀行 {bank}': 'Chosen {n} · bank {bank}',
   '清除選擇': 'Clear',
   '取消': 'Cancel',
-  '<b>你統一了卡坦島！</b>': '<b>You united Catan!</b>',
+  '<b>你統一了這座島！</b>': '<b>You united the island!</b>',
   '<b style="color:{color}">{name}</b> 在第 {turn} 回合達成 {vp} 分，贏得戰役。': '<b style="color:{color}">{name}</b> reached {vp} VP on turn {turn} and won the campaign.',
   '村莊 {n}': 'Settlements {n}',
   '城市 {n}×2': 'Cities {n}×2',
@@ -542,7 +540,6 @@ export const EN = {
   '勝利': 'Victory',
   '檢視地圖': 'View map',
   '再來一局': 'Play again',
-  '卡坦島規則': 'Rules of Catan',
   '電腦速度': 'Computer speed',
   '慢': 'Slow',
   '普通': 'Normal',
@@ -601,7 +598,7 @@ export const EN = {
   '離開房間': 'Leave the room',
   '回到主選單': 'Main menu',
   '擲出 <b>7</b>：強盜出動…': 'A <b>7</b>: the robber is coming…',
-  '{who} 贏得了卡坦島！': '{who} won Catan!',
+  '{who} 贏得了這座島！': '{who} won the island!',
   '戰役結果': 'Results',
   '金礦：選擇 <b>{n}</b> 張任意資源': ({ n: x }) => n(x, 'Gold: choose <b>{n}</b> resource', 'Gold: choose <b>{n}</b> resources'),
   '選擇 {n} 張資源': ({ n: x }) => n(x, 'Choose {n} resource', 'Choose {n} resources'),
@@ -754,7 +751,7 @@ export const EN = {
   '所有打開這個網站、按下快速配對的玩家都會配對在一起。': 'Everyone on this site who presses Quick match is matched together.',
   '只有能開啟這個頁面的人（你分享過的對象）會出現在配對中。': 'Only people who can open this page (those you shared it with) are matched.',
   '加入房間': 'Join a Room',
-  '與朋友爭奪卡坦島': 'Fight your friends for Catan',
+  '與朋友爭奪這座島': 'Fight your friends for the island',
   '輸入朋友給你的房間代碼，或從下方挑一個開放中的房間。每個人只看得到自己的手牌，空位由電腦補上。':
     'Enter the room code a friend gave you, or pick an open room below. Everyone sees only their own cards, and the computer fills empty seats.',
   '一位玩家建立房間當主持人，其他人輸入房間代碼加入。每個人只看得到自己的手牌，空位由電腦補上。':
@@ -935,8 +932,6 @@ export const EN = {
   '標準規則': 'Standard rules',
   '秒': 'sec',
   '遊戲方式': 'Ways to play',
-  '寫實素材來自 {polyhaven}、Blend Swap 的 Daniel74 與 {quaternius}（皆為 CC0）；圖示來自 {gameicons}（Lorc、Delapouite 等，{ccby}）':
-    'Realistic assets from {polyhaven}, Daniel74 on Blend Swap and {quaternius} (all CC0); icons from {gameicons} (Lorc, Delapouite and others, {ccby})',
   '配對中': 'Matching',
   '退出配對': 'Leave the match',
   '暫時連不上線上大廳': "Can't reach the online lobby for now",
@@ -1237,7 +1232,9 @@ export const EN = {
   '驛站 {n}': 'Post Station {n}',
   '奇觀 {n}': 'Wonder {n}',
   // the building cards (meta/collection.js, ui/cards-ui.js): the Cards and Draw & Shop pages, missions
-  '歡迎來到卡坦島': 'Welcome to Catan',
+  '歡迎來到 Hexverse': 'Welcome to Hexverse',
+  '即將推出': 'Coming soon',
+  '素材來源': 'Credits',
   '在發展模式開發 1 塊地': 'Improve a hex in Empire Mode',
   '打完 1 局發展模式': 'Finish a game of Empire Mode',
   '在一局發展模式裡蓋好 2 座特殊建築': 'Build 2 special buildings in one game of Empire Mode',

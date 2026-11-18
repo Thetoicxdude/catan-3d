@@ -11,7 +11,7 @@ import asyncio, sys, os, json, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')
 os.makedirs(SP, exist_ok=True)
 
 SWEEP = r"""() => {
@@ -54,7 +54,7 @@ async def main():
         # (SwiftShader: a click can wait while a frame of the island is drawn)
         page.set_default_timeout(120000)
         # turbo computers, low quality; no language saved: English
-        await page.add_init_script("window.__noAssets = true; window.__mockRoom = true; window.__mapFps = 0.5; if (!localStorage.getItem('catan3d-settings-v1')) localStorage.setItem('catan3d-settings-v1', JSON.stringify({ speed: 'turbo', quality: 'low', qualityPicked: true }));")
+        await page.add_init_script("window.__developOpen = true; window.__noAssets = true; window.__mockRoom = true; window.__mapFps = 0.5; if (!localStorage.getItem('hexverse-settings-v1')) localStorage.setItem('hexverse-settings-v1', JSON.stringify({ speed: 'turbo', quality: 'low', qualityPicked: true }));")
         logs = []
         page.on('console', lambda m: logs.append(f'[{m.type}] {m.text}'))
         page.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))
@@ -146,7 +146,7 @@ async def main():
         await sweep('campaign end', 'over')
 
         # a Seafarers campaign: ships, the pirate, gold, the island bonus
-        await page.evaluate("""() => { const k = 'catan3d-settings-v1'; const s = JSON.parse(localStorage.getItem(k)); s.map = 'sea-1'; s.opponents = 3; localStorage.setItem(k, JSON.stringify(s)); localStorage.removeItem('catan3d-save-v1'); }""")
+        await page.evaluate("""() => { const k = 'hexverse-settings-v1'; const s = JSON.parse(localStorage.getItem(k)); s.map = 'sea-1'; s.opponents = 3; localStorage.setItem(k, JSON.stringify(s)); localStorage.removeItem('hexverse-save-v1'); }""")
         await page.goto('http://127.0.0.1:8765/dist/index.test.html', timeout=120000)
         await page.wait_for_selector('.menu-screen.home', timeout=60000)
         await page.click('[data-k="single"]')
@@ -170,7 +170,7 @@ async def main():
         # the development mode: the building cards (the Cards page with a card selected and a locked one,
         # Draw & Shop: a draw of ten, the shop, the missions), the setup with the blueprint in use, a
         # campaign with the build menu's blueprint, played a while by the computer
-        await page.evaluate("() => { const k = 'catan3d-settings-v1'; const s = JSON.parse(localStorage.getItem(k)); s.mode = 'develop'; s.opponents = 3; localStorage.setItem(k, JSON.stringify(s)); localStorage.removeItem('catan3d-save-v1'); localStorage.setItem('catan3d-cards-v1', JSON.stringify({ own: ['granary', 'market', 'guild', 'gardens'], coins: 2000, shards: 150, prog: { plot: 1 }, fresh: ['guild'] })); }")
+        await page.evaluate("() => { const k = 'hexverse-settings-v1'; const s = JSON.parse(localStorage.getItem(k)); s.mode = 'develop'; s.opponents = 3; localStorage.setItem(k, JSON.stringify(s)); localStorage.removeItem('hexverse-save-v1'); localStorage.setItem('hexverse-cards-v1', JSON.stringify({ own: ['granary', 'market', 'guild', 'gardens'], coins: 2000, shards: 150, prog: { plot: 1 }, fresh: ['guild'] })); }")
         await page.goto('http://127.0.0.1:8765/dist/index.test.html', timeout=120000)
         await page.wait_for_selector('.menu-screen.home', timeout=60000)
         await page.wait_for_timeout(800)
@@ -231,10 +231,10 @@ async def main():
                 await sweep('development tooltip')
         print('development', await page.evaluate("() => ({ phase: __game.state.phase, turn: __game.state.turn, built: __game.state.players.map((p) => Object.keys(p.built).length), wonders: __game.state.wonders.length })"))
         await page.evaluate('() => { window.__autoHuman = false; }')
-        await page.evaluate("() => { const k = 'catan3d-settings-v1'; const s = JSON.parse(localStorage.getItem(k)); s.mode = 'standard'; localStorage.setItem(k, JSON.stringify(s)); }")
+        await page.evaluate("() => { const k = 'hexverse-settings-v1'; const s = JSON.parse(localStorage.getItem(k)); s.mode = 'standard'; localStorage.setItem(k, JSON.stringify(s)); }")
 
         # the map workshop and the online screens
-        await page.evaluate("() => localStorage.removeItem('catan3d-save-v1')")
+        await page.evaluate("() => localStorage.removeItem('hexverse-save-v1')")
         await page.goto('http://127.0.0.1:8765/dist/index.test.html', timeout=120000)
         await page.wait_for_selector('.menu-screen.home', timeout=60000)
         await page.click('[data-k="workshop"]')

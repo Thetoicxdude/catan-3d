@@ -1,4 +1,4 @@
-// Catan base-game rules engine (2–4 players, and 5–6 with the extension's turn rules), following the
+// The base game's rules engine (2–4 players, and 5–6 with the extension's turn rules), following the
 // 5th-edition rulebook & almanac.
 // Pure & deterministic: state is plain JSON; all randomness comes from the seeded rng in state.
 // applyAction(state, action) validates, then mutates state and returns a list of events.

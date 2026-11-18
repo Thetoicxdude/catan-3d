@@ -3,10 +3,10 @@ import asyncio, sys, os, json, time, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')  # screenshots
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')  # screenshots
 os.makedirs(SP, exist_ok=True)
 INIT = """window.__mapFps = 0.15; window.__mockRoom = true; window.__perf = 100; window.__keySlot = NAME;
-localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh', speed:'turbo', follow:false, quality:'low', name: NAME, color: COLOR, opponents: 3}));"""
+localStorage.setItem('hexverse-settings-v1', JSON.stringify({lang:'zh', speed:'turbo', follow:false, quality:'low', name: NAME, color: COLOR, opponents: 3}));"""
 # ROOMS=ws: play over the real room server (`npx wrangler dev --port 8787`) instead of the in-browser mock
 if os.environ.get('ROOMS') == 'ws': INIT = INIT.replace('window.__mockRoom = true;', "window.__rooms = 'ws://127.0.0.1:8787/rooms/';")
 CLIENT_STEP = """(async () => {
@@ -82,7 +82,7 @@ async def main():
         await spec.add_init_script(INIT.replace('NAME', '"路人甲"').replace('COLOR', '"#3f9a4a"'))
         # a different person: its own identity key (pages of one test context share localStorage, so without
         # this the spectator would carry the player's key and could reclaim that seat if it briefly looked away)
-        await spec.add_init_script("localStorage.removeItem('catan3d-netkey-v1');")
+        await spec.add_init_script("localStorage.removeItem('hexverse-netkey-v1');")
         spec.on('pageerror', lambda e: logs.append(f'[spec pageerror] {e}'))
         await spec.goto('http://127.0.0.1:8765/dist/index.test.html')
         await spec.wait_for_selector('.menu-screen', timeout=60000)

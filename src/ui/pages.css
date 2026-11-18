@@ -91,6 +91,8 @@ html.no-art .pg-pic { display: none; }
   box-shadow: inset 0 1px 0 rgba(255, 226, 180, 0.2), 0 3px 10px rgba(0, 0, 0, 0.55);
 }
 .pg-bals .cur .ico { width: 20px; height: 20px; }
+/* (none while the development mode, whose coins they are, is closed: features.js) */
+.pg-bals.sp-bals:empty { display: none; }
 .pg-match {
   flex: none; display: inline-flex; align-items: center; gap: 9px; padding: 7px 15px 7px 12px; border-radius: 999px; cursor: pointer;
   font: inherit; font-size: 13.5px; color: #fff1c8; background: linear-gradient(180deg, #4b3713, #271a07); border: 1px solid #f0cf7a;
@@ -267,6 +269,13 @@ html:not(.ui3) .set-head { background: var(--gold-text, none); -webkit-backgroun
 .set-about { margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--ink-dim); }
 .set-row .seg { justify-self: end; flex-wrap: nowrap; }
 .set-row .seg button { padding: 8px 14px; white-space: nowrap; }
+/* the foot: where the art comes from and the version, small and quiet under the last sheet */
+.set-foot { margin: 20px 6px 0; font-size: 11.5px; line-height: 1.65; color: rgba(226, 210, 171, 0.66); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9); }
+.set-foot h5 { margin: 0 0 2px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; color: rgba(226, 210, 171, 0.8); }
+.set-foot p { margin: 0; }
+.set-foot a { color: inherit; text-decoration: underline; text-decoration-color: rgba(226, 210, 171, 0.35); text-underline-offset: 2px; }
+.set-foot a:hover, .set-foot a:focus-visible { color: #f3e3bb; text-decoration-color: currentColor; }
+.set-foot .set-ver { margin-top: 8px; letter-spacing: 0.04em; opacity: 0.85; }
 
 /* map table: the page's name on a cartouche of parchment, as on the home screen; each sheet its drawing */
 html.ui3 .pg-title {
@@ -451,7 +460,6 @@ html.ui3 .pf-record .ac-recent li { background: rgba(255, 250, 235, 0.38); }
     box-shadow: 0 -1px 0 #1c1108, 0 -8px 20px rgba(0, 0, 0, 0.45);
   }
   .menu-screen.home { --wood: linear-gradient(180deg, #5e3e24 0%, #4a311c 34%, #3b2715 70%, #2d1d0f 100%); }
-  .hm-credits { order: 2; }
   .hm-tab {
     flex: 1 1 0; width: auto; min-width: 0; padding: 6px 2px 5px; gap: 3px; border: 0; border-radius: 0; background: none; box-shadow: none;
     font-size: 11px; letter-spacing: 0.04em;

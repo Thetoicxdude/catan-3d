@@ -6,7 +6,7 @@ import asyncio, sys, os, json, time, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import THREE
 from playwright.async_api import async_playwright
-SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'catan-shots')
+SP = os.environ.get('SHOTS') or os.path.join(tempfile.gettempdir(), 'hexverse-shots')
 os.makedirs(SP, exist_ok=True)
 SITE = os.environ.get('SITE', 'http://127.0.0.1:8787/')
 KEY = json.load(open(os.path.join(os.environ['KEYS'], 'keys.json')))
@@ -14,7 +14,7 @@ import re
 CLIENT_ID = re.search(r"GOOGLE_CLIENT_ID = '([^']+)'", open(os.path.join(os.path.dirname(__file__), '..', 'server', 'config.js'), encoding='utf8').read()).group(1)
 STUB = """
 window.__noAssets = true; window.__mapFps = 0.2; window.__autoHuman = true;
-localStorage.setItem('catan3d-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true, opponents: 1, target: 8, name: '測試王國' }));
+localStorage.setItem('hexverse-settings-v1', JSON.stringify({lang:'zh',  speed: 'turbo', quality: 'low', qualityPicked: true, opponents: 1, target: 8, name: '測試王國' }));
 (() => {
   const KEY = %s, AUD = %s;
   const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');

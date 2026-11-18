@@ -1,9 +1,9 @@
-# 卡坦島 3D 戰略版：目前進度
+# Hexverse：目前進度
 
-線上可玩的卡坦島（基本版規則＋5–6 人擴充＋航海家），地圖採鋼鐵雄心式的立體俯視戰略地圖。
+線上可玩的六角格島嶼策略遊戲 Hexverse（2026-11-18 改名，畫面上不出現其他遊戲的名字；標準規則＋5–6 人的大島＋航海劇本），地圖採鋼鐵雄心式的立體俯視戰略地圖。
 - claude.ai 版：https://claude.ai/artifact/HDKAKcGeLm5mr9pntYCbmN
 - 自架版（正式）：https://catan-3d.yaoyuanou-ab0.workers.dev （Cloudflare Workers 免費方案）
-- 程式碼：https://github.com/Thetoicxdude/catan-3d ，推送到 main 約 2～3 分鐘後自動上線（其他分支的建置會失敗、沒有預覽網址：實作 Durable Object 的 Worker 不產生預覽網址）。主畫面最下方顯示目前版本。
+- 程式碼：https://github.com/Thetoicxdude/catan-3d ，推送到 main 約 2～3 分鐘後自動上線（其他分支的建置會失敗、沒有預覽網址：實作 Durable Object 的 Worker 不產生預覽網址）。設定頁最下方顯示目前版本。
 
 ## 已完成
 
@@ -289,8 +289,8 @@
 
 **英文版：給外國玩家（第十八輪）**
 - 介面有兩種語言：英文（預設）與繁體中文。主畫面或遊戲中的設定，第一列「Language / 語言」切換；換語言會重新載入頁面，單機戰役自動存檔後接著玩，線上房間自動重新加入。
-- 所有字都翻了：主畫面、單人設定、線上房間、地圖工坊、公開地圖、帳號與戰績、遊戲畫面（上方列、銀行、諸國、行動列與提示、布條、通知、戰報、地圖上的說明、效能資訊）、所有對話框、規則說明（英文另寫一份）、電腦與規則的拒絕理由、伺服器的回覆、地圖名稱、地塊名稱（例如「黑松森林」→ Blackpine Forest）、預設國名（曙光王國 → Dawn Kingdom、蒼藍聯邦 → Azure Federation…）。英文書名是 Catan 3D: Strategy Edition。
-- 用語照卡坦島英文版：Lumber／Brick／Wool／Grain／Ore、Settlement、City、Road、Ship、Knight、Road Building、Year of Plenty、Monopoly、Victory Point、Longest Road、Largest Army、Longest Trade Route、robber、pirate、harbor、Maritime trade、Seafarers 各劇本的英文名；美式拼法。
+- 所有字都翻了：主畫面、單人設定、線上房間、地圖工坊、公開地圖、帳號與戰績、遊戲畫面（上方列、銀行、諸國、行動列與提示、布條、通知、戰報、地圖上的說明、效能資訊）、所有對話框、規則說明（英文另寫一份）、電腦與規則的拒絕理由、伺服器的回覆、地圖名稱、地塊名稱（例如「黑松森林」→ Blackpine Forest）、預設國名（曙光王國 → Dawn Kingdom、蒼藍聯邦 → Azure Federation…）。遊戲名稱是 Hexverse（2026-11-18 起，兩種語言都一樣）。
+- 英文用語：Lumber／Brick／Wool／Grain／Ore、Settlement、City、Road、Ship、Knight、Road Building、Year of Plenty、Monopoly、Victory Point、Longest Road、Largest Army、Longest Trade Route、robber、pirate、harbor、Maritime trade、Seafarers 各劇本的英文名；美式拼法。
 - 線上對戰時每個人看自己選的語言：主持人拒絕某個動作時傳的是翻譯鍵和參數，不是主持人那邊的文字；別人頁面傳來的預設國名、地圖名稱也換成自己的語言。
 - 預設國名不論存成哪種語言，換語言後跟著換（玩家自己取的名字不動）；國名長度上限從 8 個字改成「寬度 18」（英文 18 個字母、中文 9 個字）。
 - 英文版面：英文字比較長，拿掉為中文字設的大字距、隱藏英文版會重複的英文副標，主畫面卡片在手機上用短名（Solo、Host、Join、Workshop、Continue），國名布條加寬，諸國列表的電腦標成 AI。
@@ -303,7 +303,7 @@
 - 三種介面風格（製圖桌、經典、清爽）與中英文都檢查過；手機的行動列也因此有足夠的空間顯示完整的名稱。
 
 **發展模式（第二十輪）**
-- 照設計文件（Claude Docs「卡坦島：發展模式 開發文件」https://claude.ai/artifact/8C2reJFTPxcyeMmsR5zQg7）做的長局模式，單人設定與自訂房間的「模式」可以選；官方房間維持標準。2026-11-14 確認：開發地多拿的是產量；驛站是持有最長道路時 +3 的計分建築；特殊建築附在聚落旁、不佔路口；奇觀開工後鎖定；防衛用的騎士算進最大騎士團。
+- 照設計文件（Claude Docs「Hexverse：發展模式 開發文件」https://claude.ai/artifact/8C2reJFTPxcyeMmsR5zQg7）做的長局模式，單人設定與自訂房間的「模式」可以選；官方房間維持標準。2026-11-14 確認：開發地多拿的是產量；驛站是持有最長道路時 +3 的計分建築；特殊建築附在聚落旁、不佔路口；奇觀開工後鎖定；防衛用的騎士算進最大騎士團。
 - 地圖依人數：4 人 37 格（標準島嶼外面多一圈，3 塊沙漠）、2–3 人 30 格（5–6 人擴充的形狀，2 塊沙漠）。沙漠不相鄰、至少 2 塊（30 格 1 塊）在內圈，同地形最多 3 塊連成一片，6、8 不相鄰、相同數字不相鄰；港口 12 個（30 格 11 個），強盜從其中一塊沙漠出發。道路 25、村莊 7、城市 5，銀行每種 30 張，發展卡 35 張（騎士 20、分數卡 6、其他各 3），18 分獲勝（可 15、21）。
 - 開發：在自己有聚落的地塊上蓋，這塊地產出時多拿 1 張蓋的時候選的資源，可升二級；一塊地只屬於一位開發者，沙漠與強盜所在的地塊不行。
 - 藍圖（最多 7 張，最多 1 座奇觀）：開局前選好，像卡牌遊戲帶牌組入場；第二十一輪改成在主畫面的「卡牌」側頁選，只能放自己擁有的建築卡（見下一節）。電腦依開局可能的位置挑一套 7 張的預設藍圖。
@@ -332,12 +332,12 @@
 - 平衡（`node test/devsim.mjs 1000`，困難電腦 4 人，兩個 seed）：預設藍圖勝率 22.0–27.8%（目標 25% ± 5%：穀倉從 18.6% 換成水道橋、市集、空中花園後達標）；對局 22.1–22.3 輪，是標準的 1.33 倍（原本 1.24 倍）；奇觀完工 52.7–54.6%、完工後被摧毀 27.4–29.7%；勝者分數裡建築與奇觀只剩 17–18%（藍圖只放得下 3 座建築，原本目標 25–40%）。隨機 3 座建築時，空中花園偏弱（帶它勝率少 5–9 個百分點），其他在 ±6 個百分點內。
 
 **互動與動畫（第二十三輪）**
-- 2026-11-15 使用者：「ui 和動畫（遊玩體驗）……這個要去設計，但凡有互動都可以考慮做設計」。先寫設計文件（Claude Docs「卡坦島：互動與動畫設計」https://claude.ai/artifact/75edUnM1A6RTPtdR1G5AVa ）：六條原則（0.1 秒內有回應、東西從哪來就從哪飛、到了才加數字、不擋路、出場比進場快、不能做時晃一下並說原因）、共用的節奏表、每個會互動的地方現在的樣子與設計（共用元件、主畫面與卡牌、設定與大廳、對局），分 P1／P2／P3。
+- 2026-11-15 使用者：「ui 和動畫（遊玩體驗）……這個要去設計，但凡有互動都可以考慮做設計」。先寫設計文件（Claude Docs「Hexverse：互動與動畫設計」https://claude.ai/artifact/75edUnM1A6RTPtdR1G5AVa ）：六條原則（0.1 秒內有回應、東西從哪來就從哪飛、到了才加數字、不擋路、出場比進場快、不能做時晃一下並說原因）、共用的節奏表、每個會互動的地方現在的樣子與設計（共用元件、主畫面與卡牌、設定與大廳、對局），分 P1／P2／P3。
 - 這一輪做 P1：每個按鈕與卡片按下縮一點、放開彈回；不能做的東西晃一下、缺的資源閃紅；對話框與側頁的出場（關閉中的那份不能點、程式與測試找不到）；建造選單從「建造」鈕長出、收起；輪到你時布條掉下來；買發展卡翻牌時畫面變暗、建造選單退到後面，點一下就收走（之前翻牌疊在建造選單上）；卡牌側頁的卡飛進藍圖、拿出時其他格子往前補、藍圖已滿晃動、使用中蓋章、點開的卡淡入；任務的金幣與重複卡的碎片飛進上方、數字往上數，花費往下數，兌換蓋「已擁有」章；戰役結束的金幣從 0 數上來。系統開「減少動態」時只淡入淡出。
 - 只動 opacity 與個別的 transform 屬性（`translate`、`scale`、`rotate`），用 Web Animations；不動陰影、不用濾鏡。
 
 **發展模式的美術（第二十四輪）**
-- 照設計文件（Claude Docs「卡坦島：發展模式美術設計」https://claude.ai/artifact/7XW87u6o6g7CfbaE2iFWbX ）把地圖上的標籤換成 3D 模型，2026-11-15 使用者：「好了可以做美術設計了」、11-16「繼續完成美術設計」。和地圖的房屋、風車同一套寫實沙盤風格與掃描材質；玩家色只在屋頂、旗、遮篷、帳篷、篷布。
+- 照設計文件（Claude Docs「Hexverse：發展模式美術設計」https://claude.ai/artifact/7XW87u6o6g7CfbaE2iFWbX ）把地圖上的標籤換成 3D 模型，2026-11-15 使用者：「好了可以做美術設計了」、11-16「繼續完成美術設計」。和地圖的房屋、風車同一套寫實沙盤風格與掃描材質；玩家色只在屋頂、旗、遮篷、帳篷、篷布。
 - 13 種特殊建築各有一眼認得出的輪廓：水道橋（三孔拱橋與水塔）、糧倉（石筒倉與茅草尖頂）、市集（條紋遮篷）、造船廠（船台上的船骨與吊臂，蓋在岸邊、船台朝海）、商會（三層山牆屋與吊貨梁）、兵營（長營房、靶場與高旗桿）、城牆（弧形城垛與圓塔）、傭兵營（尖頂帳篷與營火）、冒險者公會（酒館與劍盾大招牌）、驛站（馬廄、馬、里程石）、拓荒營地（篷車與營火）、學院（銅色圓頂天文台）、印刷坊（螺旋壓印機與一排晾著的紙）。
 - 開發設施依地形兩級：田地（農莊→風車）、森林（伐木場→鋸木坊）、丘陵（瓶形磚窯→第二座窯與晾磚棚）、牧場（石砌羊圈與羊→剪毛穀倉）、山脈（礦坑與礦車→井架）。
 - 5 座奇觀各有施工三階段（地基與吊車、鷹架、只差頂端）、完工與廢墟：空中花園、大燈塔（頂上的火會發光冒煙）、長城（蜿蜒的城牆與三座烽火台）、皇家大道（凱旋門、方尖碑、雕像）、大圖書館（列柱、山牆、銅圓頂）。被摧毀時塌陷揚塵，廢墟一直留著（重新整理、線上都看得到），直到有人在那塊沙漠開工新奇觀。
@@ -377,6 +377,14 @@
 - 注意：轉了角度的卡（扇形）放在有圓角的 `overflow: hidden` 裡時，Chromium 會連頁面上別的東西都畫不出來，扇形的台子因此不裁切。
 - 測試：`ui8.py` 多了稀有度的卡框順序、寶石與王冠、稀有度籤、展示台不空、卡包橫幅與 12 張卡；`node test/cards.mjs` 檢查每種稀有度的卡。`ui7.py`、`ui8.py`、`ui9.py` 接手玩家的回合時先取消電腦已經排好的下一步（之前偶爾在接手後才落下，例如替玩家提出交易，讓測試偶發失敗）。
 
+**改名 Hexverse、出處換地方、發展模式先關（第二十八輪）**
+- 2026-11-18 使用者：「這個遊戲改叫做Hexverse, 把名字改掉不要留Catan字眼不然會有可能觸犯法律」「對於素材聲明不要寫在主頁左下方, 找個不起眼的地方寫, 規則裡也可以」「對於所有有關發展模式的功能在上線都先關起來(灰調), 如果玩家要點擊就說comming soon」。
+- 名稱：遊戲叫 Hexverse（中英文介面都是），主畫面與頁面的標題、單人設定與房間的副標、勝利的字（「你統一了這座島！」「{who} 贏得了這座島！」）、規則、任務（「歡迎來到 Hexverse」）、README、package.json、程式註解、測試與美術腳本都沒有舊名字。瀏覽器裡存的東西（設定、存檔、建築卡、草稿…）的鍵改成 `hexverse-` 開頭，第一次開新版時自動搬過去（`src/meta/keys.js`；新的測試抓到一邊搬一邊照索引數會漏掉鍵——玩家的語言、國名會不見——改成先列出鍵名再搬）。線上房間的名稱前綴也換了，部署的那幾分鐘新舊版本的頁面互相看不到。
+- 還沒改的（要使用者在主控台改）：Cloudflare 的 Worker 名稱與網址（`wrangler.jsonc` 的 `name` 必須和 Worker 一致，所以先不動）、GitHub repo 名稱、Google 登入的 OAuth 應用程式名稱與已授權來源、Claude Docs 三份文件的標題（內文的大標題已改）。航海家劇本的名稱沿用原作擴充的名字，是剩下的風險，要不要改名等使用者決定。
+- 出處：從主畫面左下角拿掉，改放在規則的最後一節「素材來源」和設定頁最底下的小字（和版本號一起）；兩處共用 `text.js` 的 `creditsHtml()`，補上 Kenney（介面的墨線插圖、蠟封、花飾、勳章），game-icons.net 照 CC BY 3.0 寫出作者、網站與授權連結。
+- 發展模式先關：主畫面與頁面側欄的卡牌、商店、任務灰掉，點了晃一下、旁邊出現「即將推出」（英文 Coming soon），不開頁面；金幣、碎片與徽章不顯示；單人設定與自訂房間的「模式」裡發展模式灰掉（之前存的發展模式設定換回標準）；個人頁的收藏與使用中的藍圖灰掉、蓋一張「即將推出」，裡面的按鈕不能按；規則拿掉發展模式那一節；打完的對局不給金幣、不算任務；發展模式的存檔不顯示「繼續」。開關在 `src/meta/features.js`：網址加 `#dev-open` 在這台裝置打開（之後一直開著），`#dev-close` 關回去。
+- 測試：新的 `python3 test/soon.py`（以上每一項、舊鍵搬家、英文）；用到發展模式的瀏覽器測試與美術腳本在開頭打開它。舊的 `docs/STATUS.md`（最早的進度，已過時）刪掉。
+
 **下一步**
 - 官方房間輪替大地圖與航海家（等這幾輪在線上穩定之後）；玩家地圖的檢舉與管理（需要時再加）。官方房間維持 4 人標準，測試確定沒問題再輪替。完整規劃：https://claude.ai/artifact/3gaM8nTTV91h2cw97ceRun
 
@@ -387,14 +395,14 @@
 
 ## 自架（Cloudflare Workers 免費方案）
 - 一個 Worker 同時提供網頁、素材（約 22 MB，靜態檔案請求不計費）與線上房間（Durable Objects，每個房間一個物件，WebSocket Hibernation）。
-- 部署：Workers Builds 連接 GitHub repo，Build command `npm run build`、Deploy command `npx wrangler deploy`；推送到 main 自動部署；其他分支沒有預覽網址（實作 Durable Object 的 Worker 不產生預覽網址，見 https://developers.cloudflare.com/workers/versions-and-deployments/preview-urls/ ），要先試新版用本機 `npm run dev`。主畫面最下方顯示目前版本（commit）。
+- 部署：Workers Builds 連接 GitHub repo，Build command `npm run build`、Deploy command `npx wrangler deploy`；推送到 main 自動部署；其他分支沒有預覽網址（實作 Durable Object 的 Worker 不產生預覽網址，見 https://developers.cloudflare.com/workers/versions-and-deployments/preview-urls/ ），要先試新版用本機 `npm run dev`。設定頁最下方顯示目前版本（commit）。
 - 免費額度：Worker 每天 10 萬次請求；Durable Objects 每天 10 萬次請求、13,000 GB-s、寫入 10 萬列；收到的 WebSocket 訊息每 20 則算 1 次請求，送出的訊息與 ping 不計；Workers Builds 每月 3,000 分鐘。
 - 本機開發：`npm run dev`（http://127.0.0.1:8787，含房間伺服器）；`node test/rooms.mjs` 測協定，`ROOMS=ws python3 test/online.py` 讓線上測試走真正的房間伺服器；`python3 test/online4.py` 測主持人交接、斷線接手、回合時間與聊天。
 - Google 登入：用戶端 ID 寫在 `server/config.js`（公開值，打包時放進網頁）；Google Cloud 的「已授權的 JavaScript 來源」要有 `https://catan-3d.yaoyuanou-ab0.workers.dev`。
 - 素材製作腳本放在 `tools/art/`（參考用，原始素材未放進 repo）。
 
 ## 素材來源（可商用）
-- 圖示：Game Icons（https://game-icons.net ，Lorc、Delapouite 等作者，CC BY 3.0，需標示出處）：主畫面卡牌與獎章、行動列、上方列、通知用的圖示。挑選的圖示由 `tools/icons.mjs` 從 npm 套件 `@iconify-json/game-icons` 取出，寫進 `src/ui/gameicons.js`；主畫面左下角的出處說明不可拿掉。
+- 圖示：Game Icons（https://game-icons.net ，Lorc、Delapouite 等作者，CC BY 3.0，需標示出處）：主畫面卡牌與獎章、行動列、上方列、通知用的圖示。挑選的圖示由 `tools/icons.mjs` 從 npm 套件 `@iconify-json/game-icons` 取出，寫進 `src/ui/gameicons.js`；出處說明（作者、網站、授權）在規則的最後一節與設定頁最底下，不可拿掉。
 - 以下全部 CC0：
 - Kenney Fantasy UI Borders（https://kenney.nl/assets/fantasy-ui-borders）：清爽介面的細框、回紋轉角與分隔線；`tools/ui-kit.py` 把用到的幾張（`tools/art/kenney-ui/`）染成金色寫進 `src/ui/kit.css`。製圖桌介面也用它的一個花飾。
 - Kenney Cartography Pack（https://kenney.nl/assets/cartography-pack）、UI Pack - Adventure（https://kenney.nl/assets/ui-pack-adventure）、Medals（https://kenney.nl/assets/medals）：製圖桌介面的墨線插圖、蠟封與六角形、勳章；`tools/ui-kit3.py` 把用到的圖（`tools/art/kenney-ui3/`，`SOURCES.txt` 寫出處）做成 `src/ui/kit3.css`。

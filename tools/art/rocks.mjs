@@ -7,7 +7,9 @@ import { MeshoptSimplifier, MeshoptEncoder, MeshoptDecoder } from 'meshoptimizer
 import sharp from 'sharp';
 import fs from 'node:fs';
 
-const SRC = '/mnt/user-data/uploads/Claude/catan-assets/models';
+// ART_SRC: the folder of the original (uploaded) art
+if (!process.env.ART_SRC) throw new Error('set ART_SRC to the folder of the original art');
+const SRC = process.env.ART_SRC + '/models';
 const OUT = process.argv[2] || 'out/rocks';
 fs.mkdirSync(OUT, { recursive: true });
 

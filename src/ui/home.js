@@ -6,14 +6,14 @@ import { HEX_SIZE, geometryOf, withMap } from '../engine/geometry.js';
 import { DEFAULT_MAP } from '../engine/maps.js';
 import { generateBoard } from '../engine/board.js';
 import { seedState } from '../engine/rng.js';
-import { esc } from './text.js';
 import { emblemSvg, seatShield, crest } from './emblems.js';
 import { onCards } from './cards-ui.js';
-import { navHtml, paintNav } from './pages.js';
+import { navHtml, paintNav, navClick } from './pages.js';
 import { pop, reduced, leaveScreen } from './motion.js';
 import { t } from '../i18n/index.js';
+import { GAME_NAME } from '../meta/brand.js';
 
-const APP = 'catan3d';
+const APP = 'hexverse';
 // the paper map's terrain colours
 const TERRAIN = { forest: '#3d6b39', hills: '#c0683f', pasture: '#8cc055', fields: '#eabf48', mountains: '#878b99', desert: '#dfca91' };
 
@@ -333,12 +333,12 @@ function countdownFrom(peer, h) {
 
 
 // opts: settings, hasSave, seed (the island this player would open an official room on), seconds
-// (the official countdown), version, getLobby() → lobby wrapper | null (unreachable) | undefined
+// (the official countdown), getLobby() → lobby wrapper | null (unreachable) | undefined
 // (no live lobby on this page), and the handlers onSingle, onCreate, onJoin, onEditor (the map
 // workshop), onMatch, onContinue, onRules and onPage(page) (the side bar: pages.js). setMatch(state)
 // shows this player's own matchmaking.
 export function showHome(app, opts) {
-  const { settings, hasSave, version } = opts;
+  const { settings, hasSave } = opts;
   const total = Math.max(1, opts.seconds || 60) * 1000;
   const scr = el('div', 'menu-screen home');
   // (a card's name, and a shorter one for the small cards of a phone: the same in Chinese)
@@ -347,7 +347,7 @@ export function showHome(app, opts) {
   scr.innerHTML = `
     <header class="hm-top">
       <div class="hm-brand">
-        <div class="hm-logo"><span class="hm-crest">${crest()}</span><h1><span class="hm-title">${t('卡坦島')}</span><span class="hm-sub">${t('3D 戰略版')}</span></h1></div>
+        <div class="hm-logo"><span class="hm-crest">${crest()}</span><h1><span class="hm-title">${GAME_NAME}</span><span class="hm-sub">${t('3D 戰略版')}</span></h1></div>
         <div class="hm-live" role="status" hidden><i></i><span></span></div>
       </div>
     </header>
@@ -374,12 +374,7 @@ export function showHome(app, opts) {
     <div class="hm-medals">
       <button class="hm-medal" type="button" data-k="rules" title="${t('規則說明')}" aria-label="${t('規則說明')}">${emblemSvg('rules', 40)}<span>${t('規則')}</span></button>
     </div>
-    <p class="hm-credits">${t('寫實素材來自 {polyhaven}、Blend Swap 的 Daniel74 與 {quaternius}（皆為 CC0）；圖示來自 {gameicons}（Lorc、Delapouite 等，{ccby}）', {
-      polyhaven: '<a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a>',
-      quaternius: '<a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a>',
-      gameicons: '<a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>',
-      ccby: '<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>',
-    })}${version ? `<span class="ver">${esc(version)}</span>` : ''}</p>`;
+    `;
   app.appendChild(scr);
   // without the art pack (the claude.ai page) the frames fall back to plain bronze and parchment
   const probe = new Image();
@@ -398,7 +393,8 @@ export function showHome(app, opts) {
   // ── actions ──
   const handlers = { single: opts.onSingle, create: opts.onCreate, join: opts.onJoin, workshop: opts.onEditor, continue: opts.onContinue, rules: opts.onRules, match: opts.onMatch };
   const act = (k) => (handlers[k] ? handlers[k]() : opts.onPage && opts.onPage(k));
-  scr.querySelectorAll('button[data-k]').forEach((b) => b.addEventListener('click', () => act(b.dataset.k)));
+  // (a tab of a page not open yet says "Coming soon" instead: pages.js navClick)
+  scr.querySelectorAll('button[data-k]').forEach((b) => b.addEventListener('click', () => navClick(b) && act(b.dataset.k)));
   // ── the side bar's marks: new cards to look at, rewards waiting, the coins ──
   const tabsEl = scr.querySelector('.hm-tabs');
   paintNav(tabsEl);

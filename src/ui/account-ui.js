@@ -11,6 +11,8 @@ import { MISSIONS, RARITIES, ALL_CARDS, rarityOf, owns, missionState, ownedBluep
 import { BLUEPRINT_SIZE } from '../engine/develop.js';
 import { emblemSvg } from './emblems.js';
 import { fadeIn } from './motion.js';
+import { soonSection } from './soon.js';
+import { developOpen } from '../meta/features.js';
 import { esc } from './text.js';
 import { t, tx, names, isZh, terr } from '../i18n/index.js';
 
@@ -183,6 +185,8 @@ export function profilePage(host, { settings, onChange, dialogs }) {
       links.appendChild(btn(`${emblemSvg('cards', 22)}<span>${esc(t('卡牌'))}</span>`, 'ghost', () => host.go('cards')));
       links.appendChild(btn(`${emblemSvg('missions', 22)}<span>${esc(t('任務'))}</span>`, 'ghost', () => host.go('missions')));
     }
+    // (the development mode, whose cards these are, not open yet: greyed, "Coming soon")
+    if (!developOpen()) soonSection(coll);
   };
   // ── the blueprint in use: its cards, its name, where it is changed ──
   const deck = body.querySelector('.pf-deck');
@@ -195,6 +199,7 @@ export function profilePage(host, { settings, onChange, dialogs }) {
         <div class="pf-deckinfo"><b>${esc(t('藍圖 {n}', { n: i + 1 }))}</b><small class="num">${bp.length}/${BLUEPRINT_SIZE}${bp.length >= BLUEPRINT_SIZE ? ' · ' + esc(blueprintName(bp)) : ''}</small></div>
       </div>`;
     if (host.go) deck.querySelector('.pf-deckinfo').appendChild(btn(esc(t('在「卡牌」更換')), 'ghost', () => host.go('cards')));
+    if (!developOpen()) soonSection(deck);
   };
   paintColl();
   paintDeck();

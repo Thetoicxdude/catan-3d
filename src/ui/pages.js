@@ -10,7 +10,9 @@ import { cardsPage, shopPage, missionsPage, homeMarks, onCards, coinHtml, shardH
 import { profilePage } from './account-ui.js';
 import { settingsForm } from './dialogs.js';
 import { pop, fadeIn, reduced, leaveScreen } from './motion.js';
-import { esc } from './text.js';
+import { esc, creditsHtml } from './text.js';
+import { comingSoon, soonText } from './soon.js';
+import { pageOpen, developOpen } from '../meta/features.js';
 import { t, N_ } from '../i18n/index.js';
 
 // the side bar, in order: each page's short name (the rail, the tabs), its title and what it is for
@@ -31,19 +33,30 @@ const el = (tag, cls, html) => {
 };
 
 // The side bar's items as buttons (data-k: the page): cls the buttons' class, cur the page shown,
-// purse: the coins under the shop's name (the home screen's tabs).
+// purse: the coins under the shop's name (the home screen's tabs). A page not open yet (features.js:
+// the development mode's) is greyed (.soon) and says "Coming soon" when clicked (navClick).
 export function navHtml({ cls, cur = null, size = 34, purse = false } = {}) {
   return NAV.map((n) => {
     const on = n.k === cur;
+    const soon = !pageOpen(n.k);
     const name = esc(t(n.title));
-    return `<button class="${cls}${on ? ' on' : ''}" type="button" data-k="${n.k}"${on ? ' aria-current="page"' : ''} title="${name}" aria-label="${name}">${emblemSvg(n.k, size)}<span class="lbl">${esc(t(n.label))}</span>${purse && n.k === 'shop' ? '<span class="nav-purse num"></span>' : ''}<i class="hm-badge" hidden></i></button>`;
+    const title = soon ? `${name}・${esc(soonText())}` : name;
+    return `<button class="${cls}${on ? ' on' : ''}${soon ? ' soon' : ''}" type="button" data-k="${n.k}"${on ? ' aria-current="page"' : ''}${soon ? ' aria-disabled="true"' : ''} title="${title}" aria-label="${title}">${emblemSvg(n.k, size)}<span class="lbl">${esc(t(n.label))}</span>${purse && n.k === 'shop' && !soon ? '<span class="nav-purse num"></span>' : ''}<i class="hm-badge" hidden></i></button>`;
   }).join('');
+}
+// a side bar item clicked: its page, or "Coming soon" for one not open yet (true: go on to the page)
+export function navClick(b) {
+  if (!b.classList.contains('soon')) return true;
+  comingSoon(b);
+  return false;
 }
 
 // the new cards and the rewards waiting as the side bar last showed them (this visit to the page): a
 // badge whose number went up since then bounces
 const seenMarks = { fresh: null, claim: null };
 export function paintNav(root) {
+  // (the development mode closed: no marks for its pages)
+  if (!developOpen()) return;
   const m = homeMarks();
   const rose = (k) => seenMarks[k] != null && m[k] > seenMarks[k];
   const bounce = (b) => !b.hidden && pop(b, { scale: 1.55, ms: 380, delay: 200 });
@@ -68,16 +81,21 @@ export function paintNav(root) {
 
 const BACK = `<svg class="pg-arrow" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 4 7 12l8 8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-// The Settings page: the same rows as the in-game dialog, in sections, each with what it does.
-function settingsPage(host, { settings, onSettings }) {
-  host.mount(settingsForm({ ...settings }, (s, key) => onSettings(s, key), { paged: true }));
+// The Settings page: the same rows as the in-game dialog, in sections, each with what it does. At its
+// foot, small and out of the way: where the art and the icons come from (the rules' last section says
+// it too), and the version.
+function settingsPage(host, { settings, onSettings, version }) {
+  const page = el('div', 'set-page');
+  page.appendChild(settingsForm({ ...settings }, (s, key) => onSettings(s, key), { paged: true }));
+  page.appendChild(el('footer', 'set-foot', `<h5>${esc(t('素材來源'))}</h5>${creditsHtml()}${version ? `<p class="set-ver num">${esc(version)}</p>` : ''}`));
+  host.mount(page);
 }
 
 // page: the one to open (PAGES). opts: settings, save(settings) (the blueprints, a card kept),
 // onChange(settings) (the name and colour), onSettings(settings, key) (a setting chosen), dialogs()
 // (signing in), onHome() (the crest; with back: back where the page was opened from, back.label its
 // name), onMatch() (the matchmaking in the header: to the home screen's board), onPage(page) (each
-// page shown), tab (the Draw & Shop page's tab to open on).
+// page shown), tab (the Draw & Shop page's tab to open on), version (the Settings page's foot).
 // Returns { el, page, go(page, opts), setMatch(state), close() }.
 export function showPage(app, page, opts) {
   const { settings, back = null } = opts;
@@ -124,7 +142,7 @@ export function showPage(app, page, opts) {
     shop: (o) => shopPage(host, { tab: o.tab, settings, save: opts.save }),
     missions: () => missionsPage(host, { settings, save: opts.save }),
     profile: () => profilePage(host, { settings, onChange: opts.onChange, dialogs: opts.dialogs }),
-    settings: () => settingsPage(host, { settings, onSettings: opts.onSettings }),
+    settings: () => settingsPage(host, { settings, onSettings: opts.onSettings, version: opts.version }),
   };
 
   // the backdrop: each page's picture fades in over the last one
@@ -154,9 +172,10 @@ export function showPage(app, page, opts) {
     titleEl.textContent = t(n.title);
     subEl.textContent = t(n.sub);
     paintArt(k, first);
-    // the coins and shards as they are now (the page that spends or earns them counts them from there)
+    // the coins and shards as they are now (the page that spends or earns them counts them from there;
+    // none while the development mode, whose they are, is closed)
     const m = homeMarks();
-    bals.innerHTML = coinHtml(m.coins) + shardHtml(m.shards);
+    bals.innerHTML = developOpen() ? coinHtml(m.coins) + shardHtml(m.shards) : '';
     // the page before goes at once; this one comes in
     if (body) body.remove();
     body = el('div', `pg-body pg-${k}`);
@@ -172,12 +191,13 @@ export function showPage(app, page, opts) {
     if (closed) return;
     if (k === 'home') return opts.onHome();
     if (!PAGES.includes(k)) return;
+    if (!pageOpen(k)) return comingSoon(rail.querySelector(`.pg-item[data-k="${k}"]`));
     if (k === cur && o.tab == null) return;
     open(k, o);
   };
 
   scr.querySelectorAll('[data-go="home"]').forEach((b) => b.addEventListener('click', () => go('home')));
-  rail.querySelectorAll('.pg-item').forEach((b) => b.addEventListener('click', () => go(b.dataset.k)));
+  rail.querySelectorAll('.pg-item').forEach((b) => b.addEventListener('click', () => navClick(b) && go(b.dataset.k)));
   // Escape: home (a dialog open over the page closes first; a field being typed in keeps it)
   const onKey = (e) => {
     if (e.key !== 'Escape' || closed || e.defaultPrevented) return;

@@ -11,7 +11,7 @@
 import { newCollection, fitCollection, mergeCollections } from './collection.js';
 import { accountsAvailable, currentUser, onUser, fetchCards, sendCards } from '../net/account.js';
 
-const KEY = 'catan3d-cards-v1';
+const KEY = 'hexverse-cards-v1';
 let cur = null;
 let owner = '';
 const subs = new Set();

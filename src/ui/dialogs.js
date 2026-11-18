@@ -519,7 +519,7 @@ export class Dialogs {
       .sort((a, b) => (b.p.id === v.winner) - (a.p.id === v.winner) || b.tot - a.tot);
     const body = el('div');
     const win = ctx.players[v.winner];
-    body.innerHTML = `<p class="lead" style="font-size:15px">${v.winner === ctx.me ? t('<b>你統一了卡坦島！</b>') : t('<b style="color:{color}">{name}</b> 在第 {turn} 回合達成 {vp} 分，贏得戰役。', { color: win.color, name: esc(win.name), turn: v.turn, vp: v.targetVP })}</p>`;
+    body.innerHTML = `<p class="lead" style="font-size:15px">${v.winner === ctx.me ? t('<b>你統一了這座島！</b>') : t('<b style="color:{color}">{name}</b> 在第 {turn} 回合達成 {vp} 分，贏得戰役。', { color: win.color, name: esc(win.name), turn: v.turn, vp: v.targetVP })}</p>`;
     const st = el('div', 'standings');
     rows.forEach((r, i) => {
       const P = ctx.players[r.p.id];
@@ -552,7 +552,7 @@ export class Dialogs {
   }
 
   rules() {
-    return this.open({ kind: 'rules', title: t('卡坦島規則'), body: rulesHtml(), cls: 'wide' });
+    return this.open({ kind: 'rules', title: t('規則說明'), body: rulesHtml(), cls: 'wide' });
   }
 
   settings(settings, onChange) {

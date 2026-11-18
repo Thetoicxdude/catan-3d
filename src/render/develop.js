@@ -1,5 +1,5 @@
 // (the development mode) what the mode adds to the map, as models (devmodels.js and devwonders.js, made
-// into meshes by devmesh.js; the design: Claude Docs「卡坦島：發展模式美術設計」):
+// into meshes by devmesh.js; the design: Claude Docs「Hexverse：發展模式美術設計」):
 //   a development: its facility on the hex, north-west of the number token, in its developer's colour,
 //     with a small badge of the resource each level brings (that is worth reading at a glance)
 //   the buildings beside a settlement: each in a corner of the settlement, towards a land hex, facing
