@@ -1,5 +1,5 @@
 // Event → log/toast text, and the rules reference (in the reader's language: i18n/).
-import { RES_NAMES, resIcon, icon, TERRAIN_NAMES } from './icons.js';
+import { RES_NAMES, resCounts, costTokens, icon, TERRAIN_NAMES } from './icons.js';
 import { seaInfo, homeIslands } from '../engine/engine.js';
 import { GEO } from '../engine/geometry.js';
 import { t, N_, cap, list, low, isZh } from '../i18n/index.js';
@@ -38,13 +38,10 @@ export function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
-export function cardsHtml(map, size = 16) {
-  const parts = [];
-  for (const r of ['wood', 'brick', 'wool', 'grain', 'ore']) {
-    const n = map && map[r];
-    if (n) parts.push(`<span class="c">${resIcon(r, size)}${n}</span>`);
-  }
-  return parts.length ? `<span class="cards-inline">${parts.join('')}</span>` : '—';
+// resources in a line of text: a token each (never under 18 px: below that the pictures blur) and ×n
+export function cardsHtml(map, size = 18) {
+  const parts = resCounts(map, Math.max(size, 18));
+  return parts ? `<span class="cards-inline">${parts}</span>` : '—';
 }
 
 export function cardsText(map) {
@@ -303,7 +300,8 @@ export function annexTooltip(view, a, players) {
 
 // the rules reference, written out in each language
 export function rulesHtml() {
-  const c = (m) => cardsHtml(m, 15);
+  // (the costs: a token per card, with the resources' names for players who don't know the pictures)
+  const c = (m) => `<span class="cost-tokens">${costTokens(m, { size: 24, names: true })}</span>`;
   return isZh() ? rulesZh(c) : rulesEn(c);
 }
 

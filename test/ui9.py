@@ -188,6 +188,13 @@ async def main():
         await page.click('.bm-row[data-k="city"]', force=True)
         a = await page.evaluate(ANIMS, n0)
         flash = await page.evaluate("() => document.querySelectorAll('.bm-row[data-k=\"city\"] .bm-need.short.flash').length")
+        # (its cost: a token per card, the ones the hand lacks hollow — one grain held of two, no ore of three)
+        tok = await page.evaluate("""() => { const r = document.querySelector('.bm-row[data-k="city"]');
+          return { all: r.querySelectorAll('.bm-need .rtok').length, miss: r.querySelectorAll('.bm-need .rtok.miss').length,
+            grain: r.querySelectorAll('.rtok.rt-grain').length, ore: r.querySelectorAll('.rtok.rt-ore').length,
+            pics: [...r.querySelectorAll('.rtok svg path')].every((p) => (p.getAttribute('d') || '').length > 100),
+            label: r.querySelector('.bm-need').getAttribute('aria-label'), minis: document.querySelectorAll('.rc-mini').length }; }""")
+        check('a cost is a token per card, the missing ones hollow, each with its picture', tok['all'] == 5 and tok['miss'] == 4 and tok['grain'] == 2 and tok['ore'] == 3 and tok['pics'] and tok['label'] == '小麥 ×2' and tok['minis'] == 0, tok)
         check('a row that cannot be built shakes, its missing resources flash', any('bm-row' in x['cls'] and x['props'] == ['translate'] for x in a) and flash == 2, (flash, [x['cls'] for x in a][:3]))
         await page.keyboard.press('b')
         closing = await page.evaluate("() => document.querySelector('.build-menu').classList.contains('closing')")

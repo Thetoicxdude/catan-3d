@@ -20,7 +20,7 @@ import {
 } from '../engine/engine.js';
 import { developOn, plotSpots, plotCost, specialWhy, specialHosts, hostWhy, slotsAt, wonderSpots, wonderWhy, wonderOf, wonderDone, stageCost, isWonder, hasBuilt, BUILDINGS, BUILDING_NAMES, PLOT_COST, BLUEPRINT_SIZE, hasBasic, specialsOf, NO_CARD } from '../engine/develop.js';
 import { BUILDING_TEXT, DEVELOP_TEXT, DIR_COLOR, nationStrip, pointsText } from './develop-ui.js';
-import { resCard, resIcon, icon, dieFace, RES_NAMES, RES_EN, buildingIcon } from './icons.js';
+import { resCard, resIcon, costTokens, icon, dieFace, RES_NAMES, RES_EN, buildingIcon } from './icons.js';
 import { Fx } from './fx.js';
 import { sfx } from './sfx.js';
 import { shake, pop, reduced, EASE } from './motion.js';
@@ -778,13 +778,9 @@ export class Hud {
       const row = this.btns[k];
       if (row.hidden) continue;
       // (the royal road: this turn's road is free)
+      // (a token per card, the ones the hand lacks hollow)
       const cost = k === 'road' && c.freeRoad ? `<span class="bm-free">${t('免費（皇家大道）')}</span>` : info.cost
-        ? Object.entries(info.cost)
-            .map(([r, n]) => {
-              const short = c.res && c.res[r] < n;
-              return `<span class="bm-need${short ? ' short' : ''}" title="${esc(RES_NAMES[r])}">${resIcon(r, 26)}<b class="num">${n}</b></span>`;
-            })
-            .join('')
+        ? costTokens(info.cost, { size: 24, have: c.res, cls: 'bm-need' })
         : `<span class="bm-free">${t('不用資源')}</span>`;
       row.querySelector('.bm-cost').innerHTML = cost;
       const why = row.dataset.why;
@@ -896,9 +892,7 @@ export class Hud {
       const row = this.btns[key];
       if (!info || !row) continue;
       row.querySelector('.bm-cost').innerHTML = info.cost
-        ? Object.entries(info.cost)
-            .map(([r, n]) => `<span class="bm-need${c.res && c.res[r] < n ? ' short' : ''}" title="${esc(RES_NAMES[r])}">${resIcon(r, 22)}<b class="num">${n}</b></span>`)
-            .join('')
+        ? costTokens(info.cost, { size: 21, have: c.res, cls: 'bm-need' })
         : info.use
           ? `<span class="bm-free">${t('使用')}</span>`
           : '';

@@ -2,7 +2,7 @@
 // in words (the Cards page shows it: cards-ui.js), the strip of a nation's blueprint in the nations'
 // panel, and the dialogs of a turn.
 import { BUILDINGS, BUILDING_NAMES, DIR_NAMES, PRESETS, PRESET_IDS, PRESET_NAMES, BASIC, BASIC_NAMES, isWonder, validBlueprint, specialsOf, WONDER_VP, SCORE_VP, PLOT_COST } from '../engine/develop.js';
-import { buildingIcon, icon, resIcon, RES_NAMES } from './icons.js';
+import { buildingIcon, icon, resIcon, costTokens, RES_NAMES } from './icons.js';
 import { t, N_ } from '../i18n/index.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -44,11 +44,9 @@ export function pointsText(k) {
   return t('{n} 分', { n: 1 });
 }
 
-// a cost as small cards with counts
+// a cost as resource tokens, one per card (icons.js)
 export function costHtml(cost, size = 18) {
-  return Object.entries(cost)
-    .map(([r, n]) => `<span class="dv-need" title="${esc(RES_NAMES[r])}">${resIcon(r, size)}<b class="num">${n}</b></span>`)
-    .join('');
+  return costTokens(cost, { size, cls: 'dv-need' });
 }
 
 // the name of a blueprint: a ready-made one's, or "your own"
@@ -90,7 +88,7 @@ const BASIC_ICON = { road: 'road', settlement: 'settlement', city: 'city', dev: 
 // the development's cost for a hex and a resource, as words for a choice
 export function plotCostHtml(level, local, r) {
   const c = PLOT_COST[level][r === local ? 'local' : 'other'];
-  return costHtml(c, 16);
+  return costHtml(c, 18);
 }
 
 // the five resources to choose one from (a development, the shipyard), each with what it costs
@@ -103,7 +101,7 @@ export function resourceChoice(onPick, costOf = null) {
     b.className = 'res-pick';
     b.dataset.res = r;
     const c = costOf ? costOf(r) : null;
-    b.innerHTML = `${resIcon(r, 34)}<b>${esc(RES_NAMES[r])}</b>${c ? `<span class="rp-cost">${costHtml(c.cost, 14)}</span>${c.off ? `<small class="why">${esc(c.off)}</small>` : ''}` : ''}`;
+    b.innerHTML = `${resIcon(r, 34)}<b>${esc(RES_NAMES[r])}</b>${c ? `<span class="rp-cost">${costHtml(c.cost, 17)}</span>${c.off ? `<small class="why">${esc(c.off)}</small>` : ''}` : ''}`;
     if (c && c.off) b.classList.add('off');
     b.addEventListener('click', () => !b.classList.contains('off') && onPick(r));
     box.appendChild(b);
@@ -181,7 +179,7 @@ export function buyDevDialog(dialogs, opts, onBuy) {
       body.appendChild(div('dv-h', esc(t('付法'))));
       const g = div('dv-opts');
       for (const [r, label] of pays) {
-        const b = btn(`${r ? resIcon(r, 18) : costHtml({ wool: 1, grain: 1, ore: 1 }, 14)}<b>${esc(label)}</b>`, 'dv-opt' + (lib === r ? ' on' : ''), () => ((lib = r), render()));
+        const b = btn(`${r ? resIcon(r, 22) : costHtml({ wool: 1, grain: 1, ore: 1 }, 18)}<b>${esc(label)}</b>`, 'dv-opt' + (lib === r ? ' on' : ''), () => ((lib = r), render()));
         g.appendChild(b);
       }
       body.appendChild(g);

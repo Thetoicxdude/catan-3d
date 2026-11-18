@@ -104,6 +104,9 @@ async def main():
         check('the rules: no development mode section, no development key', '發展模式' not in r['hs'] and '發展模式' not in r['text'], r['hs'])
         check('the rules end with the credits (the art and the icons, the licence linked)', r['hs'][-1] == '素材來源' and any('game-icons.net' in l for l in r['links']) and any('creativecommons.org/licenses/by/3.0' in l for l in r['links']) and any('polyhaven.com' in l for l in r['links']) and any('kenney.nl' in l for l in r['links']), (r['hs'][-1:], r['links']))
         check('no other game\'s name in the rules', 'catan' not in r['text'].lower() and '卡坦' not in r['text'])
+        # (the build costs: a token per card with each resource named, for players new to the pictures)
+        ct = await page.evaluate("() => { const t = document.querySelector('.modal .cost-table'); return { groups: t.querySelectorAll('.cost-res').length, toks: t.querySelectorAll('.rtok').length, names: [...t.querySelectorAll('.ct-name')].slice(0, 2).map((n) => n.textContent) }; }")
+        check('the rules\' build costs: a token per card, each resource named', ct['groups'] == 11 and ct['toks'] == 14 and ct['names'] == ['木材', '磚塊'], ct)
         await close_dialog(page)
 
         # ── Settings: the credits and the version at its foot, small ──
@@ -194,6 +197,8 @@ async def main():
         await page.wait_for_selector('.modal .rules')
         hs = await page.evaluate("() => [...document.querySelectorAll('.modal .rules h4')].map((h) => h.textContent)")
         check('English rules: no Empire Mode, Credits last', 'Empire Mode' not in hs and hs[-1] == 'Credits', hs[-3:])
+        names = await page.evaluate("() => [...document.querySelectorAll('.modal .cost-table .ct-name')].slice(0, 5).map((n) => n.textContent)")
+        check('English rules: the resources named in English', names == ['Lumber', 'Brick', 'Lumber', 'Brick', 'Wool'], names)
         await close_dialog(page)
         await page.click('.hm-tab[data-k="settings"]')
         await page.wait_for_selector('.set-foot')

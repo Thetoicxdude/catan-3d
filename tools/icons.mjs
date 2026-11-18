@@ -20,6 +20,9 @@ const USED = [
   'horse-head', 'camping-tent', 'graduate-cap', 'quill-ink', 'flowers', 'lighthouse', 'defensive-wall', 'horizon-road', 'bookshelf',
   // the building cards: the Cards and Draw & Shop pages, coins, shards, missions, locked and new cards
   'open-treasure-chest', 'two-coins', 'crystal-growth', 'scroll-quill', 'padlock', 'swap-bag', 'sparkles',
+  // the resources on every cost, gain and harbour (with 'brick-wall' above): logs, a sheep, wheat, ore;
+  // the city wall building then takes a stone wall, so it is not mistaken for brick
+  'log', 'sheep', 'wheat', 'ore', 'stone-wall',
 ];
 
 const src = JSON.parse(readFileSync(process.argv[2], 'utf8'));

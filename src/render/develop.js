@@ -134,7 +134,7 @@ export class DevelopLayer {
         ry: Math.atan2(g.x - x, g.z - z),
         clear: lv > 1 ? CLEAR.plot2 : CLEAR.plot1,
         badge: {
-          html: `<span class="dvb-res">${pt.r.map((r) => resIcon(r, 14)).join('')}</span>`,
+          html: `<span class="dvb-res">${pt.r.map((r) => resIcon(r, 18)).join('')}</span>`,
           title: t('{lv}開發（{who}）', { lv: lv > 1 ? t('二級') : t('一級'), who: players[pt.p] ? players[pt.p].name : '' }),
           color: color(pt.p),
           cls: 'dv-badge plot lv' + lv,

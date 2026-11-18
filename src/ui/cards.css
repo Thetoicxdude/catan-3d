@@ -2,7 +2,7 @@
    Each card face is one image: the frame template with the card's art set into its arched window
    (assets/cards/card_*.webp, made by tools/art/frames/make_cards.py). The English name is set on the
    frame's parchment strip in Fraktur; counts sit on a token in the top corner, clear of the name.
-   .rc-mini is the inline miniature (the art alone, ringed in the frame's colour) for logs and badges. */
+   Anything small (costs, the log, badges, harbours) is a token instead (.rtok, below). */
 .rc-wood  { --rc: #5a4330; --ring: #a07a55; --card: url(assets/cards/card_wood_s.webp);  --card-l: url(assets/cards/card_wood.webp);  --thumb: url(assets/cards/wood_s.webp); }
 .rc-wool  { --rc: #66773f; --ring: #5aa893; --card: url(assets/cards/card_wool_s.webp);  --card-l: url(assets/cards/card_wool.webp);  --thumb: url(assets/cards/wool_s.webp); }
 .rc-grain { --rc: #b4852f; --ring: #d8b24e; --card: url(assets/cards/card_grain_s.webp); --card-l: url(assets/cards/card_grain.webp); --thumb: url(assets/cards/grain_s.webp); }
@@ -16,11 +16,30 @@
 .dc-victoryPoint { --card: url(assets/cards/card_dev_vp_s.webp);       --card-l: url(assets/cards/card_dev_vp.webp); }
 .dc-back         { --card: url(assets/cards/card_dev_back_s.webp);     --card-l: url(assets/cards/card_dev_back.webp); }
 
-.rc-mini {
-  display: inline-block; vertical-align: middle; flex: none; border-radius: 2px;
-  background: var(--thumb) center / cover no-repeat, var(--rc);
-  box-shadow: 0 0 0 1.5px var(--ring, #e8dcb8), 0 1px 3px rgba(0, 0, 0, 0.65);
+/* ───────── resource tokens (icons.js resIcon, costTokens) ─────────
+   The card frame's colour with a pictogram: a log, a brick wall, a sheep, wheat, ore. Shape and colour
+   both say which resource, so it reads down to 16 px and without colour vision. */
+.rt-wood  { --t1: #94704a; --t2: #5e4229; --t3: #36250f; }
+.rt-brick { --t1: #c95c3e; --t2: #8e3220; --t3: #561a0d; }
+.rt-wool  { --t1: #6aae86; --t2: #3b7a5a; --t3: #1f452c; }
+.rt-grain { --t1: #cc9c2f; --t2: #946910; --t3: #5a3f08; }
+.rt-ore   { --t1: #929eac; --t2: #546070; --t3: #29303a; }
+.rtok {
+  --s: 20px;
+  display: inline-grid; place-items: center; flex: none; vertical-align: middle; box-sizing: border-box;
+  width: var(--s); height: var(--s); border-radius: calc(var(--s) * 0.26);
+  background: linear-gradient(180deg, var(--t1), var(--t2));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22), 0 0 0 1px var(--t3), 0 1px 2px rgba(0, 0, 0, 0.4);
+  color: #fff6e0;
 }
+.rtok svg { display: block; width: 78%; height: 78%; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45)); }
+/* a card a cost still needs: the token hollow, its picture faint */
+.rtok.miss { background: rgba(255, 255, 255, 0.05); color: var(--t1); box-shadow: inset 0 0 0 1.5px var(--t1); opacity: 0.75; }
+.rtok.miss svg { filter: none; opacity: 0.55; }
+/* a cost: each resource's tokens close together, a little air between resources */
+.bm-need, .dv-need, .cost-res { display: inline-flex; align-items: center; gap: 2px; }
+.cost-tokens { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.cost-res .ct-name { margin-left: 4px; font-size: 12.5px; font-weight: 600; opacity: 0.85; white-space: nowrap; }
 
 .rcard {
   --w: 56px;
@@ -128,5 +147,6 @@
 .fx-dev p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: #5b4731; text-align: left; }
 .fx-dev .when { font-size: 12px; font-weight: 700; color: #6d4210; padding: 6px 8px; border-radius: 6px; background: rgba(199, 166, 96, 0.28); }
 
-/* card miniatures inside log lines and offers */
-.cards-inline .c { gap: 3px; padding: 2px 6px 2px 3px; }
+/* tokens inside log lines and offers: the token, then ×n */
+.cards-inline .c { gap: 3px; padding: 1px 6px 1px 2px; }
+.cards-inline .c b { font-size: 0.95em; }

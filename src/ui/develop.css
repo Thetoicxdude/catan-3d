@@ -64,8 +64,6 @@
 .res-choice .rp-cost { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
 .res-choice .why { font-size: 11px; color: #e2604e; }
 @media (max-width: 520px) { .res-choice { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-.dv-need { display: inline-flex; align-items: center; gap: 1px; }
-.dv-need b { font-size: 12px; }
 .dv-h { margin: 10px 0 5px; font-family: var(--font-display); font-size: 13px; letter-spacing: 0.08em; opacity: 0.85; }
 .dv-opts { display: flex; flex-direction: column; gap: 6px; }
 .dv-opts.res { flex-direction: row; flex-wrap: wrap; }

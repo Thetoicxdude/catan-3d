@@ -17,7 +17,7 @@ import { DevelopLayer } from './develop.js';
 import { devPrewarm } from './devmesh.js';
 import { GLSL_NOISE } from './noise.js';
 import { fpsMode, refreshInterval, refreshesPerFrame, pixelRatioCap, Governor } from './pace.js';
-import { resCard, icon, RES_NAMES } from '../ui/icons.js';
+import { resCard, resGlyph, icon, RES_NAMES } from '../ui/icons.js';
 import { t } from '../i18n/index.js';
 
 // Map labels are sized by the province under them, as it is on screen (seen at a slant, the far
@@ -726,8 +726,8 @@ export class MapView {
       const el = document.createElement('div');
       const type = a.harbor.type;
       const any = type === 'any';
-      el.className = 'harbor-badge' + (any ? ' any' : ` rc-${type}`);
-      el.innerHTML = `<i class="hb-tail"></i><span class="hb-ico"></span><b>${any ? '3:1' : '2:1'}</b>`;
+      el.className = 'harbor-badge' + (any ? ' any' : ` rt-${type}`);
+      el.innerHTML = `<i class="hb-tail"></i><span class="hb-ico">${any ? '' : resGlyph(type)}</span><b>${any ? '3:1' : '2:1'}</b>`;
       el.title = any ? t('港口：任意 3 張相同資源換 1 張') : t('港口：{res} 2 張換 1 張任意資源', { res: RES_NAMES[type] });
       const it = this.labels.add(el, a.pos, { ...HARBOR_FIT });
       this.harborLabels.push({ it, el, shore: a.shore });

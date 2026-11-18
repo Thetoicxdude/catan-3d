@@ -136,10 +136,11 @@ export function cardFace(k, { locked = false, on = false, fresh = false, sel = f
   </${tag}>`;
 }
 
-// a cost as resource cards large enough to read: the card, how many, its name
+// a cost large enough to read: each resource's token, how many, its name
 function costBig(cost) {
-  return `<span class="cb-row">${Object.entries(cost)
-    .map(([r, n]) => `<span class="cb" title="${esc(RES_NAMES[r])}">${resIcon(r, 38)}<span class="cb-n"><b class="num">×${n}</b><small>${esc(RES_NAMES[r])}</small></span></span>`)
+  return `<span class="cb-row">${['wood', 'brick', 'wool', 'grain', 'ore']
+    .filter((r) => cost[r] > 0)
+    .map((r) => `<span class="cb" title="${esc(RES_NAMES[r])} ×${cost[r]}">${resIcon(r, 34)}<span class="cb-n"><b class="num">×${cost[r]}</b><small>${esc(RES_NAMES[r])}</small></span></span>`)
     .join('')}</span>`;
 }
 

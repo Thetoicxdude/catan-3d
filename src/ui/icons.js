@@ -1,6 +1,6 @@
-// Resource cards (photographic art, styled in cards.css) and inline SVG icons (original drawings)
-// for actions and map modes.
-import { gameIcon } from './gameicons.js';
+// Resource cards (photographic art, styled in cards.css), resource tokens (a pictogram on the card's
+// colour, for anything small) and inline SVG icons (original drawings) for actions and map modes.
+import { gameIcon, GAME_ICONS } from './gameicons.js';
 import { names } from '../i18n/index.js';
 
 export const RES_NAMES = names({ wood: '木材', brick: '磚塊', wool: '羊毛', grain: '小麥', ore: '礦石' });
@@ -9,10 +9,44 @@ export const RES_EN = { wood: 'Lumber', brick: 'Brick', wool: 'Wool', grain: 'Gr
 export const DEV_EN = { knight: 'Knight', roadBuilding: 'Road Building', yearOfPlenty: 'Year of Plenty', monopoly: 'Monopoly', victoryPoint: 'Victory Point' };
 export const TERRAIN_NAMES = names({ forest: '森林', hills: '丘陵', pasture: '牧場', fields: '農田', mountains: '山脈', desert: '沙漠', gold: '金礦', sea: '海域', fog: '未探索' });
 
-// A miniature of the resource card (its art ringed in the card's frame colour), sized by height.
-export function resIcon(res, size = 20) {
-  const w = Math.round(size * 0.74);
-  return `<span class="ico rc-mini rc-${res}" style="width:${w}px;height:${size}px" aria-hidden="true"></span>`;
+// Small resources are TOKENS: the colour of the card's frame with a pictogram (Game Icons: a log, a
+// brick wall, a sheep, wheat, ore) that reads down to 16 px, where the card's photograph was only a
+// smudge of colour (2026-11-18: players could not tell what a cost asked for). The photo cards stay
+// where cards are shown large: the hand, the bank, the dialogs that pick cards. Styles in cards.css.
+const RES_GLYPH = { wood: 'log', brick: 'brick-wall', wool: 'sheep', grain: 'wheat', ore: 'ore' };
+const RES_ORDER = ['wood', 'brick', 'wool', 'grain', 'ore'];
+export function resGlyph(res) {
+  const d = GAME_ICONS[RES_GLYPH[res]];
+  return d ? `<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="${d}"/></svg>` : '';
+}
+// a resource token, square, `size` px a side
+export function resIcon(res, size = 20, cls = '') {
+  return `<span class="rtok rt-${res}${cls ? ' ' + cls : ''}" style="--s:${size}px" aria-hidden="true">${resGlyph(res)}</span>`;
+}
+
+// A cost the way a building-cost card shows it: one token per card, so two grain are two wheat
+// tokens and nothing needs counting. Given the hand (`have`), the cards still missing are hollow and
+// their resource is marked `short`. Each resource is one group (class `cls`) whose tooltip and
+// accessible name say the resource and how many; `names` writes the name after the tokens too (the
+// rules, an opened card), for players who do not know the pictures yet.
+export function costTokens(cost, { size = 22, have = null, cls = 'cost-res', names = false } = {}) {
+  return RES_ORDER.filter((r) => cost && cost[r] > 0)
+    .map((r) => {
+      const n = cost[r];
+      const got = have ? Math.min(n, have[r] || 0) : n;
+      const label = `${RES_NAMES[r]} ×${n}`;
+      let toks = '';
+      for (let i = 0; i < n; i++) toks += resIcon(r, size, i >= got ? 'miss' : '');
+      return `<span class="${cls}${got < n ? ' short' : ''}" role="img" aria-label="${label}" title="${label}">${toks}${names ? `<small class="ct-name">${RES_NAMES[r]}</small>` : ''}</span>`;
+    })
+    .join('');
+}
+
+// resources counted in a line of text (the battle log, an offer): each a token and ×n
+export function resCounts(map, size = 18) {
+  return RES_ORDER.filter((r) => map && map[r] > 0)
+    .map((r) => `<span class="c" role="img" aria-label="${RES_NAMES[r]} ×${map[r]}" title="${RES_NAMES[r]}">${resIcon(r, size)}<b>×${map[r]}</b></span>`)
+    .join('');
 }
 
 // A card face: the frame with its art, the English name on the parchment strip, and an optional
@@ -118,7 +152,7 @@ const BUILDING_FIGURE = {
   shipyard: 'cargo-ship',
   guild: 'scales',
   barracks: 'barracks-tent',
-  wall: 'brick-wall',
+  wall: 'stone-wall',
   mercenaries: 'swords-emblem',
   adventurers: 'compass',
   post: 'horse-head',

@@ -62,15 +62,16 @@
   background: rgba(15, 21, 26, 0.9); border: 1.5px solid #d9bd78; color: #f6ecd2;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
 }
-/* the resource itself: the close-up of its card art, ringed in the card's frame colour */
+/* the resource itself: its token's colour and picture (cards.css .rt-*), round */
 .harbor-badge .hb-ico {
-  width: 30px; height: 30px; border-radius: 50%; flex: none;
-  background: var(--thumb) center / cover no-repeat, var(--rc);
-  box-shadow: 0 0 0 2px var(--ring), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; flex: none; box-sizing: border-box;
+  background: linear-gradient(180deg, var(--t1), var(--t2)); color: #fff6e0;
+  box-shadow: 0 0 0 2px #e8dcb8, inset 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
+.harbor-badge .hb-ico svg { display: block; width: 72%; height: 72%; }
 /* "any": every resource's colour around the ring */
 .harbor-badge.any .hb-ico {
-  background: conic-gradient(#a07a55 0 72deg, #b8454b 0 144deg, #5aa893 0 216deg, #d8b24e 0 288deg, #b9bcc0 0);
+  background: conic-gradient(#94704a 0 72deg, #c95c3e 0 144deg, #6aae86 0 216deg, #cc9c2f 0 288deg, #929eac 0);
   box-shadow: 0 0 0 2px #e8dcb8, inset 0 0 0 7px rgba(15, 21, 26, 0.9);
 }
 .harbor-badge b { font-family: var(--font-num); font-weight: 700; font-size: 19px; line-height: 1; letter-spacing: 0.02em; }
