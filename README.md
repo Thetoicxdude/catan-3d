@@ -12,7 +12,7 @@
 | `src/net/` | 線上對戰。由主持人的瀏覽器跑規則並裁判，玩家的手牌用 ECDH + AES-GCM 加密。 |
 | `src/i18n/` | 兩種語言：程式裡的中文字串是翻譯鍵，英文在 `en.js`；`npm test` 會檢查每個字都有英文。 |
 | `server/worker.js` | Cloudflare Worker：提供網頁與素材，並用 Durable Objects 跑線上房間（只轉送每位玩家的 presence，伺服器不需要懂規則）。 |
-| `assets/` | 寫實素材包（約 22 MB，全部 CC0）。 |
+| `assets/` | 寫實素材包（約 24 MB，全部 CC0）。 |
 | `build.mjs` | 打包。`site/` 是部署用的網站，`dist/` 是 claude.ai 版與測試頁。 |
 | `test/` | 測試（見下方）。 |
 

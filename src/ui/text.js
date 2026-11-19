@@ -60,12 +60,30 @@ export function describe(e, players, me, view) {
   return out;
 }
 
+// (the development mode, 2026-11-18) how something built was paid, when the smithy or a discount changed
+// it: a note after the line
+function paidNote(e) {
+  const R = (r) => RES_NAMES[r];
+  const notes = [];
+  if (e.skip) notes.push(e.type === 'wonder' ? t('營造廠：少付 1 張{res}', { res: R(e.skip) }) : t('學徒工坊：少付 1 張{res}', { res: R(e.skip) }));
+  if (e.smith) notes.push(t('鐵匠鋪：1 張礦石代替{res}', { res: R(e.smith) }));
+  return notes.length ? `<small class="lg-note">${t('（{notes}）', { notes: list(notes) })}</small>` : '';
+}
+
 function describe0(e, players, me, view) {
+  const out = describe1(e, players, me, view);
+  if (out.log && (e.skip || e.smith)) out.log += paidNote(e);
+  return out;
+}
+
+function describe1(e, players, me, view) {
   const W = (p) => who(players, p, me);
   const hexName = (h) => (view && view.board.hexes[h] ? esc(placeName(view.board.hexes[h])) : '');
   const R = (r) => RES_NAMES[r];
   switch (e.type) {
     case 'roll':
+      // (the observatory: a second roll for a wool)
+      if (e.again) return { log: t('天文台：{who} 付 1 張羊毛重擲，擲出 <b>{sum}</b>（{a}＋{b}）', { who: W(e.p), sum: e.sum, a: e.dice[0], b: e.dice[1] }), hl: e.p === me };
       return { log: t('{who} 擲出 <b>{sum}</b>（{a}＋{b}）', { who: W(e.p), sum: e.sum, a: e.dice[0], b: e.dice[1] }), hl: e.p === me };
     case 'produce': {
       const per = {};
@@ -93,8 +111,10 @@ function describe0(e, players, me, view) {
       if (e.camp) return { log: t('拓荒營地：{who} 獲得 {cards}', { who: W(e.p), cards: cardsHtml(e.gains, 14) }), hl: e.p === me };
       return { log: t('{who} 獲得開局資源 {cards}', { who: W(e.p), cards: cardsHtml(e.gains, 14) }), hl: e.p === me };
     // ── the development mode ──
-    case 'develop':
-      return { log: e.level > 1 ? t('{who} 把 {hex} 的開發升到二級（多產 {res}）', { who: W(e.p), hex: hexName(e.hex), res: R(e.res) }) : t('{who} 開發了 {hex}（多產 {res}）', { who: W(e.p), hex: hexName(e.hex), res: R(e.res) }), hl: e.p === me };
+    case 'develop': {
+      const p = { who: W(e.p), hex: hexName(e.hex), res: R(e.res) };
+      return { log: e.level > 2 ? t('{who} 把 {hex} 的開發升到三級（多產 {res}）', p) : e.level > 1 ? t('{who} 把 {hex} 的開發升到二級（多產 {res}）', p) : t('{who} 開發了 {hex}（多產 {res}）', p), hl: e.p === me };
+    }
     case 'special': {
       const name = t(BUILDING_NAMES[e.k]);
       return { log: e.res ? t('{who} 蓋了{name}（{res} 2:1）', { who: W(e.p), name, res: R(e.res) }) : t('{who} 蓋了{name}', { who: W(e.p), name }), hl: e.p === me };
@@ -118,6 +138,8 @@ function describe0(e, players, me, view) {
     }
     case 'defend': {
       const name = t(BUILDING_NAMES[e.k]);
+      // (the garrison: two cards instead of a knight)
+      if (e.paid) return { log: t('衛戍所：{who} 付了 {cards}，保住了{name}', { who: W(e.p), name, cards: cardsHtml(e.paid, 14) }), hl: true };
       return { log: t('{who} 打出騎士，保住了{name}', { who: W(e.p), name }), hl: true };
     }
     case 'wonderLost': {
@@ -132,9 +154,30 @@ function describe0(e, players, me, view) {
     }
     case 'aqueduct':
       return { log: t('水道橋：{who} 拿到 1 張{res}', { who: W(e.p), res: R(e.res) }), hl: e.p === me };
+    // (2026-11-18) a card from the bank, the watchtower's toll, the caravanserai, the warehouse, the deck
+    // shuffled anew
+    case 'bonus':
+      return { log: e.why === 'almshouse' ? t('救濟院：{who} 從銀行拿到 1 張{res}', { who: W(e.p), res: R(e.res) }) : t('錢莊：{who} 從銀行拿到 1 張{res}', { who: W(e.p), res: R(e.res) }), hl: e.p === me };
+    case 'toll': {
+      if (e.res === undefined) return { log: null };
+      const known = e.res && (e.p === me || e.from === me);
+      return {
+        log: known ? t('瞭望塔：{from} 給了 {who} 1 張{res}', { who: W(e.p), from: W(e.from), res: R(e.res) }) : t('瞭望塔：{from} 給了 {who} 1 張牌', { who: W(e.p), from: W(e.from) }),
+        hl: e.p === me || e.from === me,
+      };
+    }
+    case 'caravan':
+      return { log: t('{who} 在商隊旅館交易：{give} → 1 {get}', { who: W(e.p), give: list(e.give.map(R)), get: R(e.get) }), hl: e.p === me };
+    case 'warehouse':
+      if (e.put && e.take) return { log: t('{who} 整理了貨棧（存著 {n} 張）', { who: W(e.p), n: e.stored }), hl: e.p === me };
+      return { log: e.put ? t('{who} 把 {n} 張牌存進貨棧（存著 {m} 張）', { who: W(e.p), n: e.put, m: e.stored }) : t('{who} 從貨棧拿回 {n} 張牌', { who: W(e.p), n: e.take }), hl: e.p === me };
+    case 'devReshuffle':
+      return { log: t('發展卡抽完了：打出過的道路建設、豐收之年、壟斷洗回牌堆（{n} 張）', { n: e.left }), hl: true };
     case 'devDraw':
       return { log: e.cards && e.p === me ? t('學院：你抽到 {a} 和 {b}，留下一張', { a: DEV_INFO[e.cards[0]].name, b: DEV_INFO[e.cards[1]].name }) : t('{who} 在學院抽了 2 張發展卡', { who: W(e.p) }), hl: e.p === me };
     case 'buyDev':
+      // (the scriptorium: one for nothing with a city)
+      if (e.how === 'scriptorium') return { log: e.card && e.p === me ? t('抄經室：{who} 免費拿到一張發展卡（{card}）', { who: W(e.p), card: DEV_INFO[e.card].name }) : t('抄經室：{who} 免費拿到一張發展卡', { who: W(e.p) }), hl: e.p === me };
       return { log: e.card && e.p === me ? t('{who} 購買了一張發展卡（{card}）', { who: W(e.p), card: DEV_INFO[e.card].name }) : t('{who} 購買了一張發展卡', { who: W(e.p) }), hl: e.p === me };
     case 'playDev': {
       if (e.card === 'knight') return { log: t('{who} 派出騎士（共 {n} 位）', { who: W(e.p), n: e.knights }), hl: e.p === me, toast: null };
@@ -266,7 +309,7 @@ export function hexTooltip(view, hexId, players) {
   // (the development mode) the development here, or the wonder on the desert
   if (developOn(view)) {
     const plot = view.plots[hexId];
-    if (plot) lines.push(t('<p>{lv}開發：{who}，每次產出多拿 {res}</p>', { lv: plot.r.length > 1 ? t('二級') : t('一級'), who: players ? who(players, plot.p, view.viewer) : '', res: list(plot.r.map((r) => RES_NAMES[r])) }));
+    if (plot) lines.push(t('<p>{lv}開發：{who}，每次產出多拿 {res}</p>', { lv: plot.r.length > 2 ? t('三級') : plot.r.length > 1 ? t('二級') : t('一級'), who: players ? who(players, plot.p, view.viewer) : '', res: list(plot.r.map((r) => RES_NAMES[r])) }));
     const w = (view.wonders || []).find((x) => x.h === hexId);
     const ruin = (view.ruins || []).find((x) => x.h === hexId);
     if (w) lines.push(t('<p><b>{name}</b>：{who}，{state}</p>', { name: t(BUILDING_NAMES[w.k]), who: players ? who(players, w.p, view.viewer) : '', state: w.done ? t('已完工') : t('施工中 {s}/3', { s: w.s }) }));
@@ -500,11 +543,12 @@ function developZh(c) {
 <ul>
 <li>給熟悉標準規則的玩家的長局：4 人用 37 格的島（2–3 人 30 格），每人有道路 25、村莊 7、城市 5，銀行每種 30 張，發展卡 35 張（騎士 20、分數卡 6、其他各 3），<b>18 分</b>獲勝（可改 15 或 21）。</li>
 <li><b>藍圖</b>：每人帶 7 張卡入場，在主畫面的「卡牌」選好：基本卡（道路、村莊、城市、發展卡）和特殊建築，最多 1 座世界奇觀。沒帶的卡整局都不能花錢蓋（開局照常放村莊和道路；皇家大道的免費道路、大圖書館買發展卡不受影響）；開發不用卡牌。開局時所有人的藍圖公開。</li>
-<li><b>建築卡</b>：一開始有 4 張基本卡和糧倉、市集、水道橋，剛好 7 張；任務送穀倉系列的另外 3 張（造船廠、拓荒營地、學院），其他 7 種建築與 5 座世界奇觀在「抽卡・商店」用金幣抽，抽到重複的換成碎片，碎片在商店換指定的卡。金幣來自打完的對局、獲勝、線上房間、每天第一局與任務。電腦對手一律帶 7 張的預設藍圖（4 張基本卡＋3 座建築）。</li>
-<li><b>開發</b>：在你有聚落的地塊上蓋產量設施（每塊地只屬於一位開發者，沙漠和強盜所在的地塊不行）。這塊地每次產出時，你多拿 1 張蓋的時候選的資源；可以升到二級再多拿 1 張。一級 ${c({ wood: 1, brick: 1, wool: 1 })}（選其他資源再加 1 張小麥），二級 ${c({ grain: 2, ore: 2 })}（選其他資源再加 1 張羊毛）。強盜在這塊地上時開發也停產。</li>
-<li><b>特殊建築</b>：附在你自己的聚落旁，不佔路口、不截斷道路：村莊旁 1 座、城市旁 2 座。每種每人一座，建設條件只在蓋的時候檢查。功能建築各 1 分；冒險者公會在你持有最大騎士團時 +3，驛站在你持有最長道路時 +3。</li>
+<li><b>建築卡</b>：一開始有 4 張基本卡和糧倉、市集、水道橋，剛好 7 張；任務送穀倉系列的另外 3 張（造船廠、拓荒營地、學院），五個領域的其他 19 種建築與 5 座世界奇觀在「抽卡・商店」用金幣抽，抽到重複的換成碎片，碎片在商店換指定的卡。13 種<b>中立建築</b>不放進抽卡：在商店用金幣買，其中 5 種也是任務的獎勵。金幣來自打完的對局、獲勝、線上房間、每天第一局與任務。電腦對手一律帶 7 張的預設藍圖。</li>
+<li><b>開發</b>：在你有聚落的地塊上蓋產量設施（每塊地只屬於一位開發者，沙漠和強盜所在的地塊不行）。這塊地每次產出時，你多拿 1 張蓋的時候選的資源；可以升到二級再多拿 1 張。一級 ${c({ wood: 1, brick: 1, wool: 1 })}（選其他資源再加 1 張小麥），二級 ${c({ grain: 2, ore: 2 })}（選其他資源再加 1 張羊毛）。農莊所附城市旁的地塊可以升到三級 ${c({ wool: 1, grain: 2, ore: 2 })}（選其他資源再加 1 張磚塊）；有屯田的話，旁邊有你道路的地塊不需要聚落也能開發。強盜在這塊地上時開發也停產。</li>
+<li><b>特殊建築</b>：附在你自己的聚落旁，不佔路口、不截斷道路：村莊旁 1 座、城市旁 2 座（有市政廳各多 1 座）。每種每人一座，建設條件只在蓋的時候檢查；中立建築沒有建設條件。功能建築各 1 分（紀念碑 2 分；公會大廳沒有基本分，每有 3 座特殊建築 +1）。計分建築在條件成立時 +3：冒險者公會持有最大騎士團、驛站持有最長道路；農會、港務局、總督府、大學是開發數、港口數、村莊數、拿過的發展卡最多（各有最低數量，平手也算）。</li>
 <li><b>世界奇觀</b>：蓋在路口上有你聚落的沙漠，分三階段，每回合付一個階段；付清第三階段後，在你的下一回合開始時完工，得 <b>5 分</b>和加成。每座奇觀全場只有一座，開工就鎖定。</li>
 <li>強盜移到奇觀所在的沙漠時，擁有者可以立刻打出手上 1 張騎士保住它（算進最大騎士團）；不防衛的話奇觀被摧毀，已付的資源不退。你不能把強盜移到自己的奇觀上。</li>
+<li>發展卡抽完時，打出過的道路建設、豐收之年、壟斷洗回牌堆（騎士和分數卡不洗回）。皇家大道完工時道路上限 +10。</li>
 <li>每座建築的條件、費用和效果，在主畫面的「卡牌」與遊戲中的建造選單都看得到。</li>
 </ul>
 `;
@@ -514,11 +558,12 @@ function developEn(c) {
 <ul>
 <li>A long game for players who know the standard rules: a 37-hex island at four players (30 at two or three), 25 roads, 7 settlements and 5 cities each, 30 cards of each resource in the bank, 35 development cards (20 knights, 6 victory points, 3 of each other), and <b>18 VP</b> to win (15 or 21 if you like).</li>
 <li><b>Blueprint</b>: each player brings 7 cards, chosen under Cards on the home screen: basic cards (road, settlement, city, development card) and special buildings, at most one world wonder. A card left out cannot be paid for all game (the opening settlements and roads are placed as usual; the Royal Road's free road and the Great Library's card are not affected); improvements need no card. Everyone's blueprint is shown from the start.</li>
-<li><b>Building cards</b>: you start with the 4 basic cards and the Granary, Market and Aqueduct, 7 in all; missions give the other 3 of the Breadbasket series (Shipyard, Frontier Camp, Academy), and the other 7 buildings and the 5 world wonders are drawn with coins in Draw &amp; Shop. A card drawn again becomes shards, which trade for a chosen card in the shop. Coins come from finished games, wins, online rooms, the first game of each day and missions. Computer players always bring a ready-made blueprint of 7 (the 4 basic cards and 3 buildings).</li>
-<li><b>Improvements</b>: improve a hex where you have a settlement or city (one owner per hex; not the desert, not under the robber). Each time it produces you take 1 more card of the resource you chose when building it, and a second level brings 1 more. Level 1 costs ${c({ wood: 1, brick: 1, wool: 1 })} (another resource: +1 grain), level 2 ${c({ grain: 2, ore: 2 })} (another resource: +1 wool). The robber stops an improvement too.</li>
-<li><b>Special buildings</b> stand beside your own settlements and cities, taking no intersection and cutting no road: one beside a settlement, two beside a city. One of each per player; a building's condition is checked only when it is built. Functional buildings are 1 VP each; the Adventurers' Guild is +3 while you hold the Largest Army, the Post Station +3 while you hold the Longest Road.</li>
+<li><b>Building cards</b>: you start with the 4 basic cards and the Granary, Market and Aqueduct, 7 in all; missions give the other 3 of the Breadbasket series (Shipyard, Frontier Camp, Academy), and the other 19 buildings of the five directions and the 5 world wonders are drawn with coins in Draw &amp; Shop. A card drawn again becomes shards, which trade for a chosen card in the shop. The 13 <b>neutral buildings</b> are not drawn: the shop sells them for coins, and 5 of them are mission rewards too. Coins come from finished games, wins, online rooms, the first game of each day and missions. Computer players always bring a ready-made blueprint of 7.</li>
+<li><b>Improvements</b>: improve a hex where you have a settlement or city (one owner per hex; not the desert, not under the robber). Each time it produces you take 1 more card of the resource you chose when building it, and a second level brings 1 more. Level 1 costs ${c({ wood: 1, brick: 1, wool: 1 })} (another resource: +1 grain), level 2 ${c({ grain: 2, ore: 2 })} (another resource: +1 wool). Hexes beside the city of a Farmstead go to level 3 for ${c({ wool: 1, grain: 2, ore: 2 })} (another resource: +1 brick); with a Homestead, a hex along one of your roads can be improved without a settlement. The robber stops an improvement too.</li>
+<li><b>Special buildings</b> stand beside your own settlements and cities, taking no intersection and cutting no road: one beside a settlement, two beside a city (one more each with a Town Hall). One of each per player; a building's condition is checked only when it is built, and the neutral ones have none. Functional buildings are 1 VP each (the Monument 2; the Guild Hall none of its own, but 1 for every 3 special buildings). A scoring building is +3 while its condition holds: the Adventurers' Guild with the Largest Army, the Post Station with the Longest Road; the Grange, Harbor Office, Governor's House and University for the most improvements, harbors, settlements, and development cards taken (each with a minimum; a tie counts).</li>
 <li><b>World wonders</b> stand on a desert with your settlement or city at a corner, built in three stages, one a turn; after the third stage the wonder is complete at the start of your next turn: <b>5 VP</b> and its bonus. Each wonder exists once, locked for everyone else once begun.</li>
 <li>When the robber is moved to a wonder's desert, its owner may play a knight from hand at once to save it (it counts toward the Largest Army); undefended, the wonder is destroyed and what was paid is not returned. You may not move the robber to your own wonder.</li>
+<li>When the development deck runs out, the Road Building, Year of Plenty and Monopoly cards played are shuffled back in (knights and victory points are not). A complete Royal Road adds 10 roads to your supply.</li>
 <li>Each building's condition, cost and effect are on the Cards page and in the game's build menu.</li>
 </ul>
 `;

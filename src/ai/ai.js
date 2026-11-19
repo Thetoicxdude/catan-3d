@@ -48,6 +48,19 @@ import {
   PRESET_IDS,
   slotsAt,
   hasBasic,
+  payFor,
+  MOST_OF,
+  MOST_MIN,
+  specialCount,
+  funcVP,
+  scoring,
+  GUILD_HALL_PER,
+  STORE_MAX,
+  COUNTING_MIN,
+  ALMS_MAX,
+  TERRACE_NUMBERS,
+  isNeutral,
+  CARAVAN_GIVE,
 } from '../engine/develop.js';
 
 const LEVELS = {
@@ -55,6 +68,15 @@ const LEVELS = {
   normal: { noise: 0.2, domestic: true, smartRobber: true, monopolyMin: 3 },
   hard: { noise: 0.03, domestic: true, smartRobber: true, monopolyMin: 3 },
 };
+
+// whether p's hand pays for a plan (the development mode: the smithy's ore for a card it lacks, the
+// apprentice workshop's and the builders' yard's card left out; engine/develop.js payFor)
+function canPay(view, p, pl) {
+  const res = view.players[p].res;
+  if (!developOn(view) || pl.kind === 'dev') return canAfford(res, pl.cost);
+  const kind = pl.kind === 'special' ? 'special' : pl.kind === 'wonder' ? 'wonder' : pl.kind;
+  return !!payFor(view, p, pl.cost, kind);
+}
 
 function boardScarcity(view) {
   const tot = { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
@@ -336,12 +358,16 @@ function buildPlans(view, p, lvl) {
   }
   if (me.pieces.settlements > 0 && card('settlement')) {
     const site = developOn(view) ? wonderSite(view, p) : null;
+    // (the development mode, 2026-11-18) a harbor office wants a second and third harbor; a governor's
+    // house and a new town want settlements
+    const harbors = developOn(view) && me.bp.includes('harborOffice') && MOST_OF.harborOffice(view, p) < MOST_MIN.harborOffice ? 0.55 : 0;
+    const towns = developOn(view) ? (me.bp.includes('governor') ? 0.2 : 0) + (me.bp.includes('newTown') && !hasBuilt(view, p, 'newTown') ? 0.12 : 0) : 0;
     for (const v of legalSettlementSpots(view, p)) {
       plans.push({
         kind: 'settlement',
         vertex: v,
         cost: COSTS.settlement,
-        value: 1.3 + vertexScore(view, v, p, weights) * 0.085 + (site && site(v) ? 0.8 : 0) + noise(2000 + v),
+        value: 1.3 + vertexScore(view, v, p, weights) * 0.085 + (site && site(v) ? 0.8 : 0) + (harbors && view.board.vertexHarbor[v] ? harbors : 0) + towns + noise(2000 + v),
       });
     }
   }
@@ -476,9 +502,86 @@ function specialValue(view, p, k, v, weights, stage) {
       return 1.25;
     case 'press':
       return 1.15;
+    // ── 2026-11-18 ──
+    case 'grange':
+    case 'harborOffice':
+    case 'governor':
+    case 'university':
+      return mostValue(view, p, k);
+    case 'farmstead': {
+      // (the second-level developments beside its city go to a third)
+      let n = 0;
+      for (const h of GEO.vertices[v].hexes) if (view.plots[h] && view.plots[h].p === p) n += view.plots[h].r.length >= 2 ? 1 : 0.4;
+      return 1.05 + Math.min(0.6, n * 0.3);
+    }
+    case 'homestead':
+      return 1.0 + (late ? 0 : 0.15);
+    case 'caravan':
+      return 1.2;
+    case 'roadworks':
+      return 1.0 + (me.pieces.roads <= 3 ? 0.35 : 0);
+    case 'newTown':
+      return 1.0 + (me.pieces.settlements <= 1 ? 0.35 : 0) + (me.pieces.cities <= 1 ? 0.3 : 0);
+    case 'townHall': {
+      const waiting = me.bp.filter((x) => isSpecial(x) && x !== k && !hasBuilt(view, p, x)).length;
+      return 1.05 + Math.min(0.4, waiting * 0.13);
+    }
+    case 'lectureHall':
+      return 1.05 + (me.dev.length >= 2 ? 0.2 : 0);
+    case 'scriptorium':
+      return 1.1 + Math.min(0.4, me.pieces.cities * 0.1) * (late ? 0.6 : 1);
+    case 'warehouse':
+      return 1.0 + (handSize(me.res) > handLimitOf(view, p) - 2 ? 0.2 : 0);
+    case 'countingHouse':
+      return 1.05 + (handSize(me.res) >= COUNTING_MIN - 1 ? 0.15 : 0);
+    case 'almshouse':
+      return 1.0;
+    case 'smithy':
+      return 1.1 + Math.min(0.25, prod.ore * 1.2);
+    case 'terraces': {
+      let n = 0;
+      view.vertices.forEach((b, u) => {
+        if (b && b.p === p) for (const h of GEO.vertices[u].hexes) if (TERRACE_NUMBERS.includes(view.board.hexes[h].number) && TERRAIN_RES[view.board.hexes[h].terrain]) n += b.t === 'c' ? 2 : 1;
+      });
+      return 1.0 + Math.min(0.4, n * 0.12);
+    }
+    case 'observatory':
+      return 1.05 + Math.min(0.15, prod.wool);
+    case 'watchtower':
+    case 'temple':
+      return 1.05;
+    case 'builders':
+      return 1.0 + (bpWonder(view, p) && !(wonderOf(view, p) || {}).done ? 0.35 : 0);
+    case 'garrison':
+      return 1.0 + (bpWonder(view, p) ? 0.25 : 0);
+    case 'workshop': {
+      const waiting = me.bp.filter((x) => isSpecial(x) && x !== k && !hasBuilt(view, p, x)).length;
+      return 1.0 + Math.min(0.35, waiting * 0.12);
+    }
+    case 'guildHall': {
+      // its point the moment it stands, and the ones the blueprint's other buildings will bring
+      const now = Math.floor((specialCount(view, p) + 1) / GUILD_HALL_PER);
+      const all = Math.floor(me.bp.filter(isSpecial).length / GUILD_HALL_PER);
+      return 0.45 + now * 1.0 + (all - now) * 0.35;
+    }
+    case 'monument':
+      return late ? 2.15 : 1.7;
     default:
       return 1;
   }
+}
+
+// (a scoring building of 2026-11-18) +3 while p has the most of what it counts: worth that much when p
+// has it already, a part of it when p is close
+function mostValue(view, p, k) {
+  const f = MOST_OF[k];
+  const mine = f(view, p);
+  const other = Math.max(0, ...view.players.filter((o) => o.id !== p).map((o) => f(view, o.id)));
+  const need = Math.max(MOST_MIN[k], other);
+  if (mine >= need) return 3.1;
+  if (mine + 1 >= need) return 1.35;
+  if (mine + 2 >= need) return 0.7;
+  return 0.3;
 }
 
 // the shipyard's resource: the one p produces most
@@ -504,6 +607,10 @@ function developPlans(view, p, lvl, weights, stage, noise, plans) {
   const me = view.players[p];
   const late = stage === 'late';
   const gardens = me.bp.includes('gardens') ? (wonderDone(view, p, 'gardens') ? 0.5 : 0.3) : 0;
+  // (2026-11-18) the grange counts developments (and asks a second level first), the farmstead takes
+  // them to a third level, the homestead lets them go along the roads
+  const grange = me.bp.includes('grange') ? 0.2 : 0;
+  const farm = me.bp.includes('farmstead') ? 0.15 : 0;
   // (an aqueduct waits for a development beside one of p's settlements)
   const aqueduct = me.bp.includes('aqueduct') && !hasBuilt(view, p, 'aqueduct') ? 0.1 : 0;
   // developments: the hex's own resource (cheaper) unless another is wanted much more
@@ -515,7 +622,9 @@ function developPlans(view, p, lvl, weights, stage, noise, plans) {
     let r = local;
     for (const x of RES) if (weights[x] > weights[r] * 1.35) r = x;
     const cost = plotCost(view, h, r);
-    const value = 0.3 + pp * weights[r] * 0.105 * (late ? 0.75 : 1) + gardens + aqueduct + noise(7000 + h) * 0.5;
+    const level = view.plots[h] ? view.plots[h].r.length : 0;
+    const more = grange + (level >= 1 ? farm : 0) + (grange && level === 1 && !hasBuilt(view, p, 'grange') ? 0.15 : 0);
+    const value = 0.3 + pp * weights[r] * 0.105 * (late ? 0.75 : 1) + gardens + aqueduct + more + noise(7000 + h) * 0.5;
     plans.push({ kind: 'develop', hex: h, res: r, cost, value });
   }
   // the blueprint's special buildings
@@ -552,10 +661,44 @@ function marketTradeFor(view, p, cost) {
   return { type: 'market', p, give, get: wants[0] };
 }
 
-// The blueprint a computer player brings: on easy any of the five, otherwise the one that suits the
-// land it will likely start on (the best intersections, drafted in the opening order).
+// The blueprint a computer player brings: on easy any of the ten, otherwise the one that suits the
+// land it will likely start on best. Each blueprint's fit is measured against its own spread over many
+// starts (FIT_NORM: the deviation over 4000 seats of the 3- and 4-player islands, and the mean moved so
+// that each is brought about as often on hard, 10%; 8–12% on normal), by the players whose land suits
+// it most. (2026-11-19: the raw fits had the caravans' four kinds of land win 41% of the seats and the
+// treasury none.)
+const FIT_NORM = {
+  farm: [8.86, 2.68],
+  port: [7.43, 1.17],
+  order: [7.32, 2.31],
+  frontier: [8.99, 3.19],
+  scholars: [8.04, 2.36],
+  harvest: [6.75, 2.34],
+  caravans: [11.31, 1.63],
+  towns: [10.07, 1.91],
+  lore: [7.73, 2.31],
+  treasury: [8.62, 0.32],
+};
 export function chooseBlueprint(st, p, level = 'normal', rnd = Math.random) {
   if (level === 'easy') return PRESET_IDS[Math.floor(rnd() * PRESET_IDS.length)];
+  const fit = blueprintFits(st, p);
+  const noise = level === 'hard' ? 0.35 : 1;
+  let pick = PRESET_IDS[0];
+  let best = -Infinity;
+  for (const k of PRESET_IDS) {
+    const [mean, sd] = FIT_NORM[k];
+    const z = (fit[k] - mean) / sd + rnd() * noise;
+    if (z > best) {
+      best = z;
+      pick = k;
+    }
+  }
+  return pick;
+}
+
+// How well each ready-made blueprint suits the land p will likely start on (the best intersections,
+// drafted in the opening order), before it is set against the others (chooseBlueprint)
+export function blueprintFits(st, p) {
   const flat = { wood: 1, brick: 1, wool: 1, grain: 1, ore: 1 };
   const view = { ...st, vertices: st.vertices.slice() };
   const score = GEO.vertices.map((v) => (v.hexes.length ? vertexScore(view, v.id, p, flat, { ignoreRobber: true }) : -1));
@@ -570,27 +713,29 @@ export function chooseBlueprint(st, p, level = 'normal', rnd = Math.random) {
   }
   const prod = { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
   let harbor = 0;
-  let desert = 0;
   for (const v of mine) {
     for (const h of GEO.vertices[v].hexes) {
-      const H = st.board.hexes[h];
-      const r = TERRAIN_RES[H.terrain];
-      if (r) prod[r] += pips(H.number);
-      if (H.terrain === 'desert') desert++;
+      const r = TERRAIN_RES[st.board.hexes[h].terrain];
+      if (r) prod[r] += pips(st.board.hexes[h].number);
     }
     if (st.board.vertexHarbor[v]) harbor++;
   }
   const top = Math.max(...RES.map((r) => prod[r]));
-  const fit = {
+  const kinds = RES.filter((r) => prod[r] > 0).length;
+  const total = RES.reduce((n, r) => n + prod[r], 0);
+  return {
     farm: prod.grain * 1.0 + prod.wood * 0.5 + prod.brick * 0.3,
     port: top * 0.9 + harbor * 4,
     order: prod.ore * 0.8 + prod.grain * 0.6 + prod.wool * 0.4,
     frontier: prod.wood * 0.9 + prod.brick * 0.9,
     scholars: prod.wool * 0.8 + prod.ore * 0.6 + prod.grain * 0.5,
+    // (2026-11-18) cities on fields, many kinds inland, settlements everywhere, cards, a large hand
+    harvest: prod.grain * 0.8 + prod.ore * 0.6 + prod.wool * 0.2,
+    caravans: kinds * 2.2 + prod.ore * 0.3,
+    towns: prod.wood * 0.7 + prod.brick * 0.7 + prod.grain * 0.35 + prod.wool * 0.35,
+    lore: prod.wool * 0.75 + prod.ore * 0.65 + prod.grain * 0.45,
+    treasury: total * 0.38,
   };
-  let pick = 'port';
-  for (const k of PRESET_IDS) if (fit[k] + desert * 0.5 + rnd() * (level === 'hard' ? 0.5 : 1.5) > fit[pick]) pick = k;
-  return pick;
 }
 
 function bankTradeFor(view, p, cost, protect = null) {
@@ -928,7 +1073,7 @@ function winningMove(view, p, plans) {
   const me = view.players[p];
   const vp = publicVP(view, p) + me.dev.filter((c) => c.type === 'victoryPoint').length;
   for (const pl of plans) {
-    if (!canAfford(me.res, pl.cost)) continue;
+    if (!canPay(view, p, pl)) continue;
     const gain = pl.kind === 'city' || pl.kind === 'settlement' ? 1 : pl.lr ? 2 + (developOn(view) && hasBuilt(view, p, 'post') ? 3 : 0) : pl.kind === 'special' ? specialGain(view, p, pl.k) : 0;
     if (gain && vp + gain >= view.targetVP) return pl;
   }
@@ -937,10 +1082,12 @@ function winningMove(view, p, plans) {
 
 // the points a special building brings the moment it stands
 function specialGain(view, p, k) {
-  if (BUILDINGS[k].kind === 'func') return 1;
+  // (the guild hall: a point for every three special buildings, itself among them)
+  if (k === 'guildHall') return Math.floor((specialCount(view, p) + 1) / GUILD_HALL_PER);
+  if (BUILDINGS[k].kind === 'func') return funcVP(k) + (hasBuilt(view, p, 'guildHall') && (specialCount(view, p) + 1) % GUILD_HALL_PER === 0 ? 1 : 0);
   if (k === 'adventurers') return view.largestArmy === p ? 3 : 0;
   if (k === 'post') return view.longestRoad === p ? 3 : 0;
-  return 0;
+  return scoring(view, p, k) ? 3 : 0;
 }
 
 function planToAction(p, pl) {
@@ -963,8 +1110,18 @@ function mainMove(view, p, mem, lvl, rnd) {
     mem.turn = view.turn;
     mem.bankTrades = 0;
     mem.got = {};
+    mem.stored = false;
+  }
+  // (the warehouse) what was put away comes back first, to build with
+  const stored = me.store ? handSize(me.store) : 0;
+  if (stored && !mem.stored && developOn(view)) {
+    mem.stored = true;
+    const take = {};
+    for (const r of RES) if (me.store[r]) take[r] = me.store[r];
+    return { type: 'warehouse', p, take };
   }
   const plans = buildPlans(view, p, lvl);
+  const endTurn = () => endTurnMove(view, p, mem, plans);
 
   const win = winningMove(view, p, plans);
   if (win) return planToAction(p, win);
@@ -972,10 +1129,10 @@ function mainMove(view, p, mem, lvl, rnd) {
   const dev = devMove(view, p, lvl, rnd, plans);
   if (dev) return dev;
 
-  if (!plans.length) return { type: 'endTurn', p };
+  if (!plans.length) return endTurn();
   const top = plans[0];
 
-  if (canAfford(me.res, top.cost)) return planToAction(p, top);
+  if (canPay(view, p, top)) return planToAction(p, top);
 
   // the special building phase allows building only; the second player of a paired turn may trade
   // with the bank but not with other players
@@ -987,10 +1144,15 @@ function mainMove(view, p, mem, lvl, rnd) {
     return t;
   };
 
-  // (the development mode) the market's two-for-one first
+  // (the development mode) the market's two-for-one first, then the caravanserai's two different for one
   if (developOn(view) && !sbp) {
     const m = marketTradeFor(view, p, top.cost);
     if (m) return m;
+    const c = mem.bankTrades < 5 ? caravanTradeFor(view, p, top.cost) : null;
+    if (c) {
+      mem.bankTrades++;
+      return c;
+    }
   }
   // Try bank/harbor trades toward the top plan.
   if (totalTradeable(view, p, top.cost)) {
@@ -1012,7 +1174,7 @@ function mainMove(view, p, mem, lvl, rnd) {
   // or any affordable plan when holding too many cards (7 risk).
   const big = handSize(me.res) > handLimitOf(view, p);
   for (const pl of plans.slice(1)) {
-    if (!canAfford(me.res, pl.cost)) continue;
+    if (!canPay(view, p, pl)) continue;
     if (pl.value < 0.3) continue;
     let conflicts = false;
     for (const r in pl.cost) if (top.cost[r] && me.res[r] - pl.cost[r] < top.cost[r]) conflicts = true;
@@ -1025,7 +1187,105 @@ function mainMove(view, p, mem, lvl, rnd) {
       if (tradeOk(t)) return doTrade(t);
     }
   }
+  return endTurn();
+}
+
+// ── the buildings of 2026-11-18 ──
+
+// The turn's end: a hand at risk goes into the warehouse first (the most plentiful cards); with a
+// counting house and a full hand, the card it brings is the one the best plan lacks.
+function endTurnMove(view, p, mem, plans) {
+  const me = view.players[p];
+  if (!developOn(view)) return { type: 'endTurn', p };
+  const hand = handSize(me.res);
+  if (hasBuilt(view, p, 'warehouse') && me.store && mem.put !== view.turn) {
+    const room = STORE_MAX - handSize(me.store);
+    // (worth it with a 7 to fear, or a thief: more than a few cards)
+    if (room > 0 && hand >= Math.min(handLimitOf(view, p) - 1, 6)) {
+      mem.put = view.turn;
+      const left = { ...me.res };
+      const put = {};
+      for (let i = 0; i < room; i++) {
+        const r = RES.slice().sort((a, b) => left[b] - left[a])[0];
+        if (!left[r]) break;
+        left[r]--;
+        put[r] = (put[r] || 0) + 1;
+      }
+      if (Object.keys(put).length) return { type: 'warehouse', p, put };
+    }
+  }
+  if (hasBuilt(view, p, 'countingHouse') && !view.used.countingHouse && hand >= COUNTING_MIN) return { type: 'endTurn', p, bonus: wantedRes(view, p, plans) };
   return { type: 'endTurn', p };
+}
+
+// the card p wants most from the bank: one the best plan lacks, else the scarcest of p's hand (that the
+// bank has)
+function wantedRes(view, p, plans) {
+  const me = view.players[p];
+  const top = (plans || []).find((x) => x.cost && Object.keys(x.cost).length);
+  if (top) {
+    const { missing } = missingFor(me.res, top.cost);
+    const r = RES.filter((x) => missing[x] && view.bank[x] > 0).sort((a, b) => missing[b] - missing[a])[0];
+    if (r) return r;
+  }
+  return RES.filter((x) => view.bank[x] > 0).sort((a, b) => me.res[a] - me.res[b])[0];
+}
+
+// (the caravanserai) two different spare cards (CARAVAN_GIVE) for the one the cost lacks most, when no
+// harbor does it for two of one kind
+function caravanTradeFor(view, p, cost) {
+  if (!hasBuilt(view, p, 'caravan')) return null;
+  const me = view.players[p];
+  const { missing, count } = missingFor(me.res, cost);
+  if (!count) return null;
+  const get = RES.filter((r) => missing[r] && view.bank[r] > 0).sort((a, b) => missing[b] - missing[a])[0];
+  if (!get) return null;
+  const spare = RES.filter((r) => r !== get && me.res[r] - (cost[r] || 0) >= 1);
+  if (spare.length < CARAVAN_GIVE) return null;
+  // (a harbor's two for one of a spare card is better)
+  if (spare.some((r) => tradeRatio(view, p, r) === 2 && me.res[r] - (cost[r] || 0) >= 2)) return null;
+  spare.sort((a, b) => me.res[b] - (cost[b] || 0) - (me.res[a] - (cost[a] || 0)));
+  return { type: 'caravan', p, give: spare.slice(0, CARAVAN_GIVE), get };
+}
+
+// (the observatory) a wool for a second roll: when this one brings p nothing and p's land usually
+// brings much more, or when it is a 7 and p's hand would be halved
+function rerollWanted(view, p) {
+  const me = view.players[p];
+  const sum = view.pending.sum;
+  if (me.res.wool < 1) return false;
+  if (sum === 7) return handSize(me.res) > handLimitOf(view, p);
+  let got = 0;
+  let mean = 0;
+  for (const H of GEO.hexes) {
+    const hx = view.board.hexes[H.id];
+    if (!TERRAIN_RES[hx.terrain] || view.board.robber === H.id) continue;
+    let n = 0;
+    for (const v of H.vertices) {
+      const b = view.vertices[v];
+      if (b && b.p === p) n += b.t === 'c' ? 2 : 1;
+    }
+    if (view.plots && view.plots[H.id] && view.plots[H.id].p === p) n += view.plots[H.id].r.length;
+    if (hx.number === sum) got += n;
+    mean += (n * pips(hx.number)) / 36;
+  }
+  return got === 0 && mean >= 1.6;
+}
+
+// (the garrison) a wonder worth saving and no knight: the two cards p needs least
+function garrisonPay(view, p) {
+  const me = view.players[p];
+  if (!hasBuilt(view, p, 'garrison') || handSize(me.res) < 2) return null;
+  const w = (view.wonders || []).find((x) => x.h === view.pending.hex);
+  if (!w || !(w.done || w.s >= 2)) return null;
+  const left = { ...me.res };
+  const pay = {};
+  for (let i = 0; i < 2; i++) {
+    const r = RES.slice().sort((a, b) => left[b] - left[a])[0];
+    left[r]--;
+    pay[r] = (pay[r] || 0) + 1;
+  }
+  return pay;
 }
 
 // (the development mode) defend the wonder with a knight from hand: always a complete one, one being
@@ -1062,11 +1322,15 @@ export function aiAct(view, p, mem = {}, rnd = Math.random) {
     if (pd.amounts[p] === undefined) return null;
     return { type: 'discard', p, cards: chooseDiscard(view, p, pd.amounts[p]) };
   }
-  // (the development mode) the robber at our wonder: a knight saves it
+  // (the development mode) the robber at our wonder: a knight saves it (or the garrison's two cards)
   if (pd && pd.type === 'defend') {
     if (pd.p !== p) return null;
-    return { type: 'defend', p, yes: defendWonder(view, p) };
+    if (defendWonder(view, p)) return { type: 'defend', p, yes: true };
+    const pay = garrisonPay(view, p);
+    return pay ? { type: 'defend', p, yes: true, pay } : { type: 'defend', p, yes: false };
   }
+  // (the observatory) the roller: keep the dice, or a wool for a second roll
+  if (pd && pd.type === 'reroll') return pd.p === p ? { type: 'reroll', p, yes: rerollWanted(view, p) } : null;
   if (view.trade && view.trade.from !== p) {
     if (view.trade.resp[p] === null) {
       const lack = RES.some((r) => view.players[p].res[r] < (view.trade.get[r] || 0));
@@ -1112,6 +1376,9 @@ export function aiAct(view, p, mem = {}, rnd = Math.random) {
       const grab = la !== p && view.players[p].knights + 1 > laSize && view.players[p].knights + 1 >= 3;
       if (hurt || grab) return { type: 'playDev', p, card: 'knight' };
     }
+    // (the almshouse: with a small hand, a card of the computer's choice before the dice)
+    const me = view.players[p];
+    if (developOn(view) && hasBuilt(view, p, 'almshouse') && !view.used.almshouse && handSize(me.res) <= ALMS_MAX) return { type: 'roll', p, alms: wantedRes(view, p, buildPlans(view, p, lvl)) };
     return { type: 'roll', p };
   }
 

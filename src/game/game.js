@@ -23,8 +23,8 @@ import {
   freeRoad,
   canAfford,
 } from '../engine/engine.js';
-import { developOn, plotSpots, plotCost, specialHosts, wonderSpots, wonderOf, isWonder, hasBuilt, wonderDone, robberSpots, PRESETS, BUILDINGS, BUILDING_NAMES, upgradeCards } from '../engine/develop.js';
-import { developDialog, shipyardDialog, buyDevDialog, pickDevDialog, defendDialog, marketDialog } from '../ui/develop-ui.js';
+import { developOn, plotSpots, plotCost, specialHosts, wonderSpots, wonderOf, isWonder, hasBuilt, wonderDone, robberSpots, PRESETS, BUILDINGS, BUILDING_NAMES, upgradeCards, payFor, ALMS_MAX, COUNTING_MIN, STORE_MAX, stageCost } from '../engine/develop.js';
+import { developDialog, shipyardDialog, buyDevDialog, pickDevDialog, defendDialog, marketDialog, rerollDialog, bonusDialog, caravanDialog, warehouseDialog, skipDialog } from '../ui/develop-ui.js';
 import { devCard } from '../ui/icons.js';
 import { GEO } from '../engine/geometry.js';
 import { aiAct, chooseBlueprint } from '../ai/ai.js';
@@ -495,7 +495,7 @@ export class Game {
         sfx.build(e.what);
         if (e.what !== 'road') setTimeout(() => fx.medal(this.hud.vpTarget(e.p, me), '+1'), 260);
         // what it cost goes back to the bank (opening pieces and Road Building roads are free)
-        if (!e.setup && !e.free) this.payBank(e.p, COSTS[e.what], me);
+        if (!e.setup && !e.free) this.payBank(e.p, e.paid || COSTS[e.what], me);
       } else if (e.type === 'discard') {
         this.payBank(e.p, e.cards, me);
       } else if (e.type === 'bankTrade') {
@@ -551,7 +551,7 @@ export class Game {
         fx.cards(this.planCards(list, me)());
       } else if (e.type === 'buyDev') {
         // (the academy's card was paid for when the two were drawn; the great library takes one card)
-        if (!e.paid) this.payBank(e.p, e.cost || COSTS.dev, me);
+        if (!e.paid && e.how !== 'scriptorium') this.payBank(e.p, e.cost || COSTS.dev, me);
         if (e.p !== me || !e.card || !DEV_INFO[e.card]) continue;
         const info = DEV_INFO[e.card];
         const press = developOn(view) && hasBuilt(view, e.p, 'press');
@@ -565,11 +565,11 @@ export class Game {
         this.payBank(e.p, e.cost, me);
       } else if (e.type === 'special') {
         sfx.build('city');
-        this.payBank(e.p, BUILDINGS[e.k].cost, me);
-        if (BUILDINGS[e.k].kind === 'func') setTimeout(() => fx.medal(this.hud.vpTarget(e.p, me), '+1'), 260);
+        this.payBank(e.p, e.paid || BUILDINGS[e.k].cost, me);
+        if (BUILDINGS[e.k].kind === 'func' && BUILDINGS[e.k].vp !== 0) setTimeout(() => fx.medal(this.hud.vpTarget(e.p, me), '+' + (BUILDINGS[e.k].vp || 1)), 260);
       } else if (e.type === 'wonder') {
         sfx.build('city');
-        this.payBank(e.p, BUILDINGS[e.k].stages[e.stage - 1], me);
+        this.payBank(e.p, e.paid || BUILDINGS[e.k].stages[e.stage - 1], me);
         this.popWonder(e.p, e.k);
       } else if (e.type === 'wonderDone') {
         sfx.fanfare(e.p === me);
@@ -579,8 +579,26 @@ export class Game {
         this.payBank(e.p, { [e.give]: 2 }, me);
         const get = this.planCards([{ res: e.get, p: e.p, from: this.hud.bankPoint(e.get) }], me);
         setTimeout(() => !this.destroyed && fx.cards(get()), 500);
-      } else if (e.type === 'aqueduct') {
+      } else if (e.type === 'aqueduct' || e.type === 'bonus') {
         fx.cards(this.planCards([{ res: e.res, p: e.p, from: this.hud.bankPoint(e.res) }], me)());
+      } else if (e.type === 'caravan') {
+        // (the caravanserai) two different cards to the bank, one back
+        this.payBank(e.p, Object.fromEntries(e.give.map((r) => [r, 1])), me);
+        const get = this.planCards([{ res: e.get, p: e.p, from: this.hud.bankPoint(e.get) }], me);
+        setTimeout(() => !this.destroyed && fx.cards(get()), 560);
+      } else if (e.type === 'defend' && e.paid) {
+        // (the garrison) the two cards paid
+        this.payBank(e.p, e.paid, me);
+      } else if (e.type === 'toll') {
+        // (the watchtower) a card from the one who moved the robber to the tower's owner
+        if (e.p !== me && e.from !== me) continue;
+        const r = e.res || null;
+        if (r && e.p === me) fx.cards(this.planCards([{ res: r, p: me, from: this.hud.nationPoint(e.from) }], me)());
+        else if (r && e.from === me) {
+          const from = this.hud.chipCenter(r);
+          fx.cards([{ res: r, from, to: this.hud.nationPoint(e.p), delay: 0, small: true }]);
+          fx.plus(from.x, from.y + 26, '−1', 'loss');
+        }
       } else if (e.type === 'guildBonus') {
         const list = Object.entries(e.bonus || {}).map(([q, res]) => ({ res, p: +q, from: this.hud.bankPoint(res) }));
         if (list.length) setTimeout(() => !this.destroyed && fx.cards(this.planCards(list, me)()), 500);
@@ -706,7 +724,7 @@ export class Game {
     const v = this.view();
     const me = this.viewer;
     if (v.phase !== 'play' || v.current !== me || v.pending || v.trade || !v.rolled) return false;
-    if (this.mode === 'road') return legalRoadEdges(v, me).length > 0 && ((v.players[me].res.wood > 0 && v.players[me].res.brick > 0) || freeRoad(v, me)) && v.players[me].pieces.roads > 0;
+    if (this.mode === 'road') return legalRoadEdges(v, me).length > 0 && (!!this.payable(COSTS.road, 'road') || freeRoad(v, me)) && v.players[me].pieces.roads > 0;
     // (the development mode) a development, a building of the blueprint, a wonder
     if (this.mode === 'develop') return plotSpots(v, me).length > 0;
     if (this.mode === 'wonder') return wonderSpots(v, me).length > 0;
@@ -736,7 +754,7 @@ export class Game {
     switch (k) {
       case 'roll':
         this.mode = null;
-        this.dispatch({ type: 'roll', p: me });
+        this.roll();
         break;
       case 'road':
       case 'settlement':
@@ -773,7 +791,7 @@ export class Game {
       case 'end':
         this.mode = null;
         if (v.trade && v.trade.from === me) this.dispatch({ type: 'cancelOffer', p: me }, { quiet: true });
-        this.dispatch({ type: 'endTurn', p: me });
+        this.endTurn();
         break;
       default:
         // (the development mode) a building of the blueprint
@@ -781,18 +799,95 @@ export class Game {
     }
   }
 
+  // the dice (the development mode: with an almshouse and a small hand, its card first, of the
+  // player's choice)
+  roll() {
+    const v = this.view();
+    const me = this.viewer;
+    const pl = v.players[me];
+    const alms = developOn(v) && v.current === me && !v.rolled && !v.pending && hasBuilt(v, me, 'almshouse') && !v.used.almshouse && pl.res && RES.reduce((n, r) => n + pl.res[r], 0) <= ALMS_MAX;
+    if (!alms) {
+      this.dispatch({ type: 'roll', p: me });
+      return;
+    }
+    bonusDialog(this.dialogs, { why: 'almshouse', bank: v.bank }, (res) => {
+      this.dialogs.close(true);
+      this.dispatch({ type: 'roll', p: me, alms: res });
+    });
+  }
+
+  // the turn's end (the development mode: with a counting house and a full hand, its card first)
+  endTurn() {
+    const v = this.view();
+    const me = this.viewer;
+    const pl = v.players[me];
+    const bonus = developOn(v) && v.current === me && v.rolled && !v.pending && hasBuilt(v, me, 'countingHouse') && !v.used.countingHouse && pl.res && RES.reduce((n, r) => n + pl.res[r], 0) >= COUNTING_MIN;
+    if (!bonus) {
+      this.dispatch({ type: 'endTurn', p: me });
+      return;
+    }
+    bonusDialog(
+      this.dialogs,
+      { why: 'countingHouse', bank: v.bank },
+      (res) => {
+        this.dialogs.close(true);
+        this.dispatch({ type: 'endTurn', p: me, bonus: res });
+      },
+      () => this.refresh(),
+    );
+  }
+
   // ── the development mode ──
 
-  // a row of the blueprint: a wonder's next stage (its first: on a desert picked on the map), the market
-  // once it stands (its trade), any other building: beside a settlement picked on the map
+  // What the hand pays for `cost` (kind: 'special', 'wonder', or a build: the smithy, the discounts;
+  // engine/develop.js payFor), or null when it cannot.
+  payable(cost, kind) {
+    const v = this.view();
+    const me = this.viewer;
+    const pl = v.players[me];
+    if (!pl || !pl.res) return null;
+    if (!developOn(v)) return canAfford(pl.res, cost) ? { cost } : null;
+    return payFor(v, me, cost, kind);
+  }
+
+  // A special building or a wonder's stage with a discount (the apprentice workshop, the builders'
+  // yard): which card to leave out, when the hand could pay for any of them; then go({ skip }).
+  withSkip(kind, cost, name, go) {
+    const v = this.view();
+    const me = this.viewer;
+    const disc = developOn(v) && cost && ((kind === 'special' && hasBuilt(v, me, 'workshop')) || (kind === 'wonder' && hasBuilt(v, me, 'builders')));
+    const plan = disc ? payFor(v, me, cost, kind) : null;
+    // (a hand that lacks a card leaves that one out; a cost of one kind has nothing to choose)
+    if (!plan || !canAfford(v.players[me].res, cost) || RES.filter((r) => cost[r] > 0).length < 2) {
+      go({});
+      return;
+    }
+    skipDialog(this.dialogs, { name, cost, def: plan.skip, wonder: kind === 'wonder' }, (skip) => {
+      this.dialogs.close(true);
+      go({ skip });
+    });
+    this.refresh();
+  }
+
+  // a wonder's stage on hex h (with the builders' yard: which card to leave out first)
+  wonderAt(h) {
+    const v = this.view();
+    const me = this.viewer;
+    this.mode = null;
+    const k = (v.players[me].bp || []).find(isWonder);
+    this.withSkip('wonder', stageCost(v, me), k ? t(BUILDING_NAMES[k]) : '', (extra) => this.dispatch({ type: 'wonder', p: me, hex: h, ...extra }));
+  }
+
+  // a row of the blueprint: a wonder's next stage (its first: on a desert picked on the map), the market,
+  // the caravanserai and the warehouse once they stand (their use), any other building: beside a
+  // settlement picked on the map
   blueprintButton(k) {
     const v = this.view();
     const me = this.viewer;
     if (isWonder(k)) {
       const w = wonderOf(v, me);
       if (w) {
-        this.mode = null;
-        this.dispatch({ type: 'wonder', p: me, hex: w.h });
+        this.wonderAt(w.h);
         return;
       }
       this.setMode('wonder');
@@ -802,6 +897,25 @@ export class Game {
       this.mode = null;
       marketDialog(this.dialogs, { res: v.players[me].res, bank: v.bank }, (give, get) => {
         if (this.dispatch({ type: 'market', p: me, give, get })) this.dialogs.close(true);
+      });
+      return;
+    }
+    if (k === 'caravan' && hasBuilt(v, me, 'caravan')) {
+      this.mode = null;
+      caravanDialog(this.dialogs, { res: v.players[me].res, bank: v.bank }, (give, get) => {
+        if (this.dispatch({ type: 'caravan', p: me, give, get })) this.dialogs.close(true);
+      });
+      return;
+    }
+    if (k === 'warehouse' && hasBuilt(v, me, 'warehouse')) {
+      this.mode = null;
+      const pl = v.players[me];
+      const store = pl.store || { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
+      warehouseDialog(this.dialogs, { res: pl.res, store, max: STORE_MAX, canPut: !!v.rolled }, ({ put, take }) => {
+        const a = { type: 'warehouse', p: me };
+        if (Object.keys(put).some((r) => put[r] > 0)) a.put = put;
+        if (Object.keys(take).some((r) => take[r] > 0)) a.take = take;
+        if (this.dispatch(a)) this.dialogs.close(true);
       });
       return;
     }
@@ -842,7 +956,7 @@ export class Game {
     const me = this.viewer;
     const plot = v.plots[h];
     this.mode = null;
-    developDialog(this.dialogs, { res: v.players[me].res, level: plot ? plot.r.length : 0, local: TERRAIN_RES[v.board.hexes[h].terrain], place: placeName(v.board.hexes[h]) }, (res) => {
+    developDialog(this.dialogs, { res: v.players[me].res, level: plot ? plot.r.length : 0, local: TERRAIN_RES[v.board.hexes[h].terrain], place: placeName(v.board.hexes[h]), plan: (cost) => this.payable(cost, 'develop') }, (res) => {
       if (this.dispatch({ type: 'develop', p: me, hex: h, res })) this.dialogs.close(true);
     });
     this.refresh();
@@ -863,7 +977,7 @@ export class Game {
     }
     if (this.mode === 'wonder') {
       return {
-        inter: { kind: 'hex', ids: wonderSpots(v, me), player: me, devGhost: { what: 'wonder', k: (v.players[me].bp || []).find(isWonder) }, onPick: (id) => ((this.mode = null), this.dispatch({ type: 'wonder', p: me, hex: id })), onCancel: cancel },
+        inter: { kind: 'hex', ids: wonderSpots(v, me), player: me, devGhost: { what: 'wonder', k: (v.players[me].bp || []).find(isWonder) }, onPick: (id) => this.wonderAt(id), onCancel: cancel },
         banner: { html: t('選擇蓋<b>世界奇觀</b>的沙漠（路口上要有你的聚落）'), buttons: [{ label: t('取消'), onClick: cancel }] },
         hint: { text: t('點選有白色圓圈的沙漠（右鍵或 Esc 取消）') },
       };
@@ -878,12 +992,15 @@ export class Game {
         devGhost: { what: 'annex', k },
         onPick: (id) => {
           this.mode = null;
+          // (with an apprentice workshop: which card to leave out)
+          const build = (extra) => this.withSkip('special', BUILDINGS[k].cost, name, (more) => this.dispatch({ type: 'special', p: me, k, vertex: id, ...extra, ...more }));
           if (k === 'shipyard') {
             shipyardDialog(this.dialogs, (res) => {
-              if (this.dispatch({ type: 'special', p: me, k, vertex: id, res })) this.dialogs.close(true);
+              this.dialogs.close(true);
+              build({ res });
             });
             this.refresh();
-          } else this.dispatch({ type: 'special', p: me, k, vertex: id });
+          } else build({});
         },
         onCancel: cancel,
       },
@@ -1096,6 +1213,13 @@ export class Game {
         banner = { html: t('強盜來到你的<b>{wonder}</b>：要打出騎士防衛嗎？', { wonder: esc(wname) }), urgent: true };
         hint = { text: t('決定是否防衛奇觀'), urgent: true };
       } else banner = { html: cap(t('{who} 正在決定是否防衛{wonder}…', { who: P(pd.p), wonder: esc(wname) })), wait: true };
+    } else if (v.pending && v.pending.type === 'reroll') {
+      // (the observatory) the roller: keep the dice, or a wool for a second roll
+      if (v.pending.p === me) {
+        wantDialog.kind = 'reroll';
+        banner = { html: t('天文台：擲出 <b>{sum}</b>，要付 1 張羊毛重擲嗎？', { sum: v.pending.sum }), urgent: true };
+        hint = { text: t('決定要不要重擲'), urgent: true };
+      } else banner = { html: cap(t('{who} 正在決定要不要用天文台重擲…', { who: P(v.pending.p) })), wait: true };
     } else if (v.pending && v.pending.type === 'pick') {
       if (v.current === me) {
         wantDialog.kind = 'pickdev';
@@ -1250,9 +1374,17 @@ export class Game {
       const pd = v.pending;
       const w = (v.wonders || []).find((x) => x.h === pd.hex);
       const knights = v.players[me].dev.filter((c) => c.type === 'knight').length;
-      defendDialog(this.dialogs, { who: P(pd.by), wonder: w ? t(BUILDING_NAMES[w.k]) : '', stage: w ? w.s : 0, done: !!(w && w.done), knights, seconds: this.net ? DEFEND_SECONDS : 0 }, (yes) => {
+      const garrison = hasBuilt(v, me, 'garrison') ? v.players[me].res : null;
+      defendDialog(this.dialogs, { who: P(pd.by), wonder: w ? t(BUILDING_NAMES[w.k]) : '', stage: w ? w.s : 0, done: !!(w && w.done), knights, seconds: this.net ? DEFEND_SECONDS : 0, garrison }, (yes, pay) => {
         this.dialogs.close(true);
-        if (this.state.pending && this.state.pending.type === 'defend') this.dispatch({ type: 'defend', p: me, yes: !!yes && knights > 0 });
+        if (!(this.state.pending && this.state.pending.type === 'defend')) return;
+        if (yes && pay) this.dispatch({ type: 'defend', p: me, yes: true, pay });
+        else this.dispatch({ type: 'defend', p: me, yes: !!yes && knights > 0 });
+      });
+    } else if (wantDialog.kind === 'reroll' && dk !== 'reroll') {
+      rerollDialog(this.dialogs, { sum: v.pending.sum, dice: v.dice }, (yes) => {
+        this.dialogs.close(true);
+        if (this.state.pending && this.state.pending.type === 'reroll') this.dispatch({ type: 'reroll', p: me, yes: !!yes });
       });
     } else if (wantDialog.kind === 'pickdev' && dk !== 'dev') {
       pickDevDialog(this.dialogs, v.players[me].pick || [], devCard, (i) => {
@@ -1266,7 +1398,7 @@ export class Game {
       });
     } else {
       if (dk === 'trade' && (v.current !== me || v.phase !== 'play')) this.dialogs.close(true);
-      if ((dk === 'discard' && wantDialog.kind !== 'discard') || (dk === 'gold' && wantDialog.kind !== 'gold') || (dk === 'steal' && wantDialog.kind !== 'steal') || (dk === 'incoming' && wantDialog.kind !== 'incoming') || (dk === 'defend' && wantDialog.kind !== 'defend')) this.dialogs.close(true);
+      if ((dk === 'discard' && wantDialog.kind !== 'discard') || (dk === 'gold' && wantDialog.kind !== 'gold') || (dk === 'steal' && wantDialog.kind !== 'steal') || (dk === 'incoming' && wantDialog.kind !== 'incoming') || (dk === 'defend' && wantDialog.kind !== 'defend') || (dk === 'reroll' && wantDialog.kind !== 'reroll')) this.dialogs.close(true);
       this.dialogs.refresh(this.ctx());
     }
   }

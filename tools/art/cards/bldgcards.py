@@ -22,15 +22,20 @@ import cards as C
 from cards import T1, T2, M1, M2
 
 HEIGHT = round(WIDTH * 3 / 4)
-DIR_COLOR = {'farm': '#6f8f2c', 'trade': '#2a76a0', 'army': '#a4362a', 'frontier': '#b0702a', 'lore': '#6a4c9c', 'basic': '#7a6448'}
+DIR_COLOR = {'farm': '#6f8f2c', 'trade': '#2a76a0', 'army': '#a4362a', 'frontier': '#b0702a', 'lore': '#6a4c9c', 'neutral': '#66707a', 'basic': '#7a6448'}
 DIR = {'aqueduct': 'farm', 'granary': 'farm', 'gardens': 'farm', 'market': 'trade', 'shipyard': 'trade', 'guild': 'trade', 'lighthouse': 'trade',
        'barracks': 'army', 'wall': 'army', 'mercenaries': 'army', 'adventurers': 'army', 'greatWall': 'army', 'post': 'frontier', 'camp': 'frontier',
-       'royalRoad': 'frontier', 'academy': 'lore', 'press': 'lore', 'library': 'lore'}
+       'royalRoad': 'frontier', 'academy': 'lore', 'press': 'lore', 'library': 'lore',
+       # (2026-11-18) the directions' twelve, the neutral thirteen
+       'farmstead': 'farm', 'homestead': 'farm', 'grange': 'farm', 'caravan': 'trade', 'harborOffice': 'trade', 'roadworks': 'frontier', 'newTown': 'frontier',
+       'townHall': 'frontier', 'governor': 'frontier', 'lectureHall': 'lore', 'scriptorium': 'lore', 'university': 'lore',
+       **{k: 'neutral' for k in ('warehouse', 'countingHouse', 'almshouse', 'smithy', 'terraces', 'observatory', 'watchtower', 'temple', 'builders', 'garrison',
+                                 'workshop', 'guildHall', 'monument')}}
 # the ground each stands on (its building condition): Poly Haven ground scans
 GROUND = {'w': ('sandy_gravel_02', T1, (1.1, 1.0, 0.88)), 'shipyard': ('coast_sand_01', T1, (1, 1, 1)), 'b': ('leafy_grass', T1, (0.8, 1.0, 0.62)), 'f': ('leafy_grass', T1, (0.8, 1.0, 0.62)),
           'k': ('leafy_grass', T1, (0.8, 1.0, 0.62))}
 # (flat things are framed closer)
-ZOOM = {'road': 0.6, 'dev': 0.85, 'wall': 0.85, 'greatWall': 0.72}
+ZOOM = {'road': 0.6, 'dev': 0.85, 'wall': 0.85, 'greatWall': 0.72, 'terraces': 0.9, 'lectureHall': 0.9}
 # the plants the models ask for → Poly Haven models
 PLANTS = {'broad_a': M1 + 'island_tree_01/island_tree_01_1k.gltf', 'broad_b': M1 + 'tree_small_02/tree_small_02_1k.gltf', 'fern_b': M1 + 'fern_02/fern_02_1k.gltf',
           'fern_c': M1 + 'fern_02/fern_02_1k.gltf', 'rooibos_a': M1 + 'wild_rooibos_bush/wild_rooibos_bush_1k.gltf', 'rooibos_b': M1 + 'wild_rooibos_bush/wild_rooibos_bush_1k.gltf',

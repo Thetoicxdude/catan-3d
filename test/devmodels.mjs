@@ -51,7 +51,8 @@ for (const k of Object.keys(BUILDINGS).filter((k) => !isWonder(k))) {
 // the facilities: 2 (level 1) to 3 (level 2) across, give or take, under 2.5 high
 for (const t of ['fields', 'forest', 'hills', 'pasture', 'mountains']) {
   check(`facility ${t} has a model`, !!FACILITY_MODELS[t]);
-  for (const lv of [1, 2]) inspect(`f:${t}:${lv}`, facilityModel(t, lv), { w: lv === 1 ? 2.7 : 3.6, h: 2.5, tris: 3000 });
+  // (a third level beside a farmstead's city: a little more)
+  for (const lv of [1, 2, 3]) inspect(`f:${t}:${lv}`, facilityModel(t, lv), { w: lv === 1 ? 2.7 : lv === 2 ? 3.6 : 4.2, h: 2.5, tris: lv < 3 ? 3000 : 3600 });
 }
 // the wonders: under 7 across, under 6 high (the lighthouse the tallest), about 10,000 triangles
 for (const k of Object.keys(BUILDINGS).filter((k) => isWonder(k))) {

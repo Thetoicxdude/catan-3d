@@ -80,6 +80,17 @@
 .dv-card .rcard { --w: 96px; }
 .dv-dialog.defend .timebar { height: 4px; margin-top: 10px; border-radius: 2px; background: rgba(0, 0, 0, 0.2); overflow: hidden; }
 .dv-dialog.defend .timebar i { display: block; height: 100%; width: 100%; background: #e2604e; transition: width 1s linear; }
+/* (2026-11-18) the garrison's two cards, the warehouse's rows, what a discounted build costs */
+.dv-garrison { margin-top: 8px; }
+.dv-store { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.dv-srow { display: grid; grid-template-columns: auto 1fr auto auto 1fr; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.1); }
+.dv-srow .sr-n { display: flex; align-items: baseline; gap: 5px; }
+.dv-srow .sr-n.st { justify-content: flex-end; }
+.dv-srow .sr-n b { font-size: 18px; }
+.dv-srow .sr-n small { font-size: 11.5px; opacity: 0.75; }
+.dv-sbtn { min-width: 40px; padding: 4px 10px; font-size: 16px; line-height: 1; }
+.dv-pay { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; font-size: 13px; }
+html.ui3 .dv-srow { background: rgba(120, 80, 40, 0.06); }
 
 /* (the map table's paper: ink instead of the dark panels' light) */
 html.ui3 .bp-mini i { color: #fff; }

@@ -719,7 +719,7 @@ test('views and points: blueprints and buildings are public; the 18 points win o
   const view = makeView(st, 2);
   assert.deepEqual(view.players[0].bp, PRESETS.farm);
   assert.deepEqual(view.players[0].built, {});
-  assert.equal(Object.keys(BUILDINGS).length, 18);
+  assert.equal(Object.keys(BUILDINGS).length, 43); // (13 + 5 wonders, and the 25 of 2026-11-18)
 });
 
 console.log(`develop: ${passed} passed`);

@@ -2,7 +2,7 @@
 # a new player's home screen (a full first blueprint: the four basic cards and three buildings; the
 # welcome present waiting on the Missions tab, the side bar's five tabs on the left), taking it on the
 # Missions page (the whole screen), a draw (into the collection: the blueprint is full), the shop (shards
-# for a card), the pack's banner and its twelve cards, the Cards page (the basic cards and the 18
+# for a card), the pack's banner and its 24 cards, the Cards page (the basic cards and the 43
 # buildings framed by rarity, the ones not owned grey, the rarities' chips, the stand never empty, a card
 # opened with its cost, another blueprint without the development card taken into use), the setup
 # showing that blueprint, a campaign where it is played (no development cards for money; the computers
@@ -85,7 +85,7 @@ async def main():
         await page.screenshot(path=f'{SP}/ui8-draw.png')
         pack = await page.evaluate("() => ({ fan: [...document.querySelectorAll('.sp-fan .cc')].map((c) => c.dataset.k), pool: [...document.querySelectorAll('.sp-pool .cc')].map((c) => [c.dataset.k, !c.classList.contains('locked')]) })")
         drawn = [k for k, mine in pack['pool'] if mine]
-        check('the pack\'s banner fans out its wonders; under it the twelve cards of the pack, the one drawn in colour', sorted(pack['fan']) == ['gardens', 'greatWall', 'library', 'lighthouse', 'royalRoad'] and len(pack['pool']) == 12 and drawn == got, pack)
+        check('the pack\'s banner fans out its wonders; under it the 24 cards of the pack, the one drawn in colour', sorted(pack['fan']) == ['gardens', 'greatWall', 'library', 'lighthouse', 'royalRoad'] and len(pack['pool']) == 24 and drawn == got, pack)
         ten = await page.locator('.btn.sp-draw >> nth=1').is_disabled()
         check('ten draws need 900 coins', ten)
 
@@ -93,7 +93,8 @@ async def main():
         await page.evaluate("() => { const c = window.__cards.get(); c.shards = 120; window.__cards.commit(); }")
         await page.click('[data-tab="shop"]')
         await page.wait_for_timeout(300)
-        k = await page.evaluate("() => { const it = [...document.querySelectorAll('.sp-item')].find((x) => !x.classList.contains('owned') && x.querySelector('.cc:not(.k-wonder)')); return it ? it.querySelector('.cc').dataset.k : null; }")
+        # (the pack's cards for shards; the neutral buildings, first, are bought with coins: ui11.py)
+        k = await page.evaluate("() => { const it = [...document.querySelectorAll('.sp-tier:not(.neutral) .sp-item')].find((x) => !x.classList.contains('owned') && x.querySelector('.cc:not(.k-wonder)')); return it ? it.querySelector('.cc').dataset.k : null; }")
         await page.click(f'.sp-item:has(.cc[data-k="{k}"]) .sp-trade')
         await page.wait_for_timeout(300)
         c = await page.evaluate(CARDS)
@@ -109,12 +110,13 @@ async def main():
         locked = await page.locator('.cp-coll .cc.locked').count()
         lock_icons = await page.locator('.cp-coll .cc .cc-lock, .cp-coll .cc .cc-cost').count()
         c = await page.evaluate(CARDS)
-        check('the Cards page: the 4 basic cards and the 18 buildings, the ones not owned grey only, no costs on them', n == 22 and locked == 18 - len(c['own']) and lock_icons == 0, (n, locked, lock_icons))
+        check('the Cards page: the 4 basic cards and the 43 buildings, the ones not owned grey only, no costs on them', n == 47 and locked == 43 - len(c['own']) and lock_icons == 0, (n, locked, lock_icons))
         # rarity: each card's frame by how it is had, in that order (basic, common, rare, epic, legendary);
         # a gem cut for each but the basic cards, a crown on the legendary ones
         rar = await page.evaluate("() => { const cs = [...document.querySelectorAll('.cp-coll .cc')]; const r = (c) => [...c.classList].find((x) => x.startsWith('r-')); return { order: cs.map(r), gems: cs.filter((c) => c.querySelector('.cc-gem svg')).length, crowns: cs.filter((c) => c.querySelector('.cc-crown')).map((c) => c.dataset.k), shipyard: r(document.querySelector('.cp-coll .cc[data-k=\"shipyard\"]')), frame: getComputedStyle(document.querySelector('.cp-coll .cc[data-k=\"granary\"]')).backgroundImage.includes('gradient') }; }")
-        want = ['r-basic'] * 4 + ['r-common'] * 3 + ['r-rare'] * 3 + ['r-epic'] * 7 + ['r-legendary'] * 5
-        check('every card framed by its rarity, basic to legendary; a gem on all but the basic cards, a crown on the wonders', rar['order'] == want and rar['gems'] == 18 and sorted(rar['crowns']) == ['gardens', 'greatWall', 'library', 'lighthouse', 'royalRoad'] and rar['shipyard'] == 'r-rare' and rar['frame'], rar)
+        # (rare: the missions' three and the 13 neutral buildings; epic: the 19 buildings drawn)
+        want = ['r-basic'] * 4 + ['r-common'] * 3 + ['r-rare'] * 16 + ['r-epic'] * 19 + ['r-legendary'] * 5
+        check('every card framed by its rarity, basic to legendary; a gem on all but the basic cards, a crown on the wonders', rar['order'] == want and rar['gems'] == 43 and sorted(rar['crowns']) == ['gardens', 'greatWall', 'library', 'lighthouse', 'royalRoad'] and rar['shipyard'] == 'r-rare' and rar['frame'], rar)
         # the card on its stand before any is picked (the stand is never empty), and the rarity's chips
         stand = await page.evaluate("() => { const d = document.querySelector('.cp-detail .cd'); return d ? { k: d.querySelector('.cc.big').dataset.k, acts: !!document.querySelector('.cp-detail .cp-acts .btn') } : null; }")
         check('the stand shows a card before any is picked, with what to do with it', stand and stand['k'] and stand['acts'], stand)
@@ -122,7 +124,7 @@ async def main():
         only = await page.evaluate("() => [...document.querySelectorAll('.cp-coll .cc')].map((c) => c.dataset.k)")
         await page.click('.cp-chip[data-r="legendary"]')
         back = await page.locator('.cp-coll .cc').count()
-        check('a rarity\'s chip shows its cards alone, and again all of them', sorted(only) == ['gardens', 'greatWall', 'library', 'lighthouse', 'royalRoad'] and back == 22, (only, back))
+        check('a rarity\'s chip shows its cards alone, and again all of them', sorted(only) == ['gardens', 'greatWall', 'library', 'lighthouse', 'royalRoad'] and back == 47, (only, back))
         await page.click('.cp-coll .cc[data-k="shipyard"]')
         how = await page.inner_text('.cp-detail')
         costs = await page.locator('.cp-detail .cb').count()

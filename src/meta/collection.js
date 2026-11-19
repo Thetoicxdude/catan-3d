@@ -5,10 +5,11 @@
 // which every player owns, and the special buildings. A new player owns three buildings besides, the
 // granary, the market and the aqueduct, so the first blueprint is full: the four basic cards and those
 // three. Missions give the rest of the granary series (the first ready-made blueprint the player chose
-// these from: shipyard, frontier camp, academy). The other 12 (seven buildings and the five world
-// wonders) are drawn: a draw can repeat a card, and a repeat becomes shards, which buy a chosen card in
-// the shop. Coins pay for draws: a finished game, a win, an online game, the first game of each day,
-// missions. Nothing here is bought with money.
+// these from: shipyard, frontier camp, academy). The rest of the buildings of the five directions and
+// the five world wonders are drawn: a draw can repeat a card, and a repeat becomes shards, which buy a
+// chosen card in the shop. The neutral buildings (2026-11-18) are not drawn: the shop sells them for
+// coins, and some missions give one. Coins pay for draws: a finished game, a win, an online game, the
+// first game of each day, missions. Nothing here is bought with money.
 //
 // The collection is plain data, kept as one JSON object:
 //   v        the format (1)
@@ -21,7 +22,7 @@
 //   gids     the last games counted (so a game is counted once, whatever reloads)
 //   fresh    cards gained and not yet looked at (the Cards page's "new" marks)
 //   rev, at  a counter of changes and the time of the last one (which copy is newer: store.js)
-import { BUILDINGS, BUILDING_IDS, BASIC, BLUEPRINT_SIZE, isWonder, isBasic } from '../engine/develop.js';
+import { BUILDINGS, BUILDING_IDS, BASIC, BLUEPRINT_SIZE, isWonder, isBasic, isNeutral } from '../engine/develop.js';
 import { N_ } from '../i18n/fill.js';
 
 // the three buildings every player starts with (beside the four basic cards)
@@ -30,16 +31,19 @@ export const STARTER = ['granary', 'market', 'aqueduct'];
 export const FIRST_BLUEPRINT = [...BASIC, ...STARTER];
 // what the missions give: the rest of the granary series
 export const MISSION_CARDS = ['shipyard', 'camp', 'academy'];
+// the neutral buildings (2026-11-18): the shop's, for coins (some missions give one too)
+export const NEUTRAL = BUILDING_IDS.filter(isNeutral);
 // what the draws give
-export const POOL = BUILDING_IDS.filter((k) => !STARTER.includes(k) && !MISSION_CARDS.includes(k));
+export const POOL = BUILDING_IDS.filter((k) => !STARTER.includes(k) && !MISSION_CARDS.includes(k) && !isNeutral(k));
 
 // How hard a card is to have (2026-11-17: the colour of the card's frame): basic (everyone's), common
-// (a new player's three), rare (the missions'), epic (the buildings drawn), legendary (the wonders)
+// (a new player's three), rare (the missions' and the neutral ones, bought), epic (the buildings drawn),
+// legendary (the wonders)
 export const RARITIES = ['basic', 'common', 'rare', 'epic', 'legendary'];
 export function rarityOf(k) {
   if (isBasic(k)) return 'basic';
   if (STARTER.includes(k)) return 'common';
-  if (MISSION_CARDS.includes(k)) return 'rare';
+  if (MISSION_CARDS.includes(k) || isNeutral(k)) return 'rare';
   return isWonder(k) ? 'legendary' : 'epic';
 }
 // every card (the basic ones first), rarest last; within a rarity in BUILDING_IDS order
@@ -49,17 +53,21 @@ export const ALL_CARDS = RARITIES.flatMap((r) => [...BASIC, ...BUILDING_IDS].fil
 export const WEIGHT = { building: 10, wonder: 3 };
 export const DRAW_COST = 100;
 export const DRAW10_COST = 900;
-// a card drawn again: shards
-export const DUP_SHARDS = { building: 20, wonder: 60 };
-// the shop: a chosen card of the pool for shards
+// a card drawn again: shards (2026-11-18: more for the larger pack, so the whole of it still comes in
+// about 56 draws)
+export const DUP_SHARDS = { building: 30, wonder: 90 };
+// the shop: a chosen card of the pool for shards; a neutral building for coins
 export const PRICE = { building: 100, wonder: 300 };
+export const NEUTRAL_PRICE = 150;
 // coins for a finished game (counted games: see gameOver)
 export const COINS = { game: 30, win: 40, online: 20, daily: 50 };
 
 const kindOf = (k) => (isWonder(k) ? 'wonder' : 'building');
 export const drawWeight = (k) => WEIGHT[kindOf(k)];
 export const dupShards = (k) => DUP_SHARDS[kindOf(k)];
-export const priceOf = (k) => PRICE[kindOf(k)];
+export const priceOf = (k) => (isNeutral(k) ? NEUTRAL_PRICE : PRICE[kindOf(k)]);
+// what the shop takes for card k: 'coins' (a neutral building) or 'shards'
+export const paidIn = (k) => (isNeutral(k) ? 'coins' : 'shards');
 // a card's chance on one draw (0–1)
 export function chanceOf(k) {
   const total = POOL.reduce((n, x) => n + drawWeight(x), 0);
@@ -82,6 +90,12 @@ export const MISSIONS = [
   { id: 'wonderdone', text: N_('完成一座世界奇觀'), what: 'once', goal: 1, reward: { coins: 200 } },
   { id: 'defend', text: N_('用騎士保住一座世界奇觀'), what: 'once', goal: 1, reward: { coins: 150 } },
   { id: 'build3', text: N_('在一局發展模式裡蓋好 3 座特殊建築'), what: 'most', goal: 3, reward: { coins: 200 } },
+  // (2026-11-18) missions that give a neutral building
+  { id: 'discard7', text: N_('擲出 7 時棄過一次牌'), what: 'once', goal: 1, reward: { card: 'warehouse' } },
+  { id: 'robbed', text: N_('被強盜搶走過一張牌'), what: 'once', goal: 1, reward: { card: 'temple' } },
+  { id: 'devgames3', text: N_('打完 3 局發展模式'), what: 'count', goal: 3, reward: { card: 'workshop' } },
+  { id: 'stages2', text: N_('在一局裡付完奇觀的 2 個階段'), what: 'most', goal: 2, reward: { card: 'builders' } },
+  { id: 'build4', text: N_('在一局發展模式裡蓋好 4 座特殊建築'), what: 'most', goal: 4, reward: { card: 'guildHall' } },
   { id: 'army', text: N_('打完一局時持有最大騎士團'), what: 'once', goal: 1, reward: { coins: 150 } },
   { id: 'online', text: N_('打完 1 局線上房間'), what: 'once', goal: 1, reward: { coins: 100 } },
   { id: 'games10', text: N_('打完 10 局（任何模式）'), what: 'count', goal: 10, reward: { coins: 300 } },
@@ -218,12 +232,18 @@ export function observe(c, view, me, events = []) {
   const wonders = (view.wonders || []).filter((w) => w.p === me);
   if (wonders.length || events.some((e) => e.type === 'wonder' && e.p === me)) changed = advance(c, 'wonder', 1, done) || changed;
   if (wonders.some((w) => w.done) || events.some((e) => e.type === 'wonderDone' && e.p === me)) changed = advance(c, 'wonderdone', 1, done) || changed;
-  if (events.some((e) => e.type === 'defend' && e.p === me)) changed = advance(c, 'defend', 1, done) || changed;
+  // (with a knight: the garrison's two cards are not that)
+  if (events.some((e) => e.type === 'defend' && e.p === me && !e.paid)) changed = advance(c, 'defend', 1, done) || changed;
   const built = Object.keys(view.players[me].built || {}).length;
   if (built) {
     changed = advance(c, 'build2', built, done) || changed;
     changed = advance(c, 'build3', built, done) || changed;
+    changed = advance(c, 'build4', built, done) || changed;
   }
+  if (events.some((e) => e.type === 'discard' && e.p === me)) changed = advance(c, 'discard7', 1, done) || changed;
+  if (events.some((e) => e.type === 'steal' && e.from === me)) changed = advance(c, 'robbed', 1, done) || changed;
+  const stages = Math.max(0, ...wonders.map((w) => w.s || 0));
+  if (stages) changed = advance(c, 'stages2', stages, done) || changed;
   return changed ? done : null;
 }
 
@@ -251,6 +271,7 @@ export function gameOver(c, r, view, me, today) {
   const done = observe(c, view, me) || [];
   const dev = !!(view && view.rules && view.rules.develop);
   if (dev) advance(c, 'devgame', 1, done);
+  if (dev) advance(c, 'devgames3', 1, done);
   if (dev && r.won) advance(c, 'devwin', 1, done);
   if (view && view.players && view.largestArmy === me) advance(c, 'army', 1, done);
   if (online) advance(c, 'online', 1, done);
@@ -290,14 +311,17 @@ export function draw(c, n, rnd) {
   return { cards, cost };
 }
 
-// Trading shards for a card of the pool. → { card } or { error } (a key).
+// Trading shards for a card of the pool, or coins for a neutral building. → { card, cost, paid } or
+// { error } (a key).
 export function buy(c, k) {
-  if (!POOL.includes(k)) return { error: N_('商店沒有這張卡') };
+  if (!POOL.includes(k) && !NEUTRAL.includes(k)) return { error: N_('商店沒有這張卡') };
   if (owns(c, k)) return { error: N_('已經有這張卡了') };
-  if (c.shards < priceOf(k)) return { error: N_('碎片不夠') };
-  c.shards -= priceOf(k);
+  const cost = priceOf(k);
+  const paid = paidIn(k);
+  if (c[paid] < cost) return { error: paid === 'coins' ? N_('金幣不夠') : N_('碎片不夠') };
+  c[paid] -= cost;
   gain(c, k);
-  return { card: k };
+  return { card: k, cost, paid };
 }
 
 // a card looked at (its "new" mark goes)

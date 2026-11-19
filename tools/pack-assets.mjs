@@ -5,7 +5,12 @@ import path from 'node:path';
 
 const SRC = process.argv[2] || '/home/claude/assetwork/out';
 const OUT = path.resolve('assets');
+// (the side bar pages' pictures are written into assets/ui by tools/art/pageart.py --pack: kept)
+const UI_DIR = path.join(OUT, 'ui');
+const kept = fs.existsSync(UI_DIR) ? fs.readdirSync(UI_DIR).filter((f) => /^page_.*\.webp$/.test(f)).map((f) => [f, fs.readFileSync(path.join(UI_DIR, f))]) : [];
 fs.rmSync(OUT, { recursive: true, force: true });
+fs.mkdirSync(UI_DIR, { recursive: true });
+for (const [f, b] of kept) fs.writeFileSync(path.join(UI_DIR, f), b);
 for (const d of ['imp', 'terrain', 'rocks', 'animals', 'models', 'tex']) fs.mkdirSync(path.join(OUT, d), { recursive: true });
 
 const copy = (from, to) => fs.copyFileSync(path.join(SRC, from), path.join(OUT, to));

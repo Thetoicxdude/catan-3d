@@ -513,7 +513,7 @@ export class Dialogs {
         const vpCards = p.dev ? p.dev.filter((d) => d.type === 'victoryPoint').length : 0;
         // (Seafarers: the islands' points; the development mode: buildings, the +3s, wonders)
         const dv = developOn(v) ? developScore(v, p.id) : null;
-        const tot = s + c * 2 + (v.longestRoad === p.id ? 2 : 0) + (v.largestArmy === p.id ? 2 : 0) + vpCards + (p.chits || 0) + (dv ? dv.buildings + dv.adventurers + dv.post + dv.wonder : 0);
+        const tot = s + c * 2 + (v.longestRoad === p.id ? 2 : 0) + (v.largestArmy === p.id ? 2 : 0) + vpCards + (p.chits || 0) + (dv ? dv.buildings + dv.scoring + dv.wonder : 0);
         return { p, s, c, vpCards, tot, dv };
       })
       .sort((a, b) => (b.p.id === v.winner) - (a.p.id === v.winner) || b.tot - a.tot);
@@ -531,6 +531,9 @@ export class Dialogs {
       if (r.dv && r.dv.buildings) parts.push(t('建築 {n}', { n: r.dv.buildings }));
       if (r.dv && r.dv.adventurers) parts.push(t('冒險者公會 {n}', { n: r.dv.adventurers }));
       if (r.dv && r.dv.post) parts.push(t('驛站 {n}', { n: r.dv.post }));
+      // (the scoring buildings of 2026-11-18: the most of something)
+      const most = r.dv ? r.dv.scoring - r.dv.adventurers - r.dv.post : 0;
+      if (most) parts.push(t('計分建築 {n}', { n: most }));
       if (r.dv && r.dv.wonder) parts.push(t('奇觀 {n}', { n: r.dv.wonder }));
       const row = el('div', 'standing' + (r.p.id === v.winner ? ' win' : ''));
       row.innerHTML = `<span class="rk">${i + 1}</span><img class="flag sm" alt="" src="${flagURL(P.color, r.p.id)}"><div><b style="color:${P.color}">${esc(P.name)}</b><div class="bd">${parts.join(' · ')}</div></div><span class="tot num">${r.tot}</span>`;

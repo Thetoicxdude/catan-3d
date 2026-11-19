@@ -18,7 +18,7 @@ import {
   shipTargets,
   freeRoad,
 } from '../engine/engine.js';
-import { developOn, plotSpots, plotCost, specialWhy, specialHosts, hostWhy, slotsAt, wonderSpots, wonderWhy, wonderOf, wonderDone, stageCost, isWonder, hasBuilt, BUILDINGS, BUILDING_NAMES, PLOT_COST, BLUEPRINT_SIZE, hasBasic, specialsOf, NO_CARD } from '../engine/develop.js';
+import { developOn, plotSpots, plotCost, specialWhy, specialHosts, hostWhy, slotsAt, wonderSpots, wonderWhy, wonderOf, wonderDone, stageCost, isWonder, hasBuilt, BUILDINGS, BUILDING_NAMES, PLOT_COST, BLUEPRINT_SIZE, hasBasic, specialsOf, NO_CARD, payFor, STORE_MAX, CARAVAN_GIVE } from '../engine/develop.js';
 import { BUILDING_TEXT, DEVELOP_TEXT, DIR_COLOR, nationStrip, pointsText } from './develop-ui.js';
 import { resCard, resIcon, costTokens, icon, dieFace, RES_NAMES, RES_EN, buildingIcon } from './icons.js';
 import { Fx } from './fx.js';
@@ -26,7 +26,7 @@ import { sfx } from './sfx.js';
 import { shake, pop, reduced, EASE } from './motion.js';
 import { flagURL } from './flags.js';
 import { esc, cardsText } from './text.js';
-import { t, N_, cap, isZh } from '../i18n/index.js';
+import { t, N_, cap, isZh, list } from '../i18n/index.js';
 
 const RES = ['wood', 'brick', 'wool', 'grain', 'ore'];
 const RES_HEX = { wood: '#2f6b2f', brick: '#b5532c', wool: '#8fcf4f', grain: '#e8c547', ore: '#8d8d96' };
@@ -192,6 +192,7 @@ export class Hud {
         <div class="stat cards" title="${t('手牌總數')}">${icon('cards', 18)}<span class="n num">0</span></div>
         <div class="stat devs" title="${t('發展卡')}">${icon('dev', 18)}<span class="n num">0</span></div>
         <div class="stat knights" title="${t('已打出的騎士')}">${icon('knight', 18)}<span class="n num">0</span></div>
+        <div class="stat store" hidden>${buildingIcon('warehouse', 18)}<span class="n num">0</span></div>
         <div class="stat vp" title="${t('勝利分數')}">${icon('vp', 20)}<span class="n num">0</span><small>/10</small></div>
       </div>
       <div class="tb-spacer"></div>
@@ -520,6 +521,13 @@ export class Hud {
       this.top.querySelector('.stat.cards .n').textContent = handSize(viewer.res);
       this.top.querySelector('.stat.devs .n').textContent = viewer.dev.length;
       this.top.querySelector('.stat.knights .n').textContent = viewer.knights;
+      // (the development mode: the cards put away in a warehouse)
+      const store = this.top.querySelector('.stat.store');
+      store.hidden = !viewer.store;
+      if (viewer.store) {
+        store.querySelector('.n').textContent = handSize(viewer.store);
+        store.title = t('貨棧：{cards}（最多 {n} 張）', { cards: cardsText(viewer.store), n: STORE_MAX });
+      }
       const vp = publicVP(v, me) + viewer.dev.filter((c) => c.type === 'victoryPoint').length;
       this.top.querySelector('.stat.vp .n').textContent = vp;
       this.top.querySelector('.stat.vp small').textContent = '/' + v.targetVP;
@@ -670,16 +678,19 @@ export class Hud {
       if (pd.type === 'roadBuilding') return t('請先放置免費道路（或按上方的「不用了」）');
       if (pd.type === 'defend') return pd.p === me ? t('請先決定是否防衛奇觀') : t('等待奇觀的主人決定是否防衛');
       if (pd.type === 'pick') return t('請先選擇要留下的發展卡');
+      if (pd.type === 'reroll') return pd.p === me ? t('請先決定要不要用天文台重擲') : t('等待擲骰的國家決定要不要重擲');
       return t('請先完成目前的動作');
     };
     const turnWhy = () => (!pl ? t('你正在觀戰') : v.phase === 'setup' ? t('開局佈置中') : v.phase === 'over' ? t('遊戲已結束') : ctx.locked ? t('正在等待回應') : t('還沒輪到你'));
+    // what the hand pays for a cost (the development mode: the smithy's ore, the discounts), or null
+    const plan = (cost, kind = 'build') => (!pl || !pl.res ? null : developOn(v) ? payFor(v, me, cost, kind) : canAfford(pl.res, cost) ? { cost } : null);
     set('roll', free && !v.rolled, needRoll ? t('擲骰（R）') : !myTurn ? turnWhy() : v.pending || v.trade ? pendingWhy() : t('本回合已經擲過骰子'), { primary: needRoll, glow: needRoll && !ctx.mode });
-    const why = (cost, legalCount, pieces, usedUp) => {
+    const why = (cost, legalCount, pieces, usedUp, kind = 'build') => {
       if (!myTurn) return turnWhy();
       if (v.pending || v.trade) return pendingWhy() || t('請先完成目前的動作');
       if (!v.rolled) return t('請先擲骰');
       if (pieces === 0) return usedUp;
-      if (!canAfford(pl.res, cost)) return t('資源不足：還缺 ') + cardsText(missingFor(pl.res, cost).missing);
+      if (!plan(cost, kind)) return t('資源不足：還缺 ') + cardsText(missingFor(pl.res, cost).missing);
       if (legalCount === 0) return t('目前沒有可以建造的位置');
       return '';
     };
@@ -690,9 +701,15 @@ export class Hud {
     const freeR = !!pl && freeRoad(v, me);
     // (the development mode: a basic card left out of the blueprint is never paid for this game)
     const card = (k) => !pl || hasBasic(v, me, k);
-    const okRoad = free && v.rolled && pl.pieces.roads > 0 && (freeR || (card('road') && canAfford(pl.res, COSTS.road))) && roads > 0;
-    const okSet = free && v.rolled && card('settlement') && pl.pieces.settlements > 0 && canAfford(pl.res, COSTS.settlement) && setts > 0;
-    const okCity = free && v.rolled && card('city') && pl.pieces.cities > 0 && canAfford(pl.res, COSTS.city) && cities > 0;
+    const okRoad = free && v.rolled && pl.pieces.roads > 0 && (freeR || (card('road') && !!plan(COSTS.road))) && roads > 0;
+    const okSet = free && v.rolled && card('settlement') && pl.pieces.settlements > 0 && !!plan(COSTS.settlement) && setts > 0;
+    const okCity = free && v.rolled && card('city') && pl.pieces.cities > 0 && !!plan(COSTS.city) && cities > 0;
+    // (the smithy: the cost as it will be paid, an ore for the card the hand lacks)
+    this.plans = {};
+    if (pl && developOn(v)) for (const k of ['road', 'settlement', 'city']) {
+      const pr = plan(COSTS[k]);
+      if (pr && pr.smith) this.plans[k] = pr;
+    }
     // (the development mode: the great library buys one for any single card)
     const libCard = !!pl && developOn(v) && wonderDone(v, me, 'library') && !v.used.library && RES.some((r) => pl.res[r] > 0);
     const okDev = free && v.rolled && ((card('dev') && canAfford(pl.res, COSTS.dev)) || libCard) && v.devDeckCount > 0;
@@ -717,7 +734,7 @@ export class Hud {
     this.btns.develop.hidden = !developing;
     this.bpBox.hidden = !developing;
     this.buildMenu.classList.toggle('dev', developing);
-    if (developing) this.renderBlueprint(ctx, { myTurn, free, why, turnWhy, pendingWhy });
+    if (developing) this.renderBlueprint(ctx, { myTurn, free, why, turnWhy, pendingWhy, plan });
     // 5–6 players: the special building phase allows no trading at all; the second player of a paired
     // turn trades with the bank only (the trade dialog shows just that)
     const sbp = !!v.sub && v.sub.k === 'sbp';
@@ -736,7 +753,7 @@ export class Hud {
     this.btns.build.classList.toggle('open', !!this.buildOpen);
     this.bar.style.visibility = v.phase === 'over' ? 'hidden' : '';
     if (v.phase === 'over' && this.buildOpen) this.toggleBuild(false);
-    this.buildCtx = { res: pl ? pl.res : null, pieces: pl ? pl.pieces : null, deck: v.devDeckCount, freeRoad: freeR, bp: developing ? this.bpInfo : null };
+    this.buildCtx = { res: pl ? pl.res : null, pieces: pl ? pl.pieces : null, deck: v.devDeckCount, freeRoad: freeR, bp: developing ? this.bpInfo : null, plans: this.plans };
     if (this.buildOpen) this.paintBuild();
   }
 
@@ -779,12 +796,14 @@ export class Hud {
       if (row.hidden) continue;
       // (the royal road: this turn's road is free)
       // (a token per card, the ones the hand lacks hollow)
+      // (the smithy: the cost as it will be paid)
+      const pr = c.plans && c.plans[k];
       const cost = k === 'road' && c.freeRoad ? `<span class="bm-free">${t('免費（皇家大道）')}</span>` : info.cost
-        ? costTokens(info.cost, { size: 24, have: c.res, cls: 'bm-need' })
+        ? costTokens(pr ? pr.cost : info.cost, { size: 24, have: c.res, cls: 'bm-need' })
         : `<span class="bm-free">${t('不用資源')}</span>`;
       row.querySelector('.bm-cost').innerHTML = cost;
       const why = row.dataset.why;
-      row.querySelector('.bm-sub').textContent = why || t(info.fx);
+      row.querySelector('.bm-sub').textContent = why || (pr ? t('鐵匠鋪：1 張礦石代替{res}', { res: RES_NAMES[pr.smith] }) : t(info.fx));
       // (the rule on one line; all of it on the row's tooltip)
       row.title = why ? '' : t(info.fx);
       row.querySelector('.bm-sub').classList.toggle('why', !!why);
@@ -798,7 +817,7 @@ export class Hud {
 
   // The seven buildings of the viewer's blueprint, a row each (built when the blueprint changes: a
   // friend at this device has another); whether each can be built now, and why not.
-  renderBlueprint(ctx, { myTurn, free, why, turnWhy, pendingWhy }) {
+  renderBlueprint(ctx, { myTurn, free, why, turnWhy, pendingWhy, plan }) {
     const { view: v, me } = ctx;
     const pl = v.players[me];
     const sig = (pl.bp || []).join(',');
@@ -842,7 +861,7 @@ export class Hud {
     const open = free && v.rolled;
     // developments: somewhere to develop, and the hand for one of its ways
     const spots = open ? plotSpots(v, me) : [];
-    const okPlot = spots.some((h) => ['wood', 'brick', 'wool', 'grain', 'ore'].some((r) => canAfford(pl.res, plotCost(v, h, r))));
+    const okPlot = spots.some((h) => ['wood', 'brick', 'wool', 'grain', 'ore'].some((r) => !!plan(plotCost(v, h, r), 'develop')));
     set('develop', okPlot, !open ? why(PLOT_COST[0].local, 1, 1, '') : !spots.length ? t('目前沒有可以開發的地塊：要在有你聚落的地塊上，沒有別人的開發，也沒有強盜') : why(PLOT_COST[0].local, spots.length, 1, ''), ctx.mode === 'develop');
     this.bpInfo = {};
     const w = wonderOf(v, me);
@@ -859,7 +878,8 @@ export class Hud {
         else {
           const sites = wonderSpots(v, me);
           const reason = !sites.length ? (mine ? wonderWhy(v, me, mine.h) : firstWhy(v, me, k)) : '';
-          set(key, !reason && canAfford(pl.res, info.cost), reason ? t(reason) : why(info.cost, sites.length, 1, ''), ctx.mode === 'wonder');
+          info.plan = plan(info.cost, 'wonder');
+          set(key, !reason && !!info.plan, reason ? t(reason) : why(info.cost, sites.length, 1, '', 'wonder'), ctx.mode === 'wonder');
         }
       } else if (hasBuilt(v, me, k)) {
         info.status = t('已建造');
@@ -870,6 +890,21 @@ export class Hud {
           const can = open && !v.used.market && ['wood', 'brick', 'wool', 'grain', 'ore'].some((r) => pl.res[r] >= 2);
           set(key, can, !open ? why({}, 1, 1, '') : v.used.market ? t('這回合已經用過市集了') : t('需要 2 張相同的資源'), false);
           info.use = true;
+        } else if (k === 'caravan') {
+          // (the caravanserai: two different cards for one, as often as liked)
+          info.cost = null;
+          info.fx = t('2 張不同的資源換 1 張任意資源，次數不限');
+          const can = open && RES.filter((r) => pl.res[r] > 0).length >= CARAVAN_GIVE;
+          set(key, can, !open ? why({}, 1, 1, '') : t('需要 2 種不同的資源'), false);
+          info.use = true;
+        } else if (k === 'warehouse') {
+          // (the warehouse: put away after the roll, taken back any time in the player's turn)
+          info.cost = null;
+          const stored = handSize(pl.store || {});
+          info.fx = t('存著 {n}/{max} 張：擲骰後存入，自己的回合拿回', { n: stored, max: STORE_MAX });
+          const can = free && ((v.rolled && handSize(pl.res) > 0 && stored < STORE_MAX) || stored > 0);
+          set(key, can, !myTurn ? turnWhy() : v.pending || v.trade ? pendingWhy() : !v.rolled ? t('請先擲骰') : t('手上沒有牌可以存'), false);
+          info.use = true;
         } else set(key, false, t('已建造：每種每人一座'), false);
       } else {
         info.cost = BUILDINGS[k].cost;
@@ -878,7 +913,8 @@ export class Hud {
           const cond = specialWhy(v, me, k);
           const hosts = cond ? [] : specialHosts(v, me, k);
           const reason = cond ? t(cond) : !hosts.length ? hostReason(v, me, k) : '';
-          set(key, !reason && canAfford(pl.res, info.cost), reason || why(info.cost, hosts.length, 1, ''), ctx.mode === key);
+          info.plan = plan(info.cost, 'special');
+          set(key, !reason && !!info.plan, reason || why(info.cost, hosts.length, 1, '', 'special'), ctx.mode === key);
         }
       }
       this.bpInfo[k] = info;
@@ -891,14 +927,19 @@ export class Hud {
       const info = c.bp[k];
       const row = this.btns[key];
       if (!info || !row) continue;
+      // (a discount or the smithy: the cost as it will be paid, and a word on it)
+      const pr = info.cost && info.plan && (info.plan.skip || info.plan.smith) ? info.plan : null;
       row.querySelector('.bm-cost').innerHTML = info.cost
-        ? costTokens(info.cost, { size: 21, have: c.res, cls: 'bm-need' })
+        ? costTokens(pr ? pr.cost : info.cost, { size: 21, have: c.res, cls: 'bm-need' })
         : info.use
           ? `<span class="bm-free">${t('使用')}</span>`
           : '';
       const why = row.dataset.why;
       const sub = row.querySelector('.bm-sub');
-      sub.textContent = why || info.fx;
+      const notes = [];
+      if (pr && pr.skip) notes.push(isWonder(k) ? t('營造廠：少付 1 張{res}', { res: RES_NAMES[pr.skip] }) : t('學徒工坊：少付 1 張{res}', { res: RES_NAMES[pr.skip] }));
+      if (pr && pr.smith) notes.push(t('鐵匠鋪：1 張礦石代替{res}', { res: RES_NAMES[pr.smith] }));
+      sub.textContent = why || (notes.length ? list(notes) : info.fx);
       sub.classList.toggle('why', !!why && !info.status);
       row.title = t('{name}：{fx}（{pts}）', { name: t(BUILDING_NAMES[k]), fx: info.fx, pts: pointsText(k) });
       row.querySelector('.bm-left').textContent = info.status || (isWonder(k) ? t('第 {s} 階段', { s: (info.wonder || 0) + 1 }) : pointsText(k));

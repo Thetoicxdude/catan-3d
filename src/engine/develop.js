@@ -19,16 +19,24 @@
 //   players[p].built   { building: the intersection of the settlement it stands beside }
 //   players[p].yard    the shipyard's resource (2:1 with the bank)
 //   players[p].bought  development cards bought (the academy's condition)
+//   players[p].devGot  development cards taken, bought or free (the university)
 //   players[p].pick    (the academy) the two cards drawn, one to keep: the player's secret
+//   players[p].store   (the warehouse) the cards put away: not in hand, the player's secret
+//   st.devDiscard      the road building, year of plenty and monopoly cards played: shuffled back in
+//                      when the deck runs out
+// The buildings of the 2026-11-18 proposal (「發展模式：新增特殊建築」) follow the first 13: twelve more of
+// the five directions, each lifting one of the game's limits, and thirteen neutral ones, with no
+// condition, that any blueprint may bring.
 import { GEO } from './geometry.js';
 import { TERRAIN_RES, RES } from './board.js';
 import { N_ } from '../i18n/fill.js';
 
-// the five directions a building belongs to
-export const DIRS = ['farm', 'trade', 'army', 'frontier', 'lore'];
-export const DIR_NAMES = { farm: N_('農業'), trade: N_('商業'), army: N_('軍事'), frontier: N_('擴張'), lore: N_('學術') };
+// the five directions a building belongs to, and the neutral buildings (no condition, any blueprint)
+export const DIRS = ['farm', 'trade', 'army', 'frontier', 'lore', 'neutral'];
+export const DIR_NAMES = { farm: N_('農業'), trade: N_('商業'), army: N_('軍事'), frontier: N_('擴張'), lore: N_('學術'), neutral: N_('中立') };
 
-// kind: 'func' (1 point), 'score' (no point of its own; +3 while its condition holds), 'wonder'
+// kind: 'func' (1 point; `vp` when it is worth another number: the monument 2, the guild hall none of
+// its own), 'score' (no point of its own; +3 while its condition holds), 'wonder'
 export const BUILDINGS = {
   aqueduct: { dir: 'farm', kind: 'func', cost: { wood: 1, brick: 2, grain: 1, ore: 1 } },
   granary: { dir: 'farm', kind: 'func', cost: { wood: 2, brick: 1, grain: 2 } },
@@ -43,14 +51,49 @@ export const BUILDINGS = {
   camp: { dir: 'frontier', kind: 'func', cost: { wood: 2, brick: 1, wool: 1, grain: 1 } },
   academy: { dir: 'lore', kind: 'func', cost: { brick: 1, wool: 2, grain: 1, ore: 1 } },
   press: { dir: 'lore', kind: 'func', cost: { wood: 2, wool: 2, ore: 1 } },
+  // ── 2026-11-18: each of these lifts one limit of the game (a functional building 5 cards, a scoring
+  // one 6; the proposal's costs were open, these are the first ones) ──
+  farmstead: { dir: 'farm', kind: 'func', cost: { brick: 1, wool: 1, grain: 2, ore: 1 } },
+  homestead: { dir: 'farm', kind: 'func', cost: { wood: 2, wool: 1, grain: 2 } },
+  // (5 cards, one less than the scoring ones: its +3 is the hardest to keep, 3000 games put it 5 points
+  // below the rest at 6)
+  grange: { dir: 'farm', kind: 'score', cost: { wood: 1, brick: 1, wool: 1, grain: 2 } },
+  // (4 cards, one less than the functional ones: away from the coast its trade is the only good rate,
+  // and 3000 games put it 4.6 points below the rest at 5; its trade, see CARAVAN_GIVE)
+  caravan: { dir: 'trade', kind: 'func', cost: { wood: 1, wool: 1, grain: 1, ore: 1 } },
+  harborOffice: { dir: 'trade', kind: 'score', cost: { wood: 2, brick: 1, wool: 2, ore: 1 } },
+  roadworks: { dir: 'frontier', kind: 'func', cost: { wood: 2, brick: 2, ore: 1 } },
+  newTown: { dir: 'frontier', kind: 'func', cost: { wood: 1, brick: 2, wool: 1, grain: 1 } },
+  townHall: { dir: 'frontier', kind: 'func', cost: { brick: 2, grain: 1, ore: 2 } },
+  governor: { dir: 'frontier', kind: 'score', cost: { wood: 2, brick: 2, wool: 1, grain: 1 } },
+  lectureHall: { dir: 'lore', kind: 'func', cost: { brick: 1, wool: 2, ore: 2 } },
+  // (6 cards, one more than the functional ones: 3000 games put it 6.4 points above the rest at 5)
+  scriptorium: { dir: 'lore', kind: 'func', cost: { wood: 2, wool: 1, grain: 1, ore: 2 } },
+  university: { dir: 'lore', kind: 'score', cost: { brick: 1, wool: 2, grain: 1, ore: 2 } },
+  // ── the neutral buildings: no condition, any blueprint ──
+  warehouse: { dir: 'neutral', kind: 'func', cost: { wood: 2, brick: 2, grain: 1 } },
+  countingHouse: { dir: 'neutral', kind: 'func', cost: { brick: 1, wool: 1, grain: 1, ore: 2 } },
+  almshouse: { dir: 'neutral', kind: 'func', cost: { wood: 1, brick: 1, wool: 2, grain: 1 } },
+  smithy: { dir: 'neutral', kind: 'func', cost: { wood: 1, brick: 1, ore: 3 } },
+  terraces: { dir: 'neutral', kind: 'func', cost: { wood: 1, brick: 2, grain: 2 } },
+  observatory: { dir: 'neutral', kind: 'func', cost: { wood: 1, brick: 1, wool: 1, ore: 2 } },
+  watchtower: { dir: 'neutral', kind: 'func', cost: { wood: 2, brick: 1, ore: 2 } },
+  temple: { dir: 'neutral', kind: 'func', cost: { brick: 2, wool: 1, grain: 1, ore: 1 } },
+  builders: { dir: 'neutral', kind: 'func', cost: { wood: 1, brick: 3, ore: 1 } },
+  garrison: { dir: 'neutral', kind: 'func', cost: { wood: 1, wool: 1, grain: 1, ore: 2 } },
+  workshop: { dir: 'neutral', kind: 'func', cost: { wood: 2, brick: 1, wool: 1, ore: 1 } },
+  guildHall: { dir: 'neutral', kind: 'func', vp: 0, cost: { wood: 1, brick: 1, wool: 1, grain: 1, ore: 1 } },
+  monument: { dir: 'neutral', kind: 'func', vp: 2, cost: { brick: 2, wool: 2, grain: 2, ore: 2 } },
   // the wonders: three stages, 17 cards in all
+  // (2026-11-19: 15 cards, two less than the other wonders: in every balance run since the first it
+  // stood 5 to 6 points below the rest)
   gardens: {
     dir: 'farm',
     kind: 'wonder',
     stages: [
       { wood: 2, brick: 2, grain: 1 },
-      { brick: 2, wool: 2, grain: 2 },
-      { wool: 1, grain: 3, ore: 2 },
+      { brick: 2, wool: 1, grain: 2 },
+      { wool: 1, grain: 2, ore: 2 },
     ],
   },
   lighthouse: {
@@ -86,11 +129,18 @@ export const BUILDINGS = {
     stages: [
       { wood: 1, brick: 2, ore: 2 },
       { wood: 2, wool: 3, grain: 1 },
-      { wool: 2, grain: 2, ore: 2 },
+      // (2026-11-19: one more grain, 18 cards: with the new buildings of learning its blueprints won a
+      // third of their games)
+      { wool: 2, grain: 3, ore: 2 },
     ],
   },
 };
 export const BUILDING_IDS = Object.keys(BUILDINGS);
+// The caravanserai's trade: this many different resources for one of any kind, as often as liked.
+// (2026-11-19: the proposal's three made it the weakest building, 4.6 points below the rest over 3000
+// games and its blueprint 17% against 25%; two different cards put it at −0.3 and its blueprint at 22%.)
+export const CARAVAN_GIVE = 2;
+
 export const BUILDING_NAMES = {
   aqueduct: N_('水道橋'),
   granary: N_('糧倉'),
@@ -105,6 +155,31 @@ export const BUILDING_NAMES = {
   camp: N_('拓荒營地'),
   academy: N_('學院'),
   press: N_('印刷坊'),
+  farmstead: N_('農莊'),
+  homestead: N_('屯田'),
+  grange: N_('農會'),
+  caravan: N_('商隊旅館'),
+  harborOffice: N_('港務局'),
+  roadworks: N_('築路司'),
+  newTown: N_('新市鎮'),
+  townHall: N_('市政廳'),
+  governor: N_('總督府'),
+  lectureHall: N_('講堂'),
+  scriptorium: N_('抄經室'),
+  university: N_('大學'),
+  warehouse: N_('貨棧'),
+  countingHouse: N_('錢莊'),
+  almshouse: N_('救濟院'),
+  smithy: N_('鐵匠鋪'),
+  terraces: N_('梯田'),
+  observatory: N_('天文台'),
+  watchtower: N_('瞭望塔'),
+  temple: N_('神殿'),
+  builders: N_('營造廠'),
+  garrison: N_('衛戍所'),
+  workshop: N_('學徒工坊'),
+  guildHall: N_('公會大廳'),
+  monument: N_('紀念碑'),
   gardens: N_('空中花園'),
   lighthouse: N_('大燈塔'),
   greatWall: N_('長城'),
@@ -113,8 +188,28 @@ export const BUILDING_NAMES = {
 };
 export const isWonder = (k) => !!BUILDINGS[k] && BUILDINGS[k].kind === 'wonder';
 export const isSpecial = (k) => !!BUILDINGS[k] && BUILDINGS[k].kind !== 'wonder';
+export const isNeutral = (k) => !!BUILDINGS[k] && BUILDINGS[k].dir === 'neutral';
+// the points a functional building is worth by itself (the guild hall's come from the others)
+export const funcVP = (k) => (BUILDINGS[k].vp !== undefined ? BUILDINGS[k].vp : 1);
 export const WONDER_VP = 5;
 export const SCORE_VP = 3;
+// the scoring buildings of 2026-11-18: the most of something, with at least this many (a tie for
+// the most counts: nobody has more)
+export const MOST_MIN = { grange: 3, harborOffice: 3, governor: 4, university: 5 };
+// the guild hall: a point for every three special buildings (itself among them)
+export const GUILD_HALL_PER = 3;
+// the warehouse holds this many cards; the road bureau adds roads, the new town settlements and cities
+export const STORE_MAX = 3;
+export const ROADWORKS_ROADS = 10;
+export const NEW_TOWN_PIECES = 2;
+// the royal road, complete: its free roads need room (2026-11-18)
+export const ROYAL_ROADS = 10;
+// the counting house pays from this many cards in hand at a turn's end; the almshouse up to this many
+// at its start
+export const COUNTING_MIN = 8;
+export const ALMS_MAX = 2;
+// the terraces: the rare numbers
+export const TERRACE_NUMBERS = [2, 3, 11, 12];
 export const BLUEPRINT_SIZE = 7;
 
 // The basic cards (2026-11-15: the 7 cards of a blueprint include them, and they may be left out for
@@ -152,9 +247,17 @@ export const PRESETS = {
   order: [...BASIC, 'barracks', 'mercenaries', 'greatWall'],
   frontier: [...BASIC, 'post', 'camp', 'royalRoad'],
   scholars: [...BASIC, 'academy', 'press', 'library'],
+  // (2026-11-18: the new buildings, a ready-made blueprint for each direction and one of neutral ones)
+  // (the harvest's wonder the great wall, that keeps the robber off its fields: with the gardens it won
+  // one game in six; the caravans' an observatory to read the stars by)
+  harvest: [...BASIC, 'farmstead', 'grange', 'greatWall'],
+  caravans: [...BASIC, 'caravan', 'observatory', 'lighthouse'],
+  towns: [...BASIC, 'newTown', 'governor', 'royalRoad'],
+  lore: [...BASIC, 'lectureHall', 'university', 'library'],
+  treasury: [...BASIC, 'warehouse', 'countingHouse', 'greatWall'],
 };
 export const PRESET_IDS = Object.keys(PRESETS);
-export const PRESET_NAMES = { farm: N_('穀倉'), port: N_('商港'), order: N_('騎士團§preset'), frontier: N_('拓荒'), scholars: N_('書院') };
+export const PRESET_NAMES = { farm: N_('穀倉'), port: N_('商港'), order: N_('騎士團§preset'), frontier: N_('拓荒'), scholars: N_('書院'), harvest: N_('豐收§preset'), caravans: N_('商隊'), towns: N_('城鎮'), lore: N_('學府'), treasury: N_('府庫') };
 export const DEFAULT_PRESET = 'port';
 
 // Up to 7 different cards (basic cards and buildings), at most one of them a wonder. (A player brings
@@ -182,18 +285,27 @@ export const developOn = (st) => !!(st && st.rules && st.rules.develop);
 
 // ── developments ──
 
-// level 1 (on the hex's own resource, or another), then level 2
+// level 1 (on the hex's own resource, or another), then level 2; level 3 only beside a farmstead
 export const PLOT_COST = [
   { local: { wood: 1, brick: 1, wool: 1 }, other: { wood: 1, brick: 1, wool: 1, grain: 1 } },
   { local: { grain: 2, ore: 2 }, other: { wool: 1, grain: 2, ore: 2 } },
+  { local: { wool: 1, grain: 2, ore: 2 }, other: { brick: 1, wool: 1, grain: 2, ore: 2 } },
 ];
-export const PLOT_LEVELS = PLOT_COST.length;
+export const PLOT_LEVELS = 2;
+
+// the highest level p's development on hex h may reach: 3 on the hexes beside the settlement p's
+// farmstead stands by, 2 elsewhere
+export function plotTop(st, p, h) {
+  const b = st.players[p] && st.players[p].built;
+  const v = b && b.farmstead;
+  return v !== undefined && GEO.vertices[v].hexes.includes(h) ? 3 : PLOT_LEVELS;
+}
 
 // what the next level on hex h costs, choosing resource r (null when it is at the top already)
 export function plotCost(st, h, r) {
   const plot = st.plots && st.plots[h];
   const lv = plot ? plot.r.length : 0;
-  if (lv >= PLOT_LEVELS) return null;
+  if (lv >= PLOT_COST.length || (plot && lv >= plotTop(st, plot.p, h))) return null;
   const local = TERRAIN_RES[st.board.hexes[h].terrain];
   return PLOT_COST[lv][r && r === local ? 'local' : 'other'];
 }
@@ -207,11 +319,13 @@ export function plotWhy(st, p, h) {
   const plot = st.plots[h];
   if (plot) {
     if (plot.p !== p) return N_('這塊地已經有別人的開發');
-    if (plot.r.length >= PLOT_LEVELS) return N_('這塊地已經是二級開發');
+    if (plot.r.length >= plotTop(st, p, h)) return plot.r.length >= 3 ? N_('這塊地已經是三級開發') : N_('這塊地已經是二級開發');
     return null;
   }
-  if (!GEO.hexes[h].vertices.some((v) => st.vertices[v] && st.vertices[v].p === p)) return N_('你要在這塊地的路口上有村莊或城市');
-  return null;
+  if (GEO.hexes[h].vertices.some((v) => st.vertices[v] && st.vertices[v].p === p)) return null;
+  // (a homestead: a hex beside p's road will do)
+  if (hasBuilt(st, p, 'homestead') && GEO.hexes[h].edges.some((e) => st.edges[e] === p)) return null;
+  return hasBuilt(st, p, 'homestead') ? N_('你要在這塊地的路口上有村莊或城市，或在它的邊上有道路') : N_('你要在這塊地的路口上有村莊或城市');
 }
 export function plotSpots(st, p) {
   const out = [];
@@ -232,10 +346,13 @@ export function annexAt(st, v) {
   const built = st.players[b.p].built || {};
   return Object.keys(built).filter((k) => built[k] === v);
 }
-// room left beside the settlement at v: a village holds one building, a city two
+// room left beside the settlement at v: a village holds one building, a city two (one more each
+// with a town hall)
 export function slotsAt(st, v) {
   const b = st.vertices[v];
-  return b ? (b.t === 'c' ? 2 : 1) - annexAt(st, v).length : 0;
+  if (!b) return 0;
+  const more = hasBuilt(st, b.p, 'townHall') ? 1 : 0;
+  return (b.t === 'c' ? 2 : 1) + more - annexAt(st, v).length;
 }
 // a settlement with a wall: the robber neither stops it producing nor robs anyone for it
 export function walled(st, v) {
@@ -249,6 +366,37 @@ export function hasHarbor(st, p) {
   return st.vertices.some((b, v) => b && b.p === p && st.board.vertexHarbor[v]);
 }
 
+// ── what the 2026-11-18 buildings count ──
+// p's harbors: each harbor with a settlement of p's on it, and the shipyard (the harbor office)
+export function harborCount(st, p) {
+  let n = hasBuilt(st, p, 'shipyard') ? 1 : 0;
+  for (const hb of st.board.harbors || []) if (GEO.edges[hb.edge].v.some((v) => st.vertices[v] && st.vertices[v].p === p)) n++;
+  return n;
+}
+export const villageCount = (st, p) => st.vertices.filter((b) => b && b.p === p && b.t === 's').length;
+export const cityCount = (st, p) => st.vertices.filter((b) => b && b.p === p && b.t === 'c').length;
+export const settlementCount = (st, p) => st.vertices.filter((b) => b && b.p === p).length;
+export const roadCount = (st, p) => st.edges.filter((q) => q === p).length;
+export const plotCount = (st, p) => (st.plots || []).filter((x) => x && x.p === p).length;
+// development cards taken so far (bought or free; a game from before counts the ones bought)
+export const devGotOf = (st, p) => st.players[p].devGot ?? st.players[p].bought ?? 0;
+// development cards played so far
+export const devPlayedOf = (st, p) => {
+  const pl = st.players[p].played || {};
+  return (pl.knight || 0) + (pl.roadBuilding || 0) + (pl.yearOfPlenty || 0) + (pl.monopoly || 0);
+};
+// what each scoring building of 2026-11-18 counts
+export const MOST_OF = { grange: plotCount, harborOffice: harborCount, governor: villageCount, university: devGotOf };
+// whether p has the most of what scoring building k counts (at least its minimum; a tie counts)
+export function holdsMost(st, p, k) {
+  const f = MOST_OF[k];
+  const mine = f(st, p);
+  if (mine < MOST_MIN[k]) return false;
+  return st.players.every((o) => o.id === p || f(st, o.id) <= mine);
+}
+// p's special buildings standing (the guild hall)
+export const specialCount = (st, p) => Object.keys(st.players[p].built || {}).filter(isSpecial).length;
+
 // Why p may not build k at all now (the conditions about p, not where): a message key, or null.
 export function specialWhy(st, p, k) {
   const pl = st.players[p];
@@ -261,6 +409,16 @@ export function specialWhy(st, p, k) {
   if (k === 'adventurers' && pl.knights < 3) return N_('你要先打出過 3 張騎士');
   if (k === 'post' && !(st.roadLen && st.roadLen[p] >= 5)) return N_('你的最長道路要至少 5 條');
   if (k === 'academy' && (pl.bought || 0) < 2) return N_('你要先買過 2 張發展卡');
+  // (2026-11-18)
+  if (k === 'homestead' && plotCount(st, p) < 2) return N_('你要先有 2 個開發');
+  if (k === 'grange' && !(st.plots || []).some((x) => x && x.p === p && x.r.length >= 2)) return N_('你要先有 1 個二級開發');
+  if (k === 'harborOffice' && harborCount(st, p) < 2) return N_('你要先有 2 個港口（造船廠也算）');
+  if (k === 'roadworks' && roadCount(st, p) < 15) return N_('你要先有 15 條道路');
+  if (k === 'newTown' && settlementCount(st, p) < 5) return N_('你場上要先有 5 座村莊或城市');
+  if (k === 'governor' && villageCount(st, p) < 3) return N_('你要先有 3 座村莊');
+  if (k === 'lectureHall' && devPlayedOf(st, p) < 2) return N_('你要先打出過 2 張發展卡');
+  if (k === 'scriptorium' && cityCount(st, p) < 1) return N_('你要先有一座城市');
+  if (k === 'university' && devGotOf(st, p) < 3) return N_('你要先拿過 3 張發展卡');
   return null;
 }
 
@@ -276,6 +434,8 @@ export function hostWhy(st, p, k, v) {
   if (k === 'market' && new Set(terrains.filter((t) => TERRAIN_RES[t])).size < 3) return N_('所附的聚落要相鄰 3 種不同的產資源地形');
   if (k === 'shipyard' && !GEO.vertices[v].coastal) return N_('所附的聚落要在海岸邊');
   if (k === 'press' && !terrains.includes('forest')) return N_('所附的聚落要相鄰森林');
+  if ((k === 'farmstead' || k === 'townHall') && b.t !== 'c') return N_('所附的聚落要是城市');
+  if (k === 'caravan' && GEO.vertices[v].coastal) return N_('所附的聚落不能在海岸邊');
   if (k === 'camp') {
     // a hex with no building on its corners but this settlement (and no wonder on it)
     const open = GEO.vertices[v].hexes.some((h) => !wonderAt(st, h) && GEO.hexes[h].vertices.every((u) => u === v || !st.vertices[u]));
@@ -352,6 +512,16 @@ export function guardedHexes(st) {
   }
   return out;
 }
+// the owners of the watchtowers (others' than p's) whose settlement is beside hex h
+export function watchersAt(st, h, p) {
+  const out = [];
+  for (const pl of st.players) {
+    const v = pl.id !== p && pl.built ? pl.built.watchtower : undefined;
+    if (v !== undefined && GEO.vertices[v].hexes.includes(h)) out.push(pl.id);
+  }
+  return out;
+}
+const handOf = (pl) => (pl.res ? RES.reduce((n, r) => n + pl.res[r], 0) : pl.resCount || 0);
 // Why p may not move the robber to hex h: a message key, or null. (When nowhere is left, anywhere but
 // where it stands: robberSpots.)
 export function robberWhy(st, p, h, guarded = guardedHexes(st)) {
@@ -359,6 +529,8 @@ export function robberWhy(st, p, h, guarded = guardedHexes(st)) {
   const w = wonderAt(st, h);
   if (w && w.p === p) return N_('不能把強盜移到自己的奇觀上');
   if (guarded.has(h)) return N_('長城保護的地塊不能放強盜');
+  // (a watchtower beside it: a card to its owner first, so not with an empty hand)
+  if (handOf(st.players[p]) === 0 && watchersAt(st, h, p).length) return N_('瞭望塔：手上沒有牌，不能把強盜移到這裡');
   return null;
 }
 export function robberSpots(st, p) {
@@ -372,26 +544,69 @@ export function robberSpots(st, p) {
 
 // ── points, limits, ratios ──
 
-// the points the development mode adds: 1 a functional building, +3 for the adventurers' guild while
-// holding the largest army and for the post station while holding the longest road, 5 a wonder
-export function developVP(st, p) {
-  const built = st.players[p].built || {};
-  let vp = 0;
-  for (const k of Object.keys(built)) if (BUILDINGS[k].kind === 'func') vp++;
-  if (built.adventurers !== undefined && st.largestArmy === p) vp += SCORE_VP;
-  if (built.post !== undefined && st.longestRoad === p) vp += SCORE_VP;
-  for (const w of st.wonders || []) if (w.p === p && w.done) vp += WONDER_VP;
-  return vp;
+// whether scoring building k (built) scores for p now
+export function scoring(st, p, k) {
+  if (k === 'adventurers') return st.largestArmy === p;
+  if (k === 'post') return st.longestRoad === p;
+  return MOST_MIN[k] !== undefined && holdsMost(st, p, k);
 }
-// the same, piece by piece (for the nations' panel)
+// the points the development mode adds, piece by piece (the nations' panel): the functional
+// buildings (1 each; the monument 2), the guild hall (1 for every three special buildings), the
+// scoring buildings (+3 each while theirs: the adventurers' guild with the largest army, the post
+// station with the longest road, the 2026-11-18 ones with the most of something), the wonders (5)
 export function developScore(st, p) {
   const built = st.players[p].built || {};
-  const out = { buildings: 0, adventurers: 0, post: 0, wonder: 0 };
-  for (const k of Object.keys(built)) if (BUILDINGS[k].kind === 'func') out.buildings++;
-  if (built.adventurers !== undefined && st.largestArmy === p) out.adventurers = SCORE_VP;
-  if (built.post !== undefined && st.longestRoad === p) out.post = SCORE_VP;
+  const out = { buildings: 0, scoring: 0, wonder: 0, adventurers: 0, post: 0 };
+  for (const k of Object.keys(built)) {
+    const b = BUILDINGS[k];
+    if (b.kind === 'func') out.buildings += funcVP(k);
+    else if (b.kind === 'score' && scoring(st, p, k)) {
+      out.scoring += SCORE_VP;
+      if (k === 'adventurers' || k === 'post') out[k] = SCORE_VP;
+    }
+  }
+  if (built.guildHall !== undefined) out.buildings += Math.floor(specialCount(st, p) / GUILD_HALL_PER);
   for (const w of st.wonders || []) if (w.p === p && w.done) out.wonder += WONDER_VP;
   return out;
+}
+export function developVP(st, p) {
+  const s = developScore(st, p);
+  return s.buildings + s.scoring + s.wonder;
+}
+
+// ── paying (2026-11-18) ──
+// What p pays for `cost` now, or null when p cannot: the apprentice workshop (a special building) and
+// the builders' yard (a wonder's stage) leave out one card, `skip`, chosen by the player (or else the
+// first the hand lacks, or the first of the cost); the smithy, once a turn, takes an ore for one card
+// the hand still lacks (or for `sub`, when asked). kind: 'special' | 'wonder' | anything else (roads,
+// settlements, cities, developments: only the smithy).
+export function payFor(st, p, cost, kind, { skip, sub } = {}) {
+  const pl = st.players[p];
+  const res = pl.res;
+  if (!res || !cost) return null;
+  let c = { ...cost };
+  let skipped = null;
+  const discount = (kind === 'special' && hasBuilt(st, p, 'workshop')) || (kind === 'wonder' && hasBuilt(st, p, 'builders'));
+  if (discount) {
+    // (not chosen: the card the hand lacks, or else the one it would have the fewest of left)
+    const lack = RES.find((r) => (c[r] || 0) > res[r]);
+    const keep = RES.filter((r) => c[r] > 0).sort((a, b) => res[a] - c[a] - (res[b] - c[b]))[0];
+    skipped = skip && c[skip] > 0 ? skip : lack || keep || null;
+    if (skipped) c[skipped]--;
+  }
+  const short = RES.filter((r) => (c[r] || 0) > res[r]);
+  const missing = short.reduce((n, r) => n + (c[r] - res[r]), 0);
+  let smith = null;
+  const anvil = hasBuilt(st, p, 'smithy') && !(st.used && st.used.smithy);
+  if (anvil && sub && sub !== 'ore' && c[sub] > 0 && (missing === 0 || (missing === 1 && short[0] === sub))) smith = sub;
+  else if (anvil && missing === 1 && short[0] !== 'ore') smith = short[0];
+  if (smith) {
+    c[smith]--;
+    c.ore = (c.ore || 0) + 1;
+  }
+  for (const r of RES) if ((c[r] || 0) > res[r]) return null;
+  for (const r of RES) if (!c[r]) delete c[r];
+  return { cost: c, skip: skipped, smith };
 }
 
 // the granary raises its owner's hand limit for a 7 by three (7 → 10)

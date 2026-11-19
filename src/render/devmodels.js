@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { Model, TAU, rng, rough, house, haystack } from './devkit.js';
 import { WONDER } from './devwonders.js';
+import { BUILD2, FACILITY3 } from './devmodels2.js';
 
 export { Model };
 
@@ -482,6 +483,8 @@ BUILD.press = () => {
   return m;
 };
 
+// (and the 25 of 2026-11-18: devmodels2.js)
+Object.assign(BUILD, BUILD2);
 export const BUILDING_MODELS = BUILD;
 
 // ── development facilities (one per terrain; level 2 adds to level 1) ──
@@ -723,6 +726,15 @@ FACILITY.mountains = (lv) => {
   return m;
 };
 
+// (a third level, beside a farmstead's city: what it adds to the second, devmodels2.js)
+for (const t of Object.keys(FACILITY)) {
+  const two = FACILITY[t];
+  FACILITY[t] = (lv) => {
+    const m = two(lv);
+    if (lv >= 3 && FACILITY3[t]) FACILITY3[t](m);
+    return m;
+  };
+}
 export const FACILITY_MODELS = FACILITY;
 
 export const WONDER_MODELS = WONDER;

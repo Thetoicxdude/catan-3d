@@ -23,6 +23,9 @@ const USED = [
   // the resources on every cost, gain and harbour (with 'brick-wall' above): logs, a sheep, wheat, ore;
   // the city wall building then takes a stone wall, so it is not mistaken for brick
   'log', 'sheep', 'wheat', 'ore', 'stone-wall',
+  // the buildings of 2026-11-18: the directions' twelve, the neutral thirteen
+  'barn', 'plow', 'sickle', 'camel', 'harbor-dock', 'wheelbarrow', 'village', 'capitol', 'throne-king', 'teacher', 'feather', 'book-pile',
+  'wooden-crate', 'abacus', 'bread', 'anvil', 'hills', 'telescope', 'watchtower', 'temple-gate', 'trowel', 'checked-shield', 'toolbox', 'vertical-banner', 'obelisk',
 ];
 
 const src = JSON.parse(readFileSync(process.argv[2], 'utf8'));

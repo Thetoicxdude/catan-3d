@@ -4,7 +4,7 @@
 // them: the computer finishes a placement, a discard, a gold field's pick or a robber move, an open offer is withdrawn,
 // the dice are rolled, and the turn ends. Nothing is built or traded on anyone's behalf. (The development mode: a
 // wonder's owner who has a knight in hand defends it — 15 seconds to answer, DEFEND_MS — and the academy's first
-// card is kept.)
+// card is kept; the observatory's roll stands.)
 import { actorsNow, makeView } from '../engine/engine.js';
 import { aiAct } from '../ai/ai.js';
 
@@ -50,6 +50,7 @@ export function timeoutAction(st, p, mem, rnd) {
   if (pd && (pd.type === 'robber' || pd.type === 'steal')) return ai();
   if (pd && pd.type === 'roadBuilding') return { type: 'endRoadBuilding', p };
   if (pd && pd.type === 'pick') return { type: 'pickDev', p, i: 0 };
+  if (pd && pd.type === 'reroll') return { type: 'reroll', p, yes: false };
   if (!st.rolled) return { type: 'roll', p };
   return { type: 'endTurn', p };
 }

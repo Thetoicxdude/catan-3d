@@ -107,7 +107,7 @@ for (let g = 0; g < GAMES; g++) {
   for (const [k, x] of Object.entries(parts)) out.parts[k] = (out.parts[k] || 0) + x;
   if (!BASE) {
     const sc = developScore(st, w);
-    const extra = sc.buildings + sc.adventurers + sc.post + sc.wonder;
+    const extra = sc.buildings + sc.scoring + sc.wonder;
     out.share.push(extra / totalVP(st, w));
     st.players.forEach((pl, i) => {
       const won = i === w ? 1 : 0;
@@ -155,7 +155,7 @@ if (!BASE) {
   report.winnerShareFromBuildingsAndWonders = pct(avg(out.share), 1);
   report.perGame = Object.fromEntries(
     Object.entries(out.events)
-      .filter(([k]) => /^(develop|special|wonder|wonderDone|wonderLost|defend|siege|market|guildBonus|aqueduct|devDraw|buyDev|playDev|trade|bankTrade|roll)$/.test(k) || k.startsWith('special:'))
+      .filter(([k]) => /^(develop|special|wonder|wonderDone|wonderLost|defend|siege|market|guildBonus|aqueduct|devDraw|buyDev|playDev|trade|bankTrade|roll|bonus|toll|caravan|warehouse|devReshuffle)$/.test(k) || k.startsWith('special:'))
       .map(([k, n]) => [k, +(n / Math.max(1, out.games)).toFixed(2)]),
   );
 }

@@ -167,5 +167,76 @@ assert.deepEqual(C.bpDecode(C.bpCode(['road', 'granary'])), ['road', 'granary'])
 assert.deepEqual(C.bpDecode(''), []);
 assert.equal(C.bpDecode(C.bpCode(['road', 'road'])), null);
 assert.equal(C.bpDecode('rdstctdvgrmkaqhg'), null, 'eight cards');
+assert.deepEqual(C.bpDecode(C.bpCode(['road', 'city', 'farmstead', 'warehouse', 'monument', 'guildHall', 'library'])), ['road', 'city', 'farmstead', 'warehouse', 'monument', 'guildHall', 'library']);
+
+// (2026-11-18) the new buildings: their events, their state, the moves they bring
+{
+  const evs = [
+    { type: 'roll', p: 1, dice: [3, 4], sum: 7, again: true },
+    { type: 'build', what: 'road', p: 0, setup: false, free: false, edge: 5, paid: { brick: 1, ore: 1 }, smith: 'wood' },
+    { type: 'build', what: 'city', p: 0, setup: false, free: false, vertex: 12, paid: { grain: 1, ore: 4 }, smith: 'grain' },
+    { type: 'special', p: 2, k: 'market', vertex: 9, paid: { wood: 1, wool: 1, grain: 2 }, skip: 'wool' },
+    { type: 'special', p: 2, k: 'shipyard', vertex: 9, res: 'ore' },
+    { type: 'wonder', p: 2, k: 'gardens', hex: 4, stage: 1, paid: { wood: 2, grain: 1 }, skip: 'brick' },
+    { type: 'develop', p: 0, hex: 3, res: 'ore', level: 3, cost: { wool: 1, grain: 2, ore: 2 }, smith: 'grain' },
+    { type: 'defend', p: 1, by: 0, hex: 4, k: 'gardens', knights: 0, paid: { wood: 1, ore: 1 } },
+    { type: 'buyDev', p: 0, card: null, left: 10, how: 'scriptorium' },
+    { type: 'bonus', p: 0, res: 'wool', why: 'countingHouse' },
+    { type: 'bonus', p: 3, res: 'brick', why: 'almshouse' },
+    { type: 'toll', p: 1, from: 0, res: null },
+    { type: 'caravan', p: 0, give: ['wood', 'brick'], get: 'ore' },
+    { type: 'warehouse', p: 0, put: 3, take: 0, stored: 3 },
+    { type: 'devReshuffle', left: 4 },
+  ];
+  for (const e of evs) assert.deepEqual(C.decodeEvent(JSON.parse(JSON.stringify(C.encodeEvent(e)))), e, e.type);
+  // the toll's card: for the two of them
+  const tl = [{ type: 'toll', p: 1, from: 0, res: 'ore' }];
+  for (const seat of [0, 1, 2]) {
+    const back = C.applyPrivateDetails([C.decodeEvent(C.encodeEvent(tl[0]))], C.privateDetails(tl, seat));
+    assert.equal(back[0].res, seat === 2 ? null : 'ore');
+  }
+  // the moves, whole on their way to the host
+  for (const a of [
+    { type: 'caravan', p: 0, give: ['wood', 'brick'], get: 'ore' },
+    { type: 'warehouse', p: 0, put: { ore: 2, wool: 1 } },
+    { type: 'warehouse', p: 0, take: { ore: 1 } },
+    { type: 'defend', p: 0, yes: true, pay: { wood: 1, ore: 1 } },
+    { type: 'endTurn', p: 0, bonus: 'wool' },
+    { type: 'roll', p: 0, alms: 'brick' },
+    { type: 'special', p: 0, k: 'monument', vertex: 4, skip: 'wool' },
+    { type: 'road', p: 0, edge: 3, sub: 'wood' },
+    { type: 'reroll', p: 0, yes: false },
+  ])
+    assert.deepEqual(C.sanitizeAction(JSON.parse(JSON.stringify(a)), 0, ACTION_TYPES), a, a.type);
+  // a game with a warehouse full, cards to go back in the deck, a reroll to decide, the smithy used
+  const players = Array.from({ length: 4 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' }, bp: ['road', 'settlement', 'city', 'dev', 'warehouse', 'observatory', 'smithy'] }));
+  const st = createGame({ seed: 77, players, map: 'dev-4' });
+  let guard = 0;
+  while (st.phase === 'setup' && guard++ < 200) applyAction(st, aiAct(makeView(st, actorsNow(st)[0]), actorsNow(st)[0], {}, makeRng(guard)));
+  const v = st.vertices.findIndex((b) => b && b.p === 1);
+  st.players[1].built.warehouse = v;
+  st.players[1].store = { wood: 0, brick: 1, wool: 0, grain: 2, ore: 0 };
+  st.players[0].built.observatory = st.vertices.findIndex((b) => b && b.p === 0);
+  st.players[0].devGot = 4;
+  st.devDiscard = ['monopoly', 'roadBuilding'];
+  st.devPlays = 1;
+  st.knightPlayed = true;
+  st.used = { smithy: true, almshouse: true };
+  st.pending = { type: 'reroll', p: 0, sum: 8 };
+  st.rolled = true;
+  st.dice = [4, 4];
+  const board = C.encodeBoard(st);
+  const seats = C.decodeSeats(C.encodeSeats(st));
+  const pub = JSON.parse(JSON.stringify(C.encodePublic(st)));
+  for (const seat of [0, 1, 2]) {
+    const got = C.decodeView(board, seats, pub, JSON.parse(JSON.stringify(C.encodePrivate(st, seat))), seat);
+    const want = makeView(st, seat);
+    for (const k of [...KEYS, 'used', 'devPlays', 'knightPlayed', 'devDiscard', 'devDiscardCount']) assert.deepEqual(got[k], want[k], k);
+    got.players.forEach((pl, i) => assert.deepEqual([pl.devGot, pl.store, pl.storeCount], [want.players[i].devGot, want.players[i].store, want.players[i].storeCount], `seat ${i} for ${seat}`));
+  }
+  const norm = (x) => JSON.parse(JSON.stringify(x));
+  const rebuilt = norm(C.decodeFull(board, seats, pub, norm(C.encodeFull(st))));
+  for (const k of Object.keys(norm(st))) assert.deepEqual(rebuilt[k], norm(st)[k], `full state: ${k}`);
+}
 
 console.log(`codec ok (wonders' ruins in ${ruinsSeen} views): ${checked} views compared, largest public snapshot ${maxSize} bytes (5–6 players on the large island: ${bigMax}; Seafarers: ${seaMax}; Seafarers for 5–6: ${sea6Max}; maps players made: ${drawnMax}; the development mode: ${devMax}), largest takeover snapshot ${fullMax} bytes`);

@@ -39,6 +39,10 @@ const [MIN_P, MAX_P] = DEF.players;
 const PIECES = DEF.pieces || { roads: 15, settlements: 5, cities: 4 };
 const LEVELS = ['easy', 'normal', 'hard'];
 
+// (the development mode) how many times each player's royal road was completed this game: 10 more roads
+// each time, even if it falls later (it can be begun again over its ruins)
+let ROYAL = new Map();
+
 function check(st, where) {
   const fail = (m) => {
     throw new Error(`[invariant] ${m} @ ${where} seq=${st.seq}`);
@@ -48,15 +52,24 @@ function check(st, where) {
     for (const pl of st.players) {
       if (pl.res[r] < 0) fail(`negative ${r} for ${pl.id}`);
       t += pl.res[r];
+      // (the development mode: a warehouse's cards)
+      if (pl.store) {
+        if (pl.store[r] < 0) fail(`negative stored ${r} for ${pl.id}`);
+        t += pl.store[r];
+      }
     }
     if (st.bank[r] < 0) fail(`negative bank ${r}`);
     if (t !== BANK) fail(`resource ${r} total ${t}`);
   }
   let devTotal = st.devDeck.length;
   for (const pl of st.players) {
-    devTotal += pl.dev.length + pl.played.knight + pl.played.roadBuilding + pl.played.yearOfPlenty + pl.played.monopoly + (pl.pick ? pl.pick.length : 0);
+    // (the development mode: the cards played other than knights go back into the deck, by way of the
+    // discard pile)
+    devTotal += pl.dev.length + pl.played.knight + (st.devDiscard ? 0 : pl.played.roadBuilding + pl.played.yearOfPlenty + pl.played.monopoly) + (pl.pick ? pl.pick.length : 0);
     if (pl.played.knight !== pl.knights) fail('knight count mismatch');
+    if (pl.store && Object.values(pl.store).reduce((a, b) => a + b, 0) > 3) fail(`warehouse of p${pl.id} over 3`);
   }
+  if (st.devDiscard) devTotal += st.devDiscard.length;
   if (devTotal !== DECK) fail(`dev total ${devTotal}`);
   const cnt = st.players.map(() => ({ s: 0, c: 0, r: 0 }));
   st.vertices.forEach((b, v) => {
@@ -81,9 +94,13 @@ function check(st, where) {
     if (st.pending && st.pending.type === 'gold' && !Object.keys(st.pending.amounts).length) fail('empty gold choice');
   }
   st.players.forEach((pl, i) => {
-    if (cnt[i].s + pl.pieces.settlements !== PIECES.settlements) fail(`settlement pieces p${i}`);
-    if (cnt[i].c + pl.pieces.cities !== PIECES.cities) fail(`city pieces p${i}`);
-    if (cnt[i].r + pl.pieces.roads !== PIECES.roads) fail(`road pieces p${i}`);
+    // (the development mode: the road bureau, the new town, a complete royal road add pieces)
+    const built = pl.built || {};
+    const town = built.newTown !== undefined ? 2 : 0;
+    const roads = (built.roadworks !== undefined ? 10 : 0) + (ROYAL.get(i) || 0) * 10;
+    if (cnt[i].s + pl.pieces.settlements !== PIECES.settlements + town) fail(`settlement pieces p${i}`);
+    if (cnt[i].c + pl.pieces.cities !== PIECES.cities + town) fail(`city pieces p${i}`);
+    if (cnt[i].r + pl.pieces.roads !== PIECES.roads + roads) fail(`road pieces p${i} (${cnt[i].r} placed, ${pl.pieces.roads} left, ${JSON.stringify(built)}, royal ${ROYAL.get(i) || 0})`);
   });
   const L = st.roadLen;
   const max = Math.max(...L);
@@ -104,7 +121,7 @@ function check(st, where) {
       for (const [k, v] of Object.entries(pl.built)) {
         const b = st.vertices[v];
         if (!b || b.p !== i) fail(`${k} of p${i} beside nobody's settlement`);
-        if (annexAt(st, v).length > (b.t === 'c' ? 2 : 1)) fail(`too many buildings beside ${v}`);
+        if (annexAt(st, v).length > (b.t === 'c' ? 2 : 1) + (pl.built.townHall !== undefined ? 1 : 0)) fail(`too many buildings beside ${v}`);
         if (!pl.bp.includes(k)) fail(`${k} not in the blueprint of p${i}`);
       }
     });
@@ -119,8 +136,11 @@ function check(st, where) {
     }
     st.plots.forEach((pt, h) => {
       if (!pt) return;
-      if (!TERRAIN_RES[st.board.hexes[h].terrain] || pt.r.length < 1 || pt.r.length > 2) fail(`development on ${h} out of shape`);
-      if (!GEO.hexes[h].vertices.some((v) => st.vertices[v] && st.vertices[v].p === pt.p)) fail(`development on ${h} with no settlement of its developer`);
+      // (a third level beside a farmstead's city; with a homestead, a road of the developer's will do)
+      if (!TERRAIN_RES[st.board.hexes[h].terrain] || pt.r.length < 1 || pt.r.length > 3) fail(`development on ${h} out of shape`);
+      if (pt.r.length > 2 && !GEO.hexes[h].vertices.includes(st.players[pt.p].built.farmstead)) fail(`a third level on ${h} with no farmstead`);
+      const homestead = st.players[pt.p].built.homestead !== undefined && GEO.hexes[h].edges.some((e) => st.edges[e] === pt.p);
+      if (!homestead && !GEO.hexes[h].vertices.some((v) => st.vertices[v] && st.vertices[v].p === pt.p)) fail(`development on ${h} with no settlement of its developer`);
     });
   }
   // 5–6 players: the second player is three seats on; nobody trades with players outside a main turn
@@ -157,6 +177,7 @@ for (let g = 0; g < GAMES; g++) {
     if (g % 5 === 3) st.players[0].bp = [];
     if (g % 5 === 4) st.players[0].bp = ['road', 'settlement', 'city', 'granary', 'market', 'aqueduct', 'gardens'];
   }
+  ROYAL = new Map();
   check(st, 'start');
   const mem = players.map(() => ({}));
   let steps = 0;
@@ -171,6 +192,7 @@ for (let g = 0; g < GAMES; g++) {
         const ev = applyAction(st, a);
         const sub = st.sub ? st.sub.k : null;
         for (const e of ev) {
+          if (e.type === 'wonderDone' && e.k === 'royalRoad') ROYAL.set(e.p, (ROYAL.get(e.p) || 0) + 1);
           if (sub === 'sbp' && (e.type === 'bankTrade' || e.type === 'playDev')) throw new Error(`[invariant] ${e.type} in the special building phase`);
           // (the development mode) a basic card left out of the blueprint is never paid for
           if (st.rules && st.rules.cards && e.type === 'build' && !e.setup && !e.free && ['road', 'settlement', 'city'].includes(e.what) && !st.players[e.p].bp.includes(e.what)) throw new Error(`[invariant] p${e.p} paid for a ${e.what} without its card`);

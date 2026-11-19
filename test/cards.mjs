@@ -6,6 +6,7 @@ import { BUILDING_IDS, PRESETS, BASIC, isWonder, validBlueprint } from '../src/e
 import {
   STARTER, FIRST_BLUEPRINT, MISSION_CARDS, POOL, MISSIONS, DRAW_COST, DRAW10_COST, COINS, newCollection, fitCollection, mergeCollections, owns, ownedBlueprint,
   claim, claimable, missionState, missionFor, observe, gameOver, draw, buy, pick, priceOf, dupShards, chanceOf, seen, slotNew, RARITIES, rarityOf, ALL_CARDS,
+  NEUTRAL, NEUTRAL_PRICE, paidIn,
 } from '../src/meta/collection.js';
 
 let passed = 0;
@@ -42,21 +43,22 @@ const devView = ({ plots = {}, wonders = [], built = {}, bp = ['granary', 'marke
   players: [{ bp, built }, { bp: PRESETS.port, built: {} }],
 });
 
-test('the cards: four basic ones and three buildings to start with (a full blueprint), three from missions, twelve to draw', () => {
+test('the cards: four basic ones and three buildings to start with (a full blueprint), three from missions, 24 to draw, 13 neutral ones in the shop', () => {
   assert.deepEqual(STARTER, ['granary', 'market', 'aqueduct']);
   assert.deepEqual(FIRST_BLUEPRINT, [...BASIC, ...STARTER]);
   assert.equal(FIRST_BLUEPRINT.length, 7);
   assert.ok(validBlueprint(FIRST_BLUEPRINT));
   assert.deepEqual(MISSION_CARDS, ['shipyard', 'camp', 'academy']);
-  assert.equal(POOL.length, 12);
+  assert.equal(POOL.length, 24);
   assert.equal(POOL.filter(isWonder).length, 5);
-  assert.deepEqual([...STARTER, ...MISSION_CARDS, ...POOL].sort(), BUILDING_IDS.slice().sort());
+  assert.equal(NEUTRAL.length, 13);
+  assert.deepEqual([...STARTER, ...MISSION_CARDS, ...POOL, ...NEUTRAL].sort(), BUILDING_IDS.slice().sort());
   // rarity: how a card is had (the frame's colour)
   const by = (r) => ALL_CARDS.filter((k) => rarityOf(k) === r);
   assert.deepEqual(RARITIES, ['basic', 'common', 'rare', 'epic', 'legendary']);
   assert.deepEqual(by('basic'), BASIC);
   assert.deepEqual(by('common').sort(), STARTER.slice().sort());
-  assert.deepEqual(by('rare').sort(), MISSION_CARDS.slice().sort());
+  assert.deepEqual(by('rare').sort(), [...MISSION_CARDS, ...NEUTRAL].sort());
   assert.deepEqual(by('epic').sort(), POOL.filter((k) => !isWonder(k)).sort());
   assert.deepEqual(by('legendary').sort(), POOL.filter(isWonder).sort());
   assert.equal(ALL_CARDS.length, BASIC.length + BUILDING_IDS.length);
@@ -113,11 +115,11 @@ test('draws: coins first, a card of the pool, a repeat becomes shards', () => {
   for (const k of POOL) assert.ok(Math.abs(seenCount[k] / n - chanceOf(k)) < 0.006, k);
 });
 
-test('the shop: a card of the pool for shards, not one owned, not more than the shards', () => {
+test('the shop: a card of the pool for shards, a neutral building for coins, not one owned, not more than the shards', () => {
   const c = newCollection();
   assert.equal(buy(c, 'guild').error, '碎片不夠');
   c.shards = priceOf('guild') + 5;
-  assert.deepEqual(buy(c, 'guild'), { card: 'guild' });
+  assert.deepEqual(buy(c, 'guild'), { card: 'guild', cost: priceOf('guild'), paid: 'shards' });
   assert.equal(c.shards, 5);
   assert.equal(buy(c, 'guild').error, '已經有這張卡了');
   assert.equal(buy(c, 'aqueduct').error, '商店沒有這張卡', 'mission cards come from missions');
@@ -125,6 +127,17 @@ test('the shop: a card of the pool for shards, not one owned, not more than the 
   assert.ok(priceOf('library') > priceOf('wall'));
   buy(c, 'library');
   assert.equal(c.shards, 1000 - priceOf('library'));
+  // a neutral building: coins
+  assert.equal(paidIn('smithy'), 'coins');
+  assert.equal(priceOf('smithy'), NEUTRAL_PRICE);
+  assert.equal(buy(c, 'smithy').error, '金幣不夠');
+  c.coins = NEUTRAL_PRICE + 7;
+  const shards = c.shards;
+  assert.deepEqual(buy(c, 'smithy'), { card: 'smithy', cost: NEUTRAL_PRICE, paid: 'coins' });
+  assert.deepEqual([c.coins, c.shards], [7, shards]);
+  assert.ok(owns(c, 'smithy') && c.fresh.includes('smithy'));
+  // (never drawn)
+  assert.ok(NEUTRAL.every((k) => chanceOf(k) === 0));
 });
 
 test('missions in a game: developing, the second level, a wonder begun and finished, a defence, buildings in one game', () => {
@@ -137,6 +150,8 @@ test('missions in a game: developing, the second level, a wonder begun and finis
   assert.deepEqual(observe(c, devView({ plots: { 5: { p: 0, r: ['wood', 'ore'] } } }), 0), ['level2']);
   assert.deepEqual(observe(c, devView({ wonders: [{ h: 3, k: 'gardens', p: 0, s: 1, done: false }] }), 0), ['wonder']);
   assert.deepEqual(observe(c, devView(), 0, [{ type: 'wonderDone', p: 0, hex: 3, k: 'gardens' }]), ['wonderdone']);
+  // (the garrison's two cards are not a knight)
+  assert.equal(observe(c, devView(), 0, [{ type: 'defend', p: 0, by: 1, hex: 3, k: 'gardens', paid: { wood: 2 } }]), null, 'paid, not a knight');
   assert.deepEqual(observe(c, devView(), 0, [{ type: 'defend', p: 0, by: 1, hex: 3, k: 'gardens' }]), ['defend']);
   assert.deepEqual(observe(c, devView({ built: { granary: 4, market: 9 } }), 0), ['build2']);
   assert.equal(missionState(c, 'build3').n, 2);
@@ -147,6 +162,21 @@ test('missions in a game: developing, the second level, a wonder begun and finis
   assert.deepEqual(claim(c, 'build2'), { coins: 100 });
   assert.ok(owns(c, 'shipyard'));
   assert.deepEqual(claim(c, 'level2'), { coins: 80 });
+  // (2026-11-18) the neutral buildings' missions: a discard on a 7, a card robbed, two stages of a
+  // wonder, four buildings in a game; three games of the mode (at their end)
+  assert.deepEqual(observe(c, devView(), 0, [{ type: 'discard', p: 1, count: 4 }]), null, "another's");
+  assert.deepEqual(observe(c, devView(), 0, [{ type: 'discard', p: 0, count: 4 }]), ['discard7']);
+  assert.deepEqual(observe(c, devView(), 0, [{ type: 'steal', p: 1, from: 0, res: null }]), ['robbed']);
+  assert.deepEqual(observe(c, devView({ wonders: [{ h: 3, k: 'gardens', p: 0, s: 2, done: false }] }), 0), ['stages2']);
+  assert.deepEqual(observe(c, devView({ built: { granary: 4, market: 9, smithy: 9, temple: 12 } }), 0), ['build3', 'build4']);
+  assert.deepEqual(claim(c, 'discard7'), { card: 'warehouse' });
+  assert.deepEqual(claim(c, 'robbed'), { card: 'temple' });
+  assert.deepEqual(claim(c, 'stages2'), { card: 'builders' });
+  assert.deepEqual(claim(c, 'build4'), { card: 'guildHall' });
+  for (let i = 0; i < 3; i++) gameOver(c, { gid: 'd' + i, mode: 'single', won: false }, devView(), 0, '2026-11-18');
+  assert.ok(missionState(c, 'devgames3').done);
+  assert.deepEqual(claim(c, 'devgames3'), { card: 'workshop' });
+  for (const k of ['warehouse', 'temple', 'builders', 'guildHall', 'workshop']) assert.ok(NEUTRAL.includes(k) && missionFor(k), k);
 });
 
 test('a finished game: coins for it, a win, an online room, the first of the day; counted once', () => {
@@ -230,7 +260,7 @@ test('blueprints kept to the cards owned (the basic cards are everyone\'s); a ne
   assert.deepEqual(c.fresh, []);
 });
 
-test('pace: the whole pack in about thirty draws (shards buy the last ones)', () => {
+test('pace: the whole pack (19 buildings and 5 wonders) in about 56 draws (shards buy the last ones)', () => {
   const r = rng(11);
   const runs = [];
   for (let n = 0; n < 2000; n++) {
@@ -251,7 +281,7 @@ test('pace: the whole pack in about thirty draws (shards buy the last ones)', ()
   runs.sort((x, y) => x - y);
   const median = runs[runs.length >> 1];
   console.log(`  the whole pack: ${median} draws (median), ${runs[Math.floor(runs.length * 0.9)]} for nine players in ten`);
-  assert.ok(median >= 25 && median <= 45, 'median ' + median);
+  assert.ok(median >= 50 && median <= 62, 'median ' + median);
   assert.ok(MISSIONS.every((m) => m.goal >= 1 && (m.reward.card || m.reward.coins > 0)));
 });
 

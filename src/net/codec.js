@@ -21,7 +21,10 @@ const LVL = { easy: 'e', normal: 'n', hard: 'x' };
 const LVL_R = { e: 'easy', n: 'normal', x: 'hard' };
 // (the development mode) each building in two letters, a resource in one
 // (the buildings, and the basic cards a blueprint holds: road, settlement, city, development card)
-const BLD = { aqueduct: 'aq', granary: 'gr', market: 'mk', shipyard: 'sy', guild: 'gu', barracks: 'br', wall: 'wl', mercenaries: 'mc', adventurers: 'ad', post: 'po', camp: 'ca', academy: 'ac', press: 'pr', gardens: 'hg', lighthouse: 'lh', greatWall: 'gw', royalRoad: 'rr', library: 'lb', road: 'rd', settlement: 'st', city: 'ct', dev: 'dv' };
+const BLD = { aqueduct: 'aq', granary: 'gr', market: 'mk', shipyard: 'sy', guild: 'gu', barracks: 'br', wall: 'wl', mercenaries: 'mc', adventurers: 'ad', post: 'po', camp: 'ca', academy: 'ac', press: 'pr', gardens: 'hg', lighthouse: 'lh', greatWall: 'gw', royalRoad: 'rr', library: 'lb', road: 'rd', settlement: 'st', city: 'ct', dev: 'dv',
+  // (2026-11-18)
+  farmstead: 'fs', homestead: 'hs', grange: 'gn', caravan: 'cv', harborOffice: 'ho', roadworks: 'rw', newTown: 'nt', townHall: 'th', governor: 'gv', lectureHall: 'le', scriptorium: 'sc', university: 'un',
+  warehouse: 'wh', countingHouse: 'ch', almshouse: 'al', smithy: 'sm', terraces: 'te', observatory: 'ob', watchtower: 'wt', temple: 'tp', builders: 'bu', garrison: 'ga', workshop: 'ws', guildHall: 'gh', monument: 'mo' };
 const BLD_R = Object.fromEntries(Object.entries(BLD).map(([k, v]) => [v, k]));
 const RCH = 'wblgo';
 const rch = (r) => RCH[RES.indexOf(r)];
@@ -34,7 +37,7 @@ export function bpDecode(code) {
   const bp = (code.match(/../g) || []).map((c) => BLD_R[c]);
   return validBlueprint(bp) ? bp : null;
 }
-const USED = { market: 'm', guild: 'g', road: 'r', library: 'l' };
+const USED = { market: 'm', guild: 'g', road: 'r', library: 'l', smithy: 's', observatory: 'o', almshouse: 'a', countingHouse: 'c' };
 const USED_R = Object.fromEntries(Object.entries(USED).map(([k, v]) => [v, k]));
 
 const resStr = (m) => RES.map((r) => (m && m[r]) || 0).join('.');
@@ -52,6 +55,19 @@ const resFull = (s) => {
   RES.forEach((r, i) => (o[r] = a[i] || 0));
   return o;
 };
+
+// (the development mode) how something built was paid when the smithy or a discount changed it:
+// [what was paid, the card left out, the card an ore stood for]
+const payOut = (e) => (e.paid ? [resStr(e.paid), e.skip ? rch(e.skip) : '', e.smith ? rch(e.smith) : ''] : []);
+function payIn(e, a, i) {
+  if (a[i] == null || a[i] === '') return e;
+  e.paid = resObj(a[i]);
+  if (a[i + 1]) e.skip = rOf(a[i + 1]);
+  if (a[i + 2]) e.smith = rOf(a[i + 2]);
+  return e;
+}
+const BONUS = { countingHouse: 'c', almshouse: 'a' };
+const BONUS_R = { c: 'countingHouse', a: 'almshouse' };
 
 // {seat: count} ↔ "seat.count,seat.count"
 const amountsStr = (m) => Object.entries(m).map(([q, n]) => `${q}.${n}`).join(',');
@@ -161,12 +177,13 @@ export function decodeSeats(a) {
 export function encodeEvent(e) {
   switch (e.type) {
     case 'roll':
-      return ['R', e.p, e.dice[0], e.dice[1]];
+      // (the observatory: a second roll)
+      return e.again ? ['R', e.p, e.dice[0], e.dice[1], 1] : ['R', e.p, e.dice[0], e.dice[1]];
     case 'produce':
       // (the development mode: a development's card comes from its hex, not an intersection)
       return ['P', e.sum, e.blocked, e.paid.map((c) => `${c.hex}.${c.vertex ?? -1}.${c.p}.${RES.indexOf(c.res)}.${c.amt}${c.plot ? '.1' : ''}`).join(','), e.shortages.map((s) => `${RES.indexOf(s.res)}.${s.partial ? 1 : 0}.${s.p ?? -1}.${s.got ?? 0}`).join(','), ...(e.gold ? [amountsStr(e.gold)] : [])];
     case 'build':
-      return ['B', e.p, e.what === 'ship' ? 'h' : e.what[0], e.vertex ?? e.edge, (e.setup ? 1 : 0) + (e.free ? 2 : 0) + (e.royal ? 4 : 0)];
+      return ['B', e.p, e.what === 'ship' ? 'h' : e.what[0], e.vertex ?? e.edge, (e.setup ? 1 : 0) + (e.free ? 2 : 0) + (e.royal ? 4 : 0), ...payOut(e)];
     case 'moveShip':
       return ['V', e.p, e.from, e.to];
     case 'pirate':
@@ -180,20 +197,21 @@ export function encodeEvent(e) {
     case 'startingResources':
       return e.camp ? ['S', e.p, e.vertex, resStr(e.gains), 1] : ['S', e.p, e.vertex, resStr(e.gains)];
     case 'buyDev':
-      return e.how || e.cost ? ['D', e.p, e.left, e.how === 'knight' ? 'k' : e.how === 'pick' ? 'p' : '', e.cost ? resStr(e.cost) : ''] : ['D', e.p, e.left];
+      return e.how || e.cost ? ['D', e.p, e.left, e.how === 'knight' ? 'k' : e.how === 'pick' ? 'p' : e.how === 'scriptorium' ? 's' : '', e.cost ? resStr(e.cost) : ''] : ['D', e.p, e.left];
     // ── the development mode ──
     case 'develop':
-      return ['dv', e.p, e.hex, rch(e.res), e.level, resStr(e.cost)];
+      return e.smith ? ['dv', e.p, e.hex, rch(e.res), e.level, resStr(e.cost), rch(e.smith)] : ['dv', e.p, e.hex, rch(e.res), e.level, resStr(e.cost)];
     case 'special':
-      return ['sp', e.p, BLD[e.k], e.vertex, e.res ? rch(e.res) : ''];
+      return ['sp', e.p, BLD[e.k], e.vertex, e.res ? rch(e.res) : '', ...payOut(e)];
     case 'wonder':
-      return ['wn', e.p, BLD[e.k], e.hex, e.stage];
+      return ['wn', e.p, BLD[e.k], e.hex, e.stage, ...payOut(e)];
     case 'wonderDone':
       return ['wd', e.p, BLD[e.k], e.hex];
     case 'siege':
       return ['sg', e.p, e.by, e.hex, BLD[e.k]];
     case 'defend':
-      return ['df', e.p, e.by, e.hex, BLD[e.k], e.knights];
+      // (the garrison: two cards instead of a knight)
+      return e.paid ? ['df', e.p, e.by, e.hex, BLD[e.k], e.knights, resStr(e.paid)] : ['df', e.p, e.by, e.hex, BLD[e.k], e.knights];
     case 'wonderLost':
       return ['wx', e.p, e.by, e.hex, BLD[e.k], e.stage, e.done ? 1 : 0];
     case 'market':
@@ -204,6 +222,18 @@ export function encodeEvent(e) {
       return ['aq', e.p, rch(e.res)];
     case 'devDraw':
       return ['dd', e.p, e.left, e.cost ? resStr(e.cost) : ''];
+    // (2026-11-18) a card from the bank (the counting house, the almshouse), the watchtower's toll, the
+    // caravanserai's trade, the warehouse, the deck shuffled anew
+    case 'bonus':
+      return ['bo', e.p, rch(e.res), BONUS[e.why] || ''];
+    case 'toll':
+      return ['tl', e.p, e.from];
+    case 'caravan':
+      return ['cv', e.p, e.give.map(rch).join(''), rch(e.get)];
+    case 'warehouse':
+      return ['wh', e.p, e.put, e.take, e.stored];
+    case 'devReshuffle':
+      return ['rs', e.left];
     case 'playDev':
       if (e.card === 'knight') return ['K', e.p, e.knights];
       if (e.card === 'roadBuilding') return ['W', e.p];
@@ -248,7 +278,7 @@ export function decodeEvent(a) {
   const k = a[0];
   switch (k) {
     case 'R':
-      return { type: 'roll', p: a[1], dice: [a[2], a[3]], sum: a[2] + a[3] };
+      return a[4] ? { type: 'roll', p: a[1], dice: [a[2], a[3]], sum: a[2] + a[3], again: true } : { type: 'roll', p: a[1], dice: [a[2], a[3]], sum: a[2] + a[3] };
     case 'P': {
       const paid = a[3]
         ? a[3].split(',').map((x) => {
@@ -272,7 +302,7 @@ export function decodeEvent(a) {
       if (a[4] & 4) e.royal = true;
       if (what === 'road' || what === 'ship') e.edge = a[3];
       else e.vertex = a[3];
-      return e;
+      return payIn(e, a, 5);
     }
     case 'V':
       return { type: 'moveShip', p: a[1], from: a[2], to: a[3] };
@@ -288,22 +318,22 @@ export function decodeEvent(a) {
       return a[4] ? { type: 'startingResources', p: a[1], vertex: a[2], gains: resFull(a[3]), camp: true } : { type: 'startingResources', p: a[1], vertex: a[2], gains: resFull(a[3]) };
     case 'D': {
       const e = { type: 'buyDev', p: a[1], left: a[2], card: null };
-      if (a[3]) e.how = a[3] === 'k' ? 'knight' : 'pick';
+      if (a[3]) e.how = a[3] === 'k' ? 'knight' : a[3] === 's' ? 'scriptorium' : 'pick';
       if (a[4]) e.cost = resObj(a[4]);
       return e;
     }
     case 'dv':
-      return { type: 'develop', p: a[1], hex: a[2], res: rOf(a[3]), level: a[4], cost: resObj(a[5]) };
+      return a[6] ? { type: 'develop', p: a[1], hex: a[2], res: rOf(a[3]), level: a[4], cost: resObj(a[5]), smith: rOf(a[6]) } : { type: 'develop', p: a[1], hex: a[2], res: rOf(a[3]), level: a[4], cost: resObj(a[5]) };
     case 'sp':
-      return a[4] ? { type: 'special', p: a[1], k: BLD_R[a[2]], vertex: a[3], res: rOf(a[4]) } : { type: 'special', p: a[1], k: BLD_R[a[2]], vertex: a[3] };
+      return payIn(a[4] ? { type: 'special', p: a[1], k: BLD_R[a[2]], vertex: a[3], res: rOf(a[4]) } : { type: 'special', p: a[1], k: BLD_R[a[2]], vertex: a[3] }, a, 5);
     case 'wn':
-      return { type: 'wonder', p: a[1], k: BLD_R[a[2]], hex: a[3], stage: a[4] };
+      return payIn({ type: 'wonder', p: a[1], k: BLD_R[a[2]], hex: a[3], stage: a[4] }, a, 5);
     case 'wd':
       return { type: 'wonderDone', p: a[1], k: BLD_R[a[2]], hex: a[3] };
     case 'sg':
       return { type: 'siege', p: a[1], by: a[2], hex: a[3], k: BLD_R[a[4]] };
     case 'df':
-      return { type: 'defend', p: a[1], by: a[2], hex: a[3], k: BLD_R[a[4]], knights: a[5] };
+      return a[6] ? { type: 'defend', p: a[1], by: a[2], hex: a[3], k: BLD_R[a[4]], knights: a[5], paid: resObj(a[6]) } : { type: 'defend', p: a[1], by: a[2], hex: a[3], k: BLD_R[a[4]], knights: a[5] };
     case 'wx':
       return { type: 'wonderLost', p: a[1], by: a[2], hex: a[3], k: BLD_R[a[4]], stage: a[5], done: !!a[6] };
     case 'mk':
@@ -320,6 +350,16 @@ export function decodeEvent(a) {
       if (a[3]) e.cost = resObj(a[3]);
       return e;
     }
+    case 'bo':
+      return { type: 'bonus', p: a[1], res: rOf(a[2]), why: BONUS_R[a[3]] };
+    case 'tl':
+      return { type: 'toll', p: a[1], from: a[2], res: null };
+    case 'cv':
+      return { type: 'caravan', p: a[1], give: [...String(a[2])].map(rOf), get: rOf(a[3]) };
+    case 'wh':
+      return { type: 'warehouse', p: a[1], put: a[2], take: a[3], stored: a[4] };
+    case 'rs':
+      return { type: 'devReshuffle', left: a[1] };
     case 'K':
       return { type: 'playDev', p: a[1], card: 'knight', knights: a[2] };
     case 'W':
@@ -383,6 +423,7 @@ export function privateDetails(events, seat) {
     // (the academy) the two cards drawn
     if (e.type === 'devDraw' && e.p === seat && e.cards) out.push([i, 'dd', e.cards.map((c) => DEV[c]).join('')]);
     if (e.type === 'steal' && (e.p === seat || e.from === seat) && e.res) out.push([i, 'T', RES.indexOf(e.res)]);
+    if (e.type === 'toll' && (e.p === seat || e.from === seat) && e.res) out.push([i, 'tl', RES.indexOf(e.res)]);
     if (e.type === 'discard' && e.p === seat) out.push([i, 'd', resStr(e.cards)]);
   });
   return out;
@@ -401,6 +442,8 @@ export function encodePublic(st) {
     // (the development mode) a wonder's owner to answer the robber; the academy's choice
     else if (pd.type === 'defend') pend = ['f', pd.p, pd.hex, pd.by, pd.reason === 'knight' ? 'k' : 's'];
     else if (pd.type === 'pick') pend = ['k', pd.p];
+    // (the observatory) the roller to say whether to roll again
+    else if (pd.type === 'reroll') pend = ['o', pd.p, pd.sum];
   }
   const t = st.trade;
   const trade = t ? [t.id, t.from, resStr(t.give), resStr(t.get), Object.entries(t.resp).map(([q, r]) => `${q}${r === 'yes' ? 'y' : r === 'no' ? 'n' : r === 'lack' ? 'l' : 'w'}`).join('.')] : 0;
@@ -458,7 +501,10 @@ export function encodePublic(st) {
       // the ruins of wonders destroyed (hex.kind)
       (st.ruins || []).map((r) => r.h + '.' + BLD[r.k]).join(','),
     ];
-    pub.db = st.players.map((p) => [Object.entries(p.built || {}).map(([k, v]) => BLD[k] + v).join('.'), p.yard ? rch(p.yard) : '', p.bought || 0]);
+    // (2026-11-18) the cards played this turn ('k': one a knight), the played ones to go back in the deck
+    if (st.devDiscard) pub.dv.push(`${st.devPlays || 0}${st.knightPlayed ? 'k' : ''}`, st.devDiscard.length);
+    // (and each seat's: development cards taken, cards in a warehouse; -1 none)
+    pub.db = st.players.map((p) => [Object.entries(p.built || {}).map(([k, v]) => BLD[k] + v).join('.'), p.yard ? rch(p.yard) : '', p.bought || 0, p.devGot ?? -1, p.store ? RES.reduce((n, r) => n + p.store[r], 0) : -1]);
   }
   return pub;
 }
@@ -468,6 +514,8 @@ export function encodePrivate(st, seat) {
   const out = { r: resStr(p.res), d: p.dev.map((c) => DEV[c.type] + c.turn).join(',') };
   // (the academy) the two cards to keep one of
   if (p.pick) out.k = p.pick.map((c) => DEV[c]).join('');
+  // (the warehouse) the cards put away
+  if (p.store) out.s = resStr(p.store);
   return out;
 }
 
@@ -496,6 +544,7 @@ export function decodeView(board, seats, pub, priv, seat) {
     else if (k === 'g') pending = { type: 'gold', amounts: amountsObj(a) };
     else if (k === 'f') pending = { type: 'defend', p: a, hex: b, by: pub.pd[3], reason: pub.pd[4] === 'k' ? 'knight' : 'seven' };
     else if (k === 'k') pending = { type: 'pick', p: a };
+    else if (k === 'o') pending = { type: 'reroll', p: a, sum: b };
   }
   let trade = null;
   if (pub.tr) {
@@ -606,6 +655,12 @@ export function decodeView(board, seats, pub, priv, seat) {
           })
           .filter((r) => r.k)
       : [];
+    if (pub.dv[4] != null) {
+      view.devPlays = parseInt(pub.dv[4], 10) || 0;
+      view.knightPlayed = String(pub.dv[4]).endsWith('k');
+      view.devDiscard = null;
+      view.devDiscardCount = Number(pub.dv[5]) || 0;
+    }
   }
   // (the fog islands) the hexes found so far, on this page's own copy of the board
   if (pub.fg != null) {
@@ -653,6 +708,8 @@ export function encodeFull(st) {
     sd: st.seed >>> 0,
     // (the fog islands) what the fog still hides, and its numbers
     ...(st.fog ? { fo: [st.fog.pool.map((t) => TER[t]).join(''), st.fog.numbers.join('.')] } : {}),
+    // (the development mode) the played cards to go back in the deck
+    ...(st.devDiscard ? { dx: st.devDiscard.map((t) => DEV[t]).join('') } : {}),
   };
 }
 
@@ -672,7 +729,17 @@ export function decodeFull(board, seats, pub, full) {
       knights: p.knights,
       pieces: p.pieces,
       ...(p.chits != null ? { chits: p.chits, isles: p.isles, home: p.home } : {}),
-      ...(p.bp ? { bp: p.bp, built: p.built, bought: p.bought, ...(p.yard ? { yard: p.yard } : {}), ...(pr.k ? { pick: [...pr.k].map((c) => DEV_R[c]) } : {}) } : {}),
+      ...(p.bp
+        ? {
+            bp: p.bp,
+            built: p.built,
+            bought: p.bought,
+            ...(p.yard ? { yard: p.yard } : {}),
+            ...(pr.k ? { pick: [...pr.k].map((c) => DEV_R[c]) } : {}),
+            ...(p.devGot != null ? { devGot: p.devGot } : {}),
+            ...(p.storeCount != null ? { store: resFull(pr.s || '') } : {}),
+          }
+        : {}),
     };
   });
   const st = { ...v, players, devDeck: [...String(full.d || '')].map((c) => DEV_R[c]), rng: Array.isArray(full.g) ? full.g.slice() : null, seed: full.sd >>> 0 };
@@ -682,17 +749,26 @@ export function decodeFull(board, seats, pub, full) {
   if (st.map && !isBuiltIn(st.map)) st.mapDef = mapDef(st.map);
   delete st.viewer;
   delete st.devDeckCount;
+  // (the development mode) the played cards to go back in the deck
+  if (full.dx != null) st.devDiscard = [...String(full.dx)].map((c) => DEV_R[c]);
+  delete st.devDiscardCount;
   return st;
 }
 
 // (the development mode) a seat's blueprint (from the seats), buildings, shipyard resource and cards
 // bought; the academy's two cards for their owner (null for the others while they choose)
 function developSeat(s, row, priv, mine) {
-  const [built, yard, bought] = row || ['', '', 0];
+  const [built, yard, bought, got, stored] = row || ['', '', 0];
   const out = { bp: s.bp || [], built: {}, bought: Number(bought) || 0 };
   if (built) for (const x of String(built).split('.')) out.built[BLD_R[x.slice(0, 2)]] = Number(x.slice(2));
   if (yard) out.yard = rOf(yard);
   if (priv && priv.k) out.pick = [...priv.k].map((c) => DEV_R[c]);
+  // (2026-11-18) the cards taken; the warehouse: how many for all, which for its owner
+  if (got != null && got >= 0) out.devGot = Number(got);
+  if (stored != null && stored >= 0) {
+    out.storeCount = Number(stored);
+    out.store = priv && priv.s != null ? resFull(priv.s) : null;
+  }
   return out;
 }
 
@@ -703,6 +779,7 @@ export function applyPrivateDetails(events, details) {
     if (k === 'D' && e.type === 'buyDev') e.card = DEV_R[v];
     if (k === 'dd' && e.type === 'devDraw') e.cards = [...String(v)].map((c) => DEV_R[c]);
     if (k === 'T' && e.type === 'steal') e.res = RES[v];
+    if (k === 'tl' && e.type === 'toll') e.res = RES[v];
     if (k === 'd' && e.type === 'discard') e.cards = resObj(v);
   }
   return events;
@@ -741,6 +818,15 @@ export function sanitizeAction(a, seat, types) {
   if (a.i === 0 || a.i === 1) out.i = a.i;
   if (a.how === 'knight' || a.how === 'pick') out.how = a.how;
   if (typeof a.lib === 'string' && RES_SET.includes(a.lib)) out.lib = a.lib;
+  // (2026-11-18) the card left out, the card an ore stands for, a card from the bank (the counting
+  // house at the turn's end, the almshouse at the roll), the caravanserai's two, the warehouse,
+  // the garrison's two
+  for (const k of ['skip', 'sub', 'bonus', 'alms']) if (typeof a[k] === 'string' && RES_SET.includes(a[k])) out[k] = a[k];
+  if (a.type === 'caravan') {
+    out.give = Array.isArray(a.give) ? a.give.filter((r) => RES_SET.includes(r)).slice(0, 3) : [];
+    if (typeof a.get === 'string') out.get = a.get;
+  }
+  for (const k of ['put', 'take', 'pay']) if (a[k] && typeof a[k] === 'object' && !Array.isArray(a[k])) out[k] = resMap(a[k]);
   return out;
 }
 

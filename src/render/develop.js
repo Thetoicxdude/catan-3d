@@ -35,7 +35,7 @@ const FAC_R = 4.6;
 // how far a building stands from its settlement's corner (a city is wider)
 const ANNEX_D = { s: 2.35, c: 2.95 };
 // how much of the scenery each kind of thing clears
-const CLEAR = { annex: 1.05, plot1: 1.6, plot2: 2.4, wonder: 4.4 };
+const CLEAR = { annex: 1.05, plot1: 1.6, plot2: 2.4, plot3: 2.8, wonder: 4.4 };
 // how long things take (s)
 const RISE = { annex: 0.45, plot: 0.45, wonder: 0.6 };
 const SETTLE = 0.32;
@@ -132,10 +132,10 @@ export class DevelopLayer {
         x,
         z,
         ry: Math.atan2(g.x - x, g.z - z),
-        clear: lv > 1 ? CLEAR.plot2 : CLEAR.plot1,
+        clear: lv > 2 ? CLEAR.plot3 : lv > 1 ? CLEAR.plot2 : CLEAR.plot1,
         badge: {
           html: `<span class="dvb-res">${pt.r.map((r) => resIcon(r, 18)).join('')}</span>`,
-          title: t('{lv}開發（{who}）', { lv: lv > 1 ? t('二級') : t('一級'), who: players[pt.p] ? players[pt.p].name : '' }),
+          title: t('{lv}開發（{who}）', { lv: lv > 2 ? t('三級') : lv > 1 ? t('二級') : t('一級'), who: players[pt.p] ? players[pt.p].name : '' }),
           color: color(pt.p),
           cls: 'dv-badge plot lv' + lv,
         },
@@ -343,7 +343,7 @@ export class DevelopLayer {
       const g = GEO.hexes[id];
       const x = g.x + Math.cos(FAC_A) * FAC_R;
       const z = g.z + Math.sin(FAC_A) * FAC_R;
-      return { kind: 'plot', make: make('f', H.terrain, lv), x, z, ry: Math.atan2(g.x - x, g.z - z), clear: lv > 1 ? CLEAR.plot2 : CLEAR.plot1 };
+      return { kind: 'plot', make: make('f', H.terrain, lv), x, z, ry: Math.atan2(g.x - x, g.z - z), clear: lv > 2 ? CLEAR.plot3 : lv > 1 ? CLEAR.plot2 : CLEAR.plot1 };
     }
     if (spec.what === 'wonder' && spec.k) {
       const g = GEO.hexes[id];
@@ -575,15 +575,19 @@ export function annexSpots(state, v, ks, land, coastAt) {
   });
   const angles = dirs.map((x) => x.a);
   if (!angles.length) angles.push(Math.PI / 2);
-  // (a coast with one land corner: two buildings share it, a little apart)
+  // (a coast with one land corner: two buildings share it, a little apart; a third, with a town hall,
+  // stands further out between them)
+  const far = [];
   if (rest.length > angles.length) {
     const a = angles[0];
     angles.splice(0, 1, a - 0.45, a + 0.45);
+    if (rest.length > angles.length) far.push(a);
   }
   rest.forEach((i, n) => {
-    const a = angles[n];
+    const a = n < angles.length ? angles[n] : far[n - angles.length];
     if (a == null) return;
-    out[i] = { x: g.x + Math.cos(a) * d, z: g.z + Math.sin(a) * d, ry: Math.atan2(Math.cos(a), Math.sin(a)) };
+    const r = n < angles.length ? d : d * 1.55;
+    out[i] = { x: g.x + Math.cos(a) * r, z: g.z + Math.sin(a) * r, ry: Math.atan2(Math.cos(a), Math.sin(a)) };
   });
   return out;
 }

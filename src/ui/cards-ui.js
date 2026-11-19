@@ -11,11 +11,11 @@
 // (cardDetail), where the resources are large enough to read.
 // host (the page shell): mount(el) puts the page's body in place; bals() is where the coins and shards
 // are shown (filled by the page that counts them); go(page, opts) goes to another page.
-import { BUILDINGS, DIR_NAMES, BLUEPRINT_SIZE, WONDER_VP, SCORE_VP, BASIC_NAMES, isWonder, isBasic } from '../engine/develop.js';
+import { BUILDINGS, DIR_NAMES, BLUEPRINT_SIZE, WONDER_VP, SCORE_VP, BASIC_NAMES, isWonder, isBasic, funcVP } from '../engine/develop.js';
 import { COSTS } from '../engine/engine.js';
-import { POOL, MISSIONS, STARTER, DRAW_COST, DRAW10_COST, COINS, RARITIES, ALL_CARDS, rarityOf, owns, ownedBlueprint, missionFor, missionOf, missionState, claim, claimable, draw, buy, priceOf, dupShards, chanceOf, seen, slotNew } from '../meta/collection.js';
+import { POOL, NEUTRAL, MISSIONS, STARTER, DRAW_COST, DRAW10_COST, COINS, RARITIES, ALL_CARDS, rarityOf, owns, ownedBlueprint, missionFor, missionOf, missionState, claim, claimable, draw, buy, priceOf, paidIn, dupShards, chanceOf, seen, slotNew } from '../meta/collection.js';
 import { cards as collection, commit, onCards } from '../meta/store.js';
-import { DIR_COLOR, BUILDING_TEXT, buildingName, blueprintName } from './develop-ui.js';
+import { DIR_COLOR, BUILDING_TEXT, buildingName, blueprintName, pointsText } from './develop-ui.js';
 import { buildingIcon, icon, resIcon, RES_NAMES } from './icons.js';
 import { fly, burst, count, pop, stamp, shake, fadeIn, whenShown, EASE, reduced } from './motion.js';
 import { sfx } from './sfx.js';
@@ -111,7 +111,9 @@ const CARD_BACK =
 function ptsShort(k) {
   if (isBasic(k)) return k === 'settlement' ? '1' : k === 'city' ? '2' : '';
   const kind = BUILDINGS[k].kind;
-  return kind === 'wonder' ? String(WONDER_VP) : kind === 'score' ? '+' + SCORE_VP : '1';
+  // (the guild hall: a point for every three special buildings)
+  if (k === 'guildHall') return '+1';
+  return kind === 'wonder' ? String(WONDER_VP) : kind === 'score' ? '+' + SCORE_VP : String(funcVP(k));
 }
 const kindLine = (k) => (isBasic(k) ? t('基本卡') : `${t(DIR_NAMES[BUILDINGS[k].dir])}・${t(KIND[BUILDINGS[k].kind])}`);
 
@@ -149,7 +151,7 @@ function costBig(cost) {
 export function cardDetail(k, { on = false, locked = false } = {}) {
   const b = BUILDINGS[k];
   const r = rarityOf(k);
-  const pts = isBasic(k) ? (k === 'settlement' ? t('{n} 分', { n: 1 }) : k === 'city' ? t('{n} 分', { n: 2 }) : '') : b.kind === 'wonder' ? t('完工 {n} 分', { n: WONDER_VP }) : k === 'adventurers' ? t('持有最大騎士團時 +{n}', { n: SCORE_VP }) : k === 'post' ? t('持有最長道路時 +{n}', { n: SCORE_VP }) : t('{n} 分', { n: 1 });
+  const pts = isBasic(k) ? (k === 'settlement' ? t('{n} 分', { n: 1 }) : k === 'city' ? t('{n} 分', { n: 2 }) : '') : pointsText(k);
   const cost = isBasic(k)
     ? costBig(COSTS[k])
     : b.kind === 'wonder'
@@ -171,9 +173,14 @@ function howToGet(c, k) {
   const m = missionFor(k);
   if (m) {
     const s = missionState(c, m.id);
-    return { text: t('任務：{m}（{n}/{goal}）', { m: t(m.text), n: s.n, goal: s.goal }), tab: 'missions' };
+    const text = t('任務：{m}（{n}/{goal}）', { m: t(m.text), n: s.n, goal: s.goal });
+    // (a neutral building: the shop sells it too)
+    if (NEUTRAL.includes(k)) return { text: text + t('；也可以在商店用 {n} 金幣購買', { n: priceOf(k) }), tab: 'missions' };
+    return { text, tab: 'missions' };
   }
   if (POOL.includes(k)) return { text: t('抽卡可以抽到（每次 {p}%），也可以在商店用 {n} 碎片兌換', { p: (chanceOf(k) * 100).toFixed(1), n: priceOf(k) }), tab: 'draw' };
+  // (a neutral building: the shop's, for coins)
+  if (NEUTRAL.includes(k)) return { text: t('中立建築：在商店用 {n} 金幣購買', { n: priceOf(k) }), tab: 'shop' };
   return { text: isBasic(k) ? t('基本卡：每位玩家都有') : t('一開始就有'), tab: null };
 }
 
@@ -364,7 +371,7 @@ export function cardsPage(host, settings, save) {
     if (!owns(c, k)) {
       const how = howToGet(c, k);
       acts.appendChild(el('p', 'cp-how', `<span>${esc(how.text)}</span>`));
-      if (how.tab && host.go) acts.appendChild(btn(how.tab === 'missions' ? esc(t('看任務')) : esc(t('去抽卡')), '', () => host.go(how.tab === 'missions' ? 'missions' : 'shop', { tab: 'draw' })));
+      if (how.tab && host.go) acts.appendChild(btn(how.tab === 'missions' ? esc(t('看任務')) : how.tab === 'shop' ? esc(t('去商店')) : esc(t('去抽卡')), '', () => host.go(how.tab === 'missions' ? 'missions' : 'shop', { tab: how.tab === 'shop' ? 'shop' : 'draw' })));
     } else if (bp.includes(k)) {
       acts.appendChild(
         btn(esc(t('拿出藍圖')), '', () => {
@@ -478,8 +485,8 @@ function wallet(host, c) {
 }
 
 // the pack's cards of one rarity under its gem and name, and a word on them (the draw's list, the shop)
-const tier = (r, face, note) =>
-  `<section class="sp-tier r-${r}"><div class="sp-tierhead">${rarityTag(r)}<small>${esc(note)}</small></div><div class="cc-grid shop">${POOL.filter((k) => rarityOf(k) === r).map(face).join('')}</div></section>`;
+const tier = (r, face, note, cards = POOL, head = '') =>
+  `<section class="sp-tier r-${r}${head ? ' neutral' : ''}"><div class="sp-tierhead">${head || rarityTag(r)}<small>${esc(note)}</small></div><div class="cc-grid shop">${cards.filter((k) => rarityOf(k) === r).map(face).join('')}</div></section>`;
 
 // a new card goes into the blueprint in use when that has room
 function keeper(settings, save) {
@@ -609,32 +616,37 @@ export function shopPage(host, opts = {}) {
     setTimeout(() => skip.isConnected && skip.remove(), end + 300);
   };
 
-  // the shop: the cards of the pack for shards, by rarity
+  // the shop: the neutral buildings for coins (2026-11-18), then the cards of the pack for shards, by
+  // rarity
   const paintShop = (box) => {
-    box.innerHTML = `<p class="sp-lead">${esc(t('用抽到重複卡換來的碎片，兌換指定的卡。'))}</p>${['epic', 'legendary'].map((r) => tier(r, () => '', t('每張 {n} 碎片', { n: priceOf(POOL.find((k) => rarityOf(k) === r)) }))).join('')}`;
-    for (const k of POOL) {
-      const grid = box.querySelector(`.sp-tier.r-${rarityOf(k)} .cc-grid`);
+    const neutralHead = `<span class="rar r-rare">${gemSvg('rare')}<span>${esc(t('中立建築'))}</span></span>`;
+    box.innerHTML = `<p class="sp-lead">${esc(t('中立建築用金幣購買；卡包裡的卡用抽到重複卡換來的碎片兌換。'))}</p>${tier('rare', () => '', t('沒有建設條件，任何藍圖都能放；每張 {n} 金幣', { n: priceOf(NEUTRAL[0]) }), NEUTRAL, neutralHead)}${['epic', 'legendary'].map((r) => tier(r, () => '', t('每張 {n} 碎片', { n: priceOf(POOL.find((k) => rarityOf(k) === r)) }))).join('')}`;
+    for (const k of [...NEUTRAL, ...POOL]) {
+      const coins = paidIn(k) === 'coins';
+      const grid = box.querySelector(coins ? '.sp-tier.neutral .cc-grid' : `.sp-tier.r-${rarityOf(k)}:not(.neutral) .cc-grid`);
       const cell = el('div', 'sp-item' + (owns(c, k) ? ' owned' : ''), cardFace(k, { locked: !owns(c, k) }));
       if (owns(c, k)) cell.appendChild(el('span', 'sp-owned', esc(t('已擁有'))));
       else {
-        const b = btn(`${esc(t('兌換'))}${shardHtml(priceOf(k))}`, 'sp-trade', () => {
+        const b = btn(coins ? `${esc(t('購買'))}${coinHtml(priceOf(k))}` : `${esc(t('兌換'))}${shardHtml(priceOf(k))}`, 'sp-trade', () => {
           const r = buy(c, k);
           if (r.error) note = t(r.error);
           else {
-            note = gained(k) ? t('換到{name}，已放進藍圖', { name: buildingName(k) }) : t('換到{name}', { name: buildingName(k) });
+            // (bought with coins, or traded for shards)
+            if (coins) note = gained(k) ? t('買到{name}，已放進藍圖', { name: buildingName(k) }) : t('買到{name}', { name: buildingName(k) });
+            else note = gained(k) ? t('換到{name}，已放進藍圖', { name: buildingName(k) }) : t('換到{name}', { name: buildingName(k) });
             commit();
           }
           render();
           if (r.error) return;
-          // the shards counted off, the card stamped as owned
-          settle('shards');
+          // the coins or shards counted off, the card stamped as owned
+          settle(coins ? 'coins' : 'shards');
           const card = body.querySelector(`.sp-item .cc[data-k="${k}"]`);
           if (card) {
             pop(card, { scale: 1.08 });
             stamp(card.parentElement.querySelector('.sp-owned'));
           }
         });
-        b.disabled = c.shards < priceOf(k);
+        b.disabled = (coins ? c.coins : c.shards) < priceOf(k);
         cell.appendChild(b);
       }
       grid.appendChild(cell);

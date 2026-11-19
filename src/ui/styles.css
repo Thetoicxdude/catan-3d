@@ -98,6 +98,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .stat .n { font-family: var(--font-num); font-weight: 700; font-size: 20px; color: var(--ink); }
 .stat.vp .n { color: var(--brass-hi); font-size: 24px; }
 .stat.vp small { font-family: var(--font-num); font-size: 14px; color: var(--ink-faint); }
+.stat[hidden] { display: none; }
 .tb-spacer { flex: 1; min-width: 0; }
 .tb-right { display: flex; align-items: center; gap: 8px; flex: none; }
 .turn-box { text-align: right; line-height: 1.15; }
@@ -291,6 +292,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .log-body p.hl { color: var(--ink); }
 .log-body .who { font-weight: 700; }
 .log-body .t { font-family: var(--font-num); color: var(--ink-faint); margin-right: 4px; }
+.log-body .lg-note { color: var(--ink-faint); font-size: 11.5px; }
 .log.collapsed .log-body { display: none; }
 /* tabs: 戰報 / 聊天 (the chat tab only in online games) */
 .log-head { padding: 2px 6px 0 6px; letter-spacing: 0; }
