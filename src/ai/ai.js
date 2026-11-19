@@ -519,7 +519,8 @@ function specialValue(view, p, k, v, weights, stage) {
     case 'caravan':
       return 1.2;
     case 'roadworks':
-      return 1.0 + (me.pieces.roads <= 3 ? 0.35 : 0);
+      // (a card less for the turn's first road; ten more roads for a nation running short)
+      return 1.1 + (me.bp.includes('post') || view.longestRoad === p ? 0.15 : 0) + (me.pieces.roads <= 3 ? 0.35 : 0);
     case 'newTown':
       return 1.0 + (me.pieces.settlements <= 1 ? 0.35 : 0) + (me.pieces.cities <= 1 ? 0.3 : 0);
     case 'townHall': {

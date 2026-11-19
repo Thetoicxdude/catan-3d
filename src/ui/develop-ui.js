@@ -32,11 +32,11 @@ export const BUILDING_TEXT = {
   library: { cond: N_('沙漠的路口上要有你的村莊或城市'), fx: N_('每回合一次，用任意 1 張資源買 1 張發展卡') },
   // (2026-11-18) the directions': each lifts a limit of the rules
   farmstead: { cond: N_('所附的聚落是城市'), fx: N_('這座城市相鄰的開發地塊可以升到三級，每次產出再多拿 1 張') },
-  homestead: { cond: N_('你至少有 2 個開發'), fx: N_('旁邊有你道路的地塊也能開發，不需要聚落') },
+  homestead: { cond: N_('你至少有 1 個開發'), fx: N_('旁邊有你道路的地塊也能開發，不需要聚落') },
   grange: { cond: N_('你至少有 1 個二級開發'), fx: N_('計分建築：開發數最多（至少 3 個，平手也算）時 +3') },
   caravan: { cond: N_('所附的聚落不在海岸邊'), fx: N_('在你的回合用 2 張不同的資源向銀行換 1 張任意資源，次數不限') },
-  harborOffice: { cond: N_('你至少有 2 個港口（造船廠也算）'), fx: N_('計分建築：港口數最多（至少 3 個，造船廠也算，平手也算）時 +3') },
-  roadworks: { cond: N_('你已經有 15 條道路'), fx: N_('道路上限 +10') },
+  harborOffice: { cond: N_('你至少有 1 個港口（造船廠也算）'), fx: N_('計分建築：港口數最多（至少 2 個，造船廠也算，平手也算）時 +3') },
+  roadworks: { cond: N_('你至少有 8 條道路'), fx: N_('道路上限 +10；每回合第一條道路少付 1 張') },
   newTown: { cond: N_('你場上至少有 5 座村莊或城市'), fx: N_('村莊、城市的上限各 +2') },
   townHall: { cond: N_('所附的聚落是城市'), fx: N_('你的每座聚落多附 1 座特殊建築（村莊 2 座、城市 3 座）') },
   governor: { cond: N_('你至少有 3 座村莊'), fx: N_('計分建築：場上村莊數最多（至少 4 座，不算城市，平手也算）時 +3') },
@@ -55,7 +55,7 @@ export const BUILDING_TEXT = {
   builders: { cond: N_('附在你的一座聚落旁'), fx: N_('你的奇觀每個階段少付 1 張，少付哪張自己選') },
   garrison: { cond: N_('附在你的一座聚落旁'), fx: N_('你的奇觀被強盜攻擊時，也可以改付 2 張任意資源防衛') },
   workshop: { cond: N_('附在你的一座聚落旁'), fx: N_('你蓋特殊建築時少付 1 張，少付哪張自己選') },
-  guildHall: { cond: N_('附在你的一座聚落旁'), fx: N_('沒有基本分；你每有 3 座特殊建築（含這座）+1 分') },
+  guildHall: { cond: N_('附在你的一座聚落旁'), fx: N_('沒有基本分；你每有 2 座特殊建築（含這座）+1 分') },
   monument: { cond: N_('附在你的一座聚落旁'), fx: N_('2 分，沒有其他效果') },
 };
 // the development (not a building of the blueprints: everyone may build it)

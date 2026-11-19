@@ -61,7 +61,9 @@ export const BUILDINGS = {
   // (4 cards, one less than the functional ones: away from the coast its trade is the only good rate,
   // and 3000 games put it 4.6 points below the rest at 5; its trade, see CARAVAN_GIVE)
   caravan: { dir: 'trade', kind: 'func', cost: { wood: 1, wool: 1, grain: 1, ore: 1 } },
-  harborOffice: { dir: 'trade', kind: 'score', cost: { wood: 2, brick: 1, wool: 2, ore: 1 } },
+  // (7 cards, one more than the scoring ones: from one harbor, and +3 from two, 3000 games put it 4.7
+  // points above the rest at 6; 2026-11-19)
+  harborOffice: { dir: 'trade', kind: 'score', cost: { wood: 2, brick: 1, wool: 2, ore: 2 } },
   roadworks: { dir: 'frontier', kind: 'func', cost: { wood: 2, brick: 2, ore: 1 } },
   newTown: { dir: 'frontier', kind: 'func', cost: { wood: 1, brick: 2, wool: 1, grain: 1 } },
   townHall: { dir: 'frontier', kind: 'func', cost: { brick: 2, grain: 1, ore: 2 } },
@@ -194,13 +196,20 @@ export const funcVP = (k) => (BUILDINGS[k].vp !== undefined ? BUILDINGS[k].vp : 
 export const WONDER_VP = 5;
 export const SCORE_VP = 3;
 // the scoring buildings of 2026-11-18: the most of something, with at least this many (a tie for
-// the most counts: nobody has more)
-export const MOST_MIN = { grange: 3, harborOffice: 3, governor: 4, university: 5 };
-// the guild hall: a point for every three special buildings (itself among them)
-export const GUILD_HALL_PER = 3;
+// the most counts: nobody has more). (2026-11-19: the harbor office's 3 → 2: a nation in thirty had
+// three harbors, and the building stood in one game in eight where it was brought)
+export const MOST_MIN = { grange: 3, harborOffice: 2, governor: 4, university: 5 };
+// the guild hall: a point for every two special buildings (itself among them). (2026-11-19: the
+// proposal's three were more than a blueprint of 7 with its 4 basic cards holds, and it was built in
+// one game in twenty where it was brought)
+export const GUILD_HALL_PER = 2;
 // the warehouse holds this many cards; the road bureau adds roads, the new town settlements and cities
 export const STORE_MAX = 3;
 export const ROADWORKS_ROADS = 10;
+// the road bureau is built once p has this many roads, and pays a card less for p's first road each
+// turn. (2026-11-19: the proposal's 15 roads came in one game in twelve, and its 10 more roads hardly
+// ever mattered: a nation ends a game with about 10 of its 25.)
+export const ROADWORKS_MIN = 8;
 export const NEW_TOWN_PIECES = 2;
 // the royal road, complete: its free roads need room (2026-11-18)
 export const ROYAL_ROADS = 10;
@@ -410,10 +419,11 @@ export function specialWhy(st, p, k) {
   if (k === 'post' && !(st.roadLen && st.roadLen[p] >= 5)) return N_('你的最長道路要至少 5 條');
   if (k === 'academy' && (pl.bought || 0) < 2) return N_('你要先買過 2 張發展卡');
   // (2026-11-18)
-  if (k === 'homestead' && plotCount(st, p) < 2) return N_('你要先有 2 個開發');
+  // (2026-11-19: two developments → one: half the nations end a game with none)
+  if (k === 'homestead' && plotCount(st, p) < 1) return N_('你要先有 1 個開發');
   if (k === 'grange' && !(st.plots || []).some((x) => x && x.p === p && x.r.length >= 2)) return N_('你要先有 1 個二級開發');
-  if (k === 'harborOffice' && harborCount(st, p) < 2) return N_('你要先有 2 個港口（造船廠也算）');
-  if (k === 'roadworks' && roadCount(st, p) < 15) return N_('你要先有 15 條道路');
+  if (k === 'harborOffice' && harborCount(st, p) < 1) return N_('你要先有 1 個港口（造船廠也算）');
+  if (k === 'roadworks' && roadCount(st, p) < ROADWORKS_MIN) return N_('你要先有 8 條道路');
   if (k === 'newTown' && settlementCount(st, p) < 5) return N_('你場上要先有 5 座村莊或城市');
   if (k === 'governor' && villageCount(st, p) < 3) return N_('你要先有 3 座村莊');
   if (k === 'lectureHall' && devPlayedOf(st, p) < 2) return N_('你要先打出過 2 張發展卡');
@@ -577,16 +587,19 @@ export function developVP(st, p) {
 // ── paying (2026-11-18) ──
 // What p pays for `cost` now, or null when p cannot: the apprentice workshop (a special building) and
 // the builders' yard (a wonder's stage) leave out one card, `skip`, chosen by the player (or else the
-// first the hand lacks, or the first of the cost); the smithy, once a turn, takes an ore for one card
-// the hand still lacks (or for `sub`, when asked). kind: 'special' | 'wonder' | anything else (roads,
-// settlements, cities, developments: only the smithy).
+// first the hand lacks, or the first of the cost); the road bureau (2026-11-19) leaves one out of the
+// turn's first road the same way (the plan says `works`: payPlan marks it used); the smithy, once a
+// turn, takes an ore for one card the hand still lacks (or for `sub`, when asked). kind: 'special' |
+// 'wonder' | 'road' | anything else (settlements, cities, developments: only the smithy).
 export function payFor(st, p, cost, kind, { skip, sub } = {}) {
   const pl = st.players[p];
   const res = pl.res;
   if (!res || !cost) return null;
   let c = { ...cost };
   let skipped = null;
-  const discount = (kind === 'special' && hasBuilt(st, p, 'workshop')) || (kind === 'wonder' && hasBuilt(st, p, 'builders'));
+  // (the road bureau: the first road of the turn, a card less)
+  const works = kind === 'road' && hasBuilt(st, p, 'roadworks') && !(st.used && st.used.roadworks);
+  const discount = (kind === 'special' && hasBuilt(st, p, 'workshop')) || (kind === 'wonder' && hasBuilt(st, p, 'builders')) || works;
   if (discount) {
     // (not chosen: the card the hand lacks, or else the one it would have the fewest of left)
     const lack = RES.find((r) => (c[r] || 0) > res[r]);
@@ -606,7 +619,7 @@ export function payFor(st, p, cost, kind, { skip, sub } = {}) {
   }
   for (const r of RES) if ((c[r] || 0) > res[r]) return null;
   for (const r of RES) if (!c[r]) delete c[r];
-  return { cost: c, skip: skipped, smith };
+  return { cost: c, skip: skipped, smith, ...(works && skipped ? { works: true } : {}) };
 }
 
 // the granary raises its owner's hand limit for a 7 by three (7 → 10)

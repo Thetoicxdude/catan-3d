@@ -701,19 +701,20 @@ export class Hud {
     const freeR = !!pl && freeRoad(v, me);
     // (the development mode: a basic card left out of the blueprint is never paid for this game)
     const card = (k) => !pl || hasBasic(v, me, k);
-    const okRoad = free && v.rolled && pl.pieces.roads > 0 && (freeR || (card('road') && !!plan(COSTS.road))) && roads > 0;
+    const okRoad = free && v.rolled && pl.pieces.roads > 0 && (freeR || (card('road') && !!plan(COSTS.road, 'road'))) && roads > 0;
     const okSet = free && v.rolled && card('settlement') && pl.pieces.settlements > 0 && !!plan(COSTS.settlement) && setts > 0;
     const okCity = free && v.rolled && card('city') && pl.pieces.cities > 0 && !!plan(COSTS.city) && cities > 0;
-    // (the smithy: the cost as it will be paid, an ore for the card the hand lacks)
+    // (the smithy: the cost as it will be paid, an ore for the card the hand lacks; the road bureau: a
+    // card less for the turn's first road)
     this.plans = {};
     if (pl && developOn(v)) for (const k of ['road', 'settlement', 'city']) {
-      const pr = plan(COSTS[k]);
-      if (pr && pr.smith) this.plans[k] = pr;
+      const pr = plan(COSTS[k], k === 'road' ? 'road' : 'build');
+      if (pr && (pr.smith || pr.skip)) this.plans[k] = pr;
     }
     // (the development mode: the great library buys one for any single card)
     const libCard = !!pl && developOn(v) && wonderDone(v, me, 'library') && !v.used.library && RES.some((r) => pl.res[r] > 0);
     const okDev = free && v.rolled && ((card('dev') && canAfford(pl.res, COSTS.dev)) || libCard) && v.devDeckCount > 0;
-    set('road', okRoad, okRoad ? t('建造道路（1）：木材＋磚塊') : !freeR && !card('road') ? t(NO_CARD.road) : why(freeR ? {} : COSTS.road, roads, pl ? pl.pieces.roads : 1, t('道路已經用完了')), { on: ctx.mode === 'road' });
+    set('road', okRoad, okRoad ? t('建造道路（1）：木材＋磚塊') : !freeR && !card('road') ? t(NO_CARD.road) : why(freeR ? {} : COSTS.road, roads, pl ? pl.pieces.roads : 1, t('道路已經用完了'), 'road'), { on: ctx.mode === 'road' });
     set('settlement', okSet, okSet ? t('建造村莊（2）：木材＋磚塊＋羊毛＋小麥') : !card('settlement') ? t(NO_CARD.settlement) : why(COSTS.settlement, setts, pl ? pl.pieces.settlements : 1, t('村莊已經用完了（可先升級城市）')), { on: ctx.mode === 'settlement' });
     set('city', okCity, okCity ? t('升級城市（3）：小麥×2＋礦石×3') : !card('city') ? t(NO_CARD.city) : why(COSTS.city, cities, pl ? pl.pieces.cities : 1, t('城市已經用完了')), { on: ctx.mode === 'city' });
     set('dev', okDev, okDev ? t('購買發展卡（4）：羊毛＋小麥＋礦石') : v.devDeckCount === 0 ? t('發展卡已賣完') : !card('dev') && !libCard ? t(NO_CARD.dev) : why(COSTS.dev, 1, 1, ''));
@@ -803,7 +804,8 @@ export class Hud {
         : `<span class="bm-free">${t('不用資源')}</span>`;
       row.querySelector('.bm-cost').innerHTML = cost;
       const why = row.dataset.why;
-      row.querySelector('.bm-sub').textContent = why || (pr ? t('鐵匠鋪：1 張礦石代替{res}', { res: RES_NAMES[pr.smith] }) : t(info.fx));
+      const notes = pr ? [pr.skip && t('築路司：少付 1 張{res}', { res: RES_NAMES[pr.skip] }), pr.smith && t('鐵匠鋪：1 張礦石代替{res}', { res: RES_NAMES[pr.smith] })].filter(Boolean) : [];
+      row.querySelector('.bm-sub').textContent = why || (notes.length ? list(notes) : t(info.fx));
       // (the rule on one line; all of it on the row's tooltip)
       row.title = why ? '' : t(info.fx);
       row.querySelector('.bm-sub').classList.toggle('why', !!why);

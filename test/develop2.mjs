@@ -3,7 +3,7 @@
 // two notes (the royal road's roads, the deck shuffled anew from the cards played).
 import assert from 'node:assert/strict';
 import { GEO } from '../src/engine/geometry.js';
-import { createGame, applyAction, RuleError, makeView, totalVP, actorsNow, robberVictims, playableDev, redactEvent } from '../src/engine/engine.js';
+import { createGame, applyAction, RuleError, makeView, totalVP, actorsNow, robberVictims, playableDev, redactEvent, roadLegal } from '../src/engine/engine.js';
 import { developMap } from '../src/engine/maps.js';
 import { BUILDINGS, BASIC, slotsAt, specialWhy, hostWhy, plotWhy, plotCost, payFor, robberWhy, developScore, holdsMost, harborCount, MOST_MIN, isSpecial, isNeutral, DIRS } from '../src/engine/develop.js';
 import { TERRAIN_RES, RES } from '../src/engine/board.js';
@@ -77,7 +77,7 @@ function built(st, p, k, v, city = false) {
   if (k === 'warehouse') st.players[p].store = none();
 }
 
-test('the 25 new buildings: 12 of the directions, 13 neutral; 5 cards for a functional one (the scriptorium 6, the caravanserai 4), 6 for a scoring one (the grange 5), 8 the monument', () => {
+test('the 25 new buildings: 12 of the directions, 13 neutral; 5 cards for a functional one (the scriptorium 6, the caravanserai 4), 6 for a scoring one (the grange 5, the harbor office 7), 8 the monument', () => {
   const fresh25 = Object.keys(BUILDINGS).slice(13, 38);
   assert.equal(fresh25.length, 25);
   assert.equal(fresh25.filter(isNeutral).length, 13);
@@ -86,8 +86,9 @@ test('the 25 new buildings: 12 of the directions, 13 neutral; 5 cards for a func
     const b = BUILDINGS[k];
     assert.ok(isSpecial(k), k);
     const n = Object.values(b.cost).reduce((a, c) => a + c, 0);
-    // (the balance's changes: the scriptorium one card more)
-    assert.equal(n, k === 'monument' ? 8 : k === 'scriptorium' ? 6 : k === 'grange' ? 5 : k === 'caravan' ? 4 : b.kind === 'score' ? 6 : 5, k);
+    // (the balance's changes: the scriptorium and the harbor office one card more, the grange and the
+    // caravanserai one less)
+    assert.equal(n, k === 'monument' ? 8 : k === 'scriptorium' ? 6 : k === 'grange' ? 5 : k === 'caravan' ? 4 : k === 'harborOffice' ? 7 : b.kind === 'score' ? 6 : 5, k);
   }
   // (no condition on a neutral one beyond a place to stand)
   const st = fresh(fresh25.filter(isNeutral));
@@ -125,15 +126,15 @@ test('farmstead: beside a city; the developments beside it reach a third level, 
   assert.ok(st.players[0].res[r] >= before + 3);
 });
 
-test('homestead: after two developments, a hex beside a road of yours may be developed with no settlement', () => {
+test('homestead: after a development, a hex beside a road of yours may be developed with no settlement', () => {
   const st = fresh(['homestead']);
   const v = corner(st);
   place(st, 0, v);
   give(st, 0, all(9));
-  assert.match(specialWhy(st, 0, 'homestead'), /2 個開發/);
-  const [h1, h2] = GEO.vertices[v].hexes;
+  assert.match(specialWhy(st, 0, 'homestead'), /1 個開發/);
+  const [h1] = GEO.vertices[v].hexes;
   st.plots[h1] = { p: 0, r: ['wood'] };
-  st.plots[h2] = { p: 0, r: ['wood'] };
+  assert.equal(specialWhy(st, 0, 'homestead'), null);
   act(st, { type: 'special', p: 0, k: 'homestead', vertex: v });
   // a hex far from any settlement, with a road of p's on one of its sides
   const h = GEO.hexes.find((x) => land(st, x.id) && x.vertices.every((u) => !st.vertices[u]) && st.board.robber !== x.id).id;
@@ -172,21 +173,30 @@ test('the scoring buildings: the most developments, harbors, villages, developme
   assert.equal(holdsMost(st, 0, 'governor'), true);
   st.vertices[vs[0]].t = 'c';
   assert.equal(holdsMost(st, 0, 'governor'), false);
-  // harbor office: three harbors, the shipyard one of them
+  // harbor office: two harbors at least (2026-11-19: the proposal's three), the shipyard one of them
   const hb = st.board.harbors;
+  st.players[0].built.harborOffice = st.players[0].built.grange;
   place(st, 0, GEO.edges[hb[0].edge].v[0]);
-  place(st, 0, GEO.edges[hb[1].edge].v[0]);
-  assert.equal(harborCount(st, 0), 2);
+  assert.equal(harborCount(st, 0), 1);
+  assert.equal(holdsMost(st, 0, 'harborOffice'), false);
   st.players[0].built.shipyard = GEO.edges[hb[0].edge].v[0];
+  assert.equal(harborCount(st, 0), 2);
+  assert.equal(holdsMost(st, 0, 'harborOffice'), true);
+  place(st, 1, GEO.edges[hb[2].edge].v[0]);
+  place(st, 1, GEO.edges[hb[3].edge].v[0]);
+  assert.equal(holdsMost(st, 0, 'harborOffice'), true, 'a tie counts');
+  place(st, 0, GEO.edges[hb[1].edge].v[0]);
   assert.equal(harborCount(st, 0), 3);
-  assert.equal(MOST_MIN.harborOffice, 3);
+  assert.equal(MOST_MIN.harborOffice, 2);
 });
 
-test('their conditions: two developments, a level-two one, two harbors, 15 roads, 5 settlements, 3 villages, 2 cards played, a city, 3 cards taken', () => {
+test('their conditions: a level-two development, a harbor, 8 roads, 5 settlements, 3 villages, 2 cards played, a city, 3 cards taken', () => {
   const st = fresh(['grange', 'harborOffice', 'roadworks', 'newTown', 'governor', 'lectureHall', 'scriptorium', 'university']);
   assert.match(specialWhy(st, 0, 'grange'), /二級開發/);
-  assert.match(specialWhy(st, 0, 'harborOffice'), /2 個港口/);
-  assert.match(specialWhy(st, 0, 'roadworks'), /15 條道路/);
+  assert.match(specialWhy(st, 0, 'harborOffice'), /1 個港口/);
+  place(st, 0, GEO.edges[st.board.harbors[0].edge].v[0]);
+  assert.equal(specialWhy(st, 0, 'harborOffice'), null);
+  assert.match(specialWhy(st, 0, 'roadworks'), /8 條道路/);
   assert.match(specialWhy(st, 0, 'newTown'), /5 座/);
   assert.match(specialWhy(st, 0, 'governor'), /3 座村莊/);
   assert.match(specialWhy(st, 0, 'lectureHall'), /2 張發展卡/);
@@ -227,9 +237,9 @@ test('road bureau +10 roads, new town +2 settlements and +2 cities, the royal ro
   give(st, 0, all(9));
   const v = corner(st);
   place(st, 0, v, 'c');
-  // fifteen roads, five settlements
+  // eight roads, five settlements
   let n = 0;
-  for (let e = 0; e < GEO.edges.length && n < 15; e++) if (st.edges[e] < 0) (st.edges[e] = 0), n++;
+  for (let e = 0; e < GEO.edges.length && n < 8; e++) if (st.edges[e] < 0) (st.edges[e] = 0), n++;
   const vs = [v];
   for (let i = 0; i < 4; i++) vs.push(corner(st, { avoid: vs }));
   vs.slice(1).forEach((u) => place(st, 0, u));
@@ -365,6 +375,41 @@ test("counting house: a card of the owner's choice for 8 cards or more at the tu
   const ev2 = act(st, { type: 'roll', p: 1, alms: 'brick' });
   assert.ok(ev2[0].type === 'bonus' && ev2[0].res === 'brick');
   assert.ok(p1.res.brick >= 1);
+});
+
+test('road bureau: from 8 roads; the first road of each turn a card less (the one the hand lacks, or keeps fewest of)', () => {
+  const st = fresh(['roadworks']);
+  const pl = st.players[0];
+  const v = corner(st);
+  place(st, 0, v);
+  give(st, 0, all(9));
+  let n = 0;
+  for (let e = 0; e < GEO.edges.length && n < 7; e++) if (st.edges[e] < 0 && !GEO.edges[e].v.includes(v)) (st.edges[e] = 0), n++;
+  assert.match(specialWhy(st, 0, 'roadworks'), /8 條道路/);
+  const e0 = GEO.vertices[v].edges.find((x) => st.edges[x] < 0);
+  act(st, { type: 'road', p: 0, edge: e0 });
+  assert.equal(specialWhy(st, 0, 'roadworks'), null);
+  act(st, { type: 'special', p: 0, k: 'roadworks', vertex: v });
+  st.used = {};
+  // a brick only: the wood left out
+  const near = (u) => GEO.vertices[u].edges.find((x) => st.edges[x] < 0 && roadLegal(st, 0, x));
+  give(st, 0, { ...none(), wood: 1, brick: 2 });
+  const e1 = [v, ...GEO.vertices[v].neighbors].map(near).find((x) => x !== undefined);
+  const ev = act(st, { type: 'road', p: 0, edge: e1 });
+  const b = ev.find((x) => x.type === 'build');
+  assert.equal(b.skip, 'wood');
+  assert.deepEqual([pl.res.wood, pl.res.brick], [1, 1]);
+  assert.ok(st.used.roadworks);
+  // the second road of the turn: the whole cost
+  give(st, 0, { ...none(), wood: 0, brick: 1 });
+  const e2 = GEO.edges.findIndex((x, i) => st.edges[i] < 0 && roadLegal(st, 0, i));
+  throwsRule(() => act(st, { type: 'road', p: 0, edge: e2 }), /資源不足/);
+  // a hand without the brick: the brick left out
+  st.used = {};
+  give(st, 0, { ...none(), wood: 1, brick: 0 });
+  const plan = payFor(st, 0, { wood: 1, brick: 1 }, 'road');
+  assert.deepEqual(plan.cost, { wood: 1 });
+  assert.equal(plan.works, true);
 });
 
 test('smithy: once a turn an ore stands for the one card a build lacks (or for a chosen one)', () => {
@@ -507,7 +552,7 @@ test('garrison: two cards of any kind keep a wonder from the robber', () => {
   assert.equal(st.wonders.length, 1);
 });
 
-test('guild hall: a point for every three special buildings, itself among them; the monument: two', () => {
+test('guild hall: a point for every two special buildings, itself among them; the monument: two', () => {
   const st = fresh(['guildHall', 'monument', 'market', 'granary', 'temple']);
   const v = corner(st);
   const u = corner(st, { avoid: [v] });
@@ -517,10 +562,11 @@ test('guild hall: a point for every three special buildings, itself among them; 
   pl.built.guildHall = v;
   assert.equal(developScore(st, 0).buildings, 0);
   pl.built.market = v;
+  assert.equal(developScore(st, 0).buildings, 1 + 1);
   pl.built.granary = u;
   assert.equal(developScore(st, 0).buildings, 2 + 1);
   pl.built.monument = u;
-  assert.equal(developScore(st, 0).buildings, 2 + 2 + 1);
+  assert.equal(developScore(st, 0).buildings, 2 + 2 + 2);
   assert.equal(totalVP(st, 0) >= 5, true);
 });
 

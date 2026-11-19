@@ -479,6 +479,7 @@ function buildPlan(st, p, cost, kind, a = {}) {
 function payPlan(st, p, plan) {
   pay(st, st.players[p], plan.cost);
   if (plan.smith) st.used.smithy = true;
+  if (plan.works) st.used.roadworks = true;
   if (!plan.skip && !plan.smith) return {};
   return { paid: { ...plan.cost }, ...(plan.skip ? { skip: plan.skip } : {}), ...(plan.smith ? { smith: plan.smith } : {}) };
 }

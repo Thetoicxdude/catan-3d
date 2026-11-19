@@ -2,9 +2,9 @@
 # then a campaign whose blueprint has the warehouse, the caravanserai and the apprentice workshop, and
 # (set into the state) the other buildings whose effects ask the player something: the workshop's card
 # left out, the warehouse's cards put away, the caravanserai's trade, the observatory's second roll, the
-# almshouse's card at the roll, the counting house's at the turn's end, the smithy's ore in the build
-# menu, a farmstead's third level, the garrison's two cards for a wonder; the log's lines for them; the
-# models on the map. The rules themselves: test/develop2.mjs.
+# almshouse's card at the roll, the counting house's at the turn's end, the smithy's ore and the road
+# bureau's card less in the build menu, a farmstead's third level, the garrison's two cards for a wonder;
+# the log's lines for them; the models on the map. The rules themselves: test/develop2.mjs.
 #   python3 test/ui11.py          (SHOTS=dir for the screenshots)
 import asyncio, sys, os, json, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
@@ -156,6 +156,16 @@ async def main():
         await page.keyboard.press('b')
         # (one settlement holds them all in this test: the map has room for five beside it)
         await page.evaluate("() => { delete __game.state.players[0].built.smithy; }")
+
+        # the road bureau: the turn's first road a card less, the menu says so
+        await page.evaluate(BUILT, ['roadworks', False])
+        await page.evaluate(TURN, {'brick': 1})
+        await page.keyboard.press('b')
+        await page.wait_for_timeout(300)
+        row = await page.evaluate("() => { const r = document.querySelector('.bm-row[data-k=\"road\"]'); return { off: r.classList.contains('off'), sub: r.querySelector('.bm-sub').textContent, tokens: [...r.querySelectorAll('.bm-cost .rtok')].map((x) => [...x.classList].find((c) => c.startsWith('rt-'))) }; }")
+        check('the road bureau: the first road of the turn for a brick, and the menu says so', not row['off'] and '築路司' in row['sub'] and row['tokens'] == ['rt-brick'], row)
+        await page.keyboard.press('b')
+        await page.evaluate("() => { delete __game.state.players[0].built.roadworks; }")
 
         # the almshouse: a card first, then the dice
         await page.evaluate(BUILT, ['almshouse', False])
