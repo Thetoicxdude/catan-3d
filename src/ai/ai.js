@@ -665,18 +665,18 @@ function marketTradeFor(view, p, cost) {
 // land it will likely start on best. Each blueprint's fit is measured against its own spread over many
 // starts (FIT_NORM: the deviation over 4000 seats of the 3- and 4-player islands, and the mean moved so
 // that each is brought about as often on hard, 10%; 8–12% on normal), by the players whose land suits
-// it most. (2026-11-19: the raw fits had the caravans' four kinds of land win 41% of the seats and the
-// treasury none.)
+// it most; `node tools/fitnorm.mjs` measures it again after a fit or a preset changes. (2026-11-19: the
+// raw fits had the caravans' four kinds of land win 41% of the seats and the treasury none.)
 const FIT_NORM = {
   farm: [8.86, 2.68],
   port: [7.43, 1.17],
   order: [7.32, 2.31],
-  frontier: [8.99, 3.19],
+  frontier: [8.98, 3.19],
   scholars: [8.04, 2.36],
-  harvest: [6.75, 2.34],
+  harvest: [6.74, 2.34],
   caravans: [11.31, 1.63],
   towns: [10.07, 1.91],
-  lore: [7.73, 2.31],
+  lore: [7.72, 2.31],
   treasury: [8.62, 0.32],
 };
 export function chooseBlueprint(st, p, level = 'normal', rnd = Math.random) {
