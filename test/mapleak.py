@@ -1,6 +1,8 @@
 # Is an old map let go when a new island is built? The island is re-rolled N times in the campaign
-# menu, the garbage collector is run, and the map views still alive are counted: only the one on
-# screen may be (each one that stays keeps a WebGL context and all it holds on the graphics card).
+# menu (the same map: laid out again in place since 2026-11-20, the map view kept), then the map is
+# switched to the large island and back (a new map view each time), the garbage collector is run, and
+# the map views still alive are counted: only the one on screen may be (each one that stays keeps a
+# WebGL context and all it holds on the graphics card).
 #   python3 test/mapleak.py            (ART=1 QUALITY=high: with the asset pack, slow on software GL)
 import asyncio, sys, os, json
 sys.path.insert(0, os.path.dirname(__file__))
@@ -36,7 +38,16 @@ async def main():
         await page.wait_for_selector('.setup-card', timeout=30000)
         await page.evaluate("window.__refs = [new WeakRef(__mapView())]; gc(); window.__heap0 = performance.memory.usedJSHeapSize")
         for i in range(N):
+            await page.evaluate("window.__rb = __mapView().rebuilds || 0")
             await page.click('text=換一座島嶼')
+            await page.wait_for_function("!document.querySelector('.loading') && __mapView() && (__mapView().rebuilds || 0) > __rb", timeout=300000)
+            await page.wait_for_timeout(2500 if ART else 700)
+        same = await page.evaluate("__refs[0].deref() === __mapView()")
+        print('re-rolled in place, the same map view:', same)
+        if not same: ok = False
+        # another map, and back: a new map view each time, the old one let go
+        for name in ['大島嶼', '標準島嶼']:
+            await page.click(f'.setup-card .seg.maps button:has-text("{name}")')
             await page.wait_for_function("!document.querySelector('.loading') && __mapView() && __refs[__refs.length - 1].deref() !== __mapView()", timeout=300000)
             await page.evaluate("__refs.push(new WeakRef(__mapView()))")
             await page.wait_for_timeout(2500 if ART else 700)
@@ -52,7 +63,7 @@ async def main():
           heapMB: Math.round(performance.memory.usedJSHeapSize / 1e6), heap0MB: Math.round(__heap0 / 1e6), canvases: document.querySelectorAll('canvas.map-canvas').length,
           drawn: (() => { const m = __game.map; return m.renderer.info.render.calls > 0 || m.perf.calls > 0; })() })""")
         print(json.dumps(r))
-        ok = r['alive'] == 1 and r['live'] == 1 and r['canvases'] == 1 and r['drawn'] and not errs
+        ok = ok and r['built'] == 3 and r['alive'] == 1 and r['live'] == 1 and r['canvases'] == 1 and r['drawn'] and not errs
         print(('PASS' if ok else 'FAIL'), f"{r['built']} maps built, {r['alive']} alive, {r['live']} WebGL context(s); heap {r['heap0MB']} → {r['heapMB']} MB", errs[:3])
         await b.close()
     srv.shutdown()

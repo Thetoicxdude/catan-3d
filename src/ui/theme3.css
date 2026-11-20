@@ -526,7 +526,6 @@ html.ui3 .ed-tool { background: rgba(255, 250, 235, 0.45); border-color: rgba(74
 html.ui3 .ed-tool.on { background: rgba(142, 36, 22, 0.12); border-color: var(--u3-red); color: var(--u3-ink); box-shadow: 0 0 0 1px var(--u3-red) inset; }
 html.ui3 .ed-cell.off { fill: rgba(74, 46, 24, 0.05); stroke: rgba(74, 46, 24, 0.38); }
 html.ui3 .ed-cell.off:hover { fill: rgba(74, 46, 24, 0.13); }
-html.ui3 .ed-cell.sea { stroke: rgba(30, 70, 100, 0.45); }
 html.ui3 .ed-msgs .err { color: #8e2416; } html.ui3 .ed-msgs .warn { color: #7a5408; } html.ui3 .ed-msgs .ok { color: #2f6a28; }
 
 /* inside any sheet of paper: boxes and fields in light paper, numbers in red ink; the browser's own

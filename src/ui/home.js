@@ -3,7 +3,7 @@
 // play as a hand of cards in the same frames as the resource cards. Pressing the official board
 // joins matchmaking right here; pressing it again leaves.
 import { HEX_SIZE, geometryOf, withMap } from '../engine/geometry.js';
-import { DEFAULT_MAP } from '../engine/maps.js';
+import { DEFAULT_MAP, OFFICIAL_BOARD } from '../engine/maps.js';
 import { generateBoard } from '../engine/board.js';
 import { seedState } from '../engine/rng.js';
 import { emblemSvg, seatShield, crest } from './emblems.js';
@@ -25,13 +25,13 @@ function el(tag, cls, html) {
 }
 
 // the island an official game on this map seed is played on (official rooms play the standard
-// island with the balanced numbers)
+// island with the balanced numbers, more of the likely ones: OFFICIAL_BOARD)
 const boards = new Map();
 export function officialBoard(seed) {
   const k = seed >>> 0;
   if (!boards.has(k)) {
     if (boards.size > 8) boards.clear();
-    boards.set(k, withMap(DEFAULT_MAP, () => generateBoard({ rng: seedState(k) }, { numbers: 'balanced' })));
+    boards.set(k, withMap(DEFAULT_MAP, () => generateBoard({ rng: seedState(k) }, { ...OFFICIAL_BOARD })));
   }
   return boards.get(k);
 }
@@ -357,7 +357,7 @@ export function showHome(app, opts) {
         <div class="ho-pic"><div class="ho-mapwrap"><canvas class="ho-map" aria-hidden="true"></canvas></div></div>
         <div class="ho-side">
           <div class="ho-title"><span class="pl-main">${t('官方房間')}</span><span class="pl-alt">${t('加入配對')}</span></div>
-          <div class="ho-tags"><span>${t('4 人對戰')}</span><span>${t('10 分勝利')}</span><span>${t('標準規則')}</span></div>
+          <div class="ho-tags"><span>${t('4 人對戰')}</span><span>${t('10 分勝利')}</span><span>${t('高機率數字§tag')}</span></div>
           <div class="ho-seats"><span class="ho-shields"></span><b class="ho-n">0/4</b></div>
           <div class="ho-timer">
             <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45" class="rim"/><circle cx="50" cy="50" r="38" class="track"/><circle cx="50" cy="50" r="38" class="arc"/></svg>

@@ -222,6 +222,17 @@ function buildMap(state, players, quality) {
     map.setPlayers(state, players);
     return map;
   }
+  // the same map, another board on it (an official room's island on the home screen's preview: its
+  // numbers favour high odds, 2026-11-20): laid out again in place, keeping the renderer and its
+  // shaders, much quicker than a new map (on a slow device a new one held the page long enough for the
+  // room to think its host gone)
+  const mapOf = (k) => [k.slice(0, k.indexOf(':')), k.slice(k.lastIndexOf(':') + 1)].join(':');
+  if (map && mapKey && mapOf(mapKey) === mapOf(key)) {
+    map.rebuildBoard(state);
+    map.setPlayers(state, players);
+    mapKey = key;
+    return map;
+  }
   if (map) map.dispose();
   map = new MapView(mapEl, quality);
   map.build(state, players, quality);

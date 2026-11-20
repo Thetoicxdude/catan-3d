@@ -24,6 +24,8 @@ import { richNumbers, generateBoard } from '../src/engine/board.js';
 import { mapDef, MAP_LIST } from '../src/engine/maps.js';
 import { seedState } from '../src/engine/rng.js';
 import { useMap } from '../src/engine/geometry.js';
+import { officialSettings, defaultSettings, gameSetup } from '../src/ui/menu.js';
+import { officialBoard } from '../src/ui/home.js';
 
 let passed = 0;
 function test(name, fn) {
@@ -1126,6 +1128,24 @@ test('house rule: the hand limit for a 7, and the points to win', () => {
   assert.equal(createGame({ seed: 1, players: players(), targetVP: 10, vpAdj: -2 }).targetVP, 8);
   assert.equal(createGame({ seed: 1, players: players(3), map: 'sea-1', vpAdj: 2 }).targetVP, mapDef('sea-1').vp + 2, "a scenario's own points, moved");
   assert.equal(createGame({ seed: 1, players: players() }).rules, undefined, 'the standard game has no rules of its own');
+});
+
+test('official rooms deal the high-probability numbers, and the main page draws that very island', () => {
+  // (2026-11-20, the user: official rooms all use the numbers that favour high odds)
+  const s = officialSettings({ ...defaultSettings(), mix: 'standard', numbers: 'spiral', vpAdj: 2 });
+  assert.equal(s.mix, 'rich');
+  assert.equal(s.numbers, 'balanced');
+  const setup = gameSetup(s, 4);
+  assert.deepEqual(setup.board, { numbers: 'balanced', mix: 'rich' });
+  for (const seed of [1, 77, 4242, 90210]) {
+    const st = createGame({ seed, players: players(4), ...setup });
+    assert.equal(st.board.mix, 'rich');
+    const pic = officialBoard(seed);
+    assert.deepEqual(pic.hexes.map((h) => [h.terrain, h.number]), st.board.hexes.map((h) => [h.terrain, h.number]), 'the picture is the island played');
+    const n = st.board.hexes.map((h) => h.number).filter(Boolean);
+    assert.equal(n.filter((x) => x === 2 || x === 12).length, 2);
+    assert.equal(n.filter((x) => x === 5 || x === 9).length, 6);
+  }
 });
 
 console.log(`${passed} tests passed`);

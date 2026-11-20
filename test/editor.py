@@ -1,8 +1,9 @@
 # The map workshop: open it from the home screen, draw on the grid (a gold field, a second island by
-# dragging), see the checks follow, look at the island in 3D, play it (the campaign menu lists it under
-# 玩家地圖), carry the campaign on after a reload, and the workshop on a phone.
+# dragging; no sea brush: an empty cell is sea), clear with the right button (a click, a stroke), see the
+# checks follow, look at the island in 3D, play it (the campaign menu lists it under 玩家地圖), carry the
+# campaign on after a reload, fill the whole grid (no cap) and see it in 3D, and the workshop on a phone.
 #   python3 test/editor.py
-import asyncio, sys, os, json, tempfile
+import asyncio, sys, os, json, tempfile, time
 sys.path.insert(0, os.path.dirname(__file__))
 from shot import serve, THREE
 from playwright.async_api import async_playwright
@@ -44,7 +45,8 @@ async def main():
         await page.wait_for_selector('.menu-screen.editor .ed-grid polygon', timeout=30000)
         facts = await page.evaluate(FACTS)
         msgs = await page.evaluate(MSGS)
-        check('the workshop opens on the standard shape, ready to play', facts[:3] == [19, 19, 1] and any(m.startswith('ok:') for m in msgs), f'{facts} {msgs}')
+        tools = await page.evaluate("[...document.querySelectorAll('.ed-tool')].map((b) => b.dataset.tool)")
+        check('the workshop opens on the standard shape, ready to play; no sea brush', facts[:2] == [19, 1] and any(m.startswith('ok:') for m in msgs) and 's' not in tools and 'x' in tools, f'{facts} {msgs} {tools}')
         await page.wait_for_timeout(600)
         await page.screenshot(path=f'{SP}/editor-open.png')
         # a gold field in the middle of the island
@@ -54,11 +56,7 @@ async def main():
         await page.wait_for_timeout(300)
         msgs = await page.evaluate(MSGS)
         check('a gold field brings the Seafarers rules', any('金礦' in m and m.startswith('note') for m in msgs), json.dumps(msgs, ensure_ascii=False))
-        # sea round the east, then a second island drawn in one stroke
-        await page.click('.ed-tool[data-tool="s"]')
-        for (c, r) in [(9, 4), (9, 5), (9, 6)]:
-            x, y = await cell(page, c, r)
-            await page.mouse.click(x, y)
+        # a second island drawn in one stroke, east of the first (the cells between left empty: sea)
         await page.click('.ed-tool[data-tool="l"]')
         pts = [await cell(page, c, r) for (c, r) in [(10, 3), (10, 4), (11, 4), (11, 5), (10, 5), (10, 6), (11, 6), (11, 7)]]
         await page.mouse.move(*pts[0])
@@ -69,7 +67,22 @@ async def main():
         await page.wait_for_timeout(400)
         facts = await page.evaluate(FACTS)
         side = await page.inner_text('.ed-side')
-        check('a second island drawn in one stroke', facts[2] == 2 and facts[0] == 19 + 3 + 8, f'{facts}')
+        check('a second island drawn in one stroke', facts[1] == 2 and facts[0] == 19 + 8, f'{facts}')
+        # the right button clears, with the land brush in hand: a click, then a stroke
+        x, y = await cell(page, 11, 7)
+        await page.mouse.click(x, y, button='right')
+        await page.wait_for_timeout(300)
+        gone = await page.evaluate("!__screen().draft.cells.some((x) => x[0] === 11 && x[1] === 7)")
+        pts = [await cell(page, c, r) for (c, r) in [(10, 6), (11, 6)]]
+        await page.mouse.move(*pts[0])
+        await page.mouse.down(button='right')
+        await page.mouse.move(*pts[1], steps=4)
+        await page.mouse.up(button='right')
+        await page.wait_for_timeout(400)
+        left = await page.evaluate("__screen().draft.cells.filter((x) => x[0] >= 10).length")
+        menu = await page.evaluate("document.querySelector('.ed-tool.on').dataset.tool")
+        facts = await page.evaluate(FACTS)
+        check('the right button clears a cell, and a stroke of cells, whatever the brush', gone and left == 5 and menu == 'l' and facts[0] == 19 + 5, f'{gone} {left} {menu} {facts}')
         check('the island options appear with ships', '開局' in side and '外島加分' in side, side.replace('\n', ' ')[:200])
         draft = await page.evaluate('__screen().draft')
         stored = await page.evaluate("JSON.parse(localStorage.getItem('hexverse-drafts-v1') || '[]')")
@@ -100,7 +113,8 @@ async def main():
         await page.screenshot(path=f'{SP}/editor-3d.png')
         await page.click('.ed-modes button[data-mode="edit"]')
         await page.wait_for_timeout(300)
-        # play it
+        # play it (the sea between the islands came by itself: the map's hexes as the editor makes them)
+        want_hexes = await page.evaluate("(async () => { const C = await import('/src/engine/custom.js'); const d = C.draftToDef(__screen().draft); return { n: d.tiles.length, sea: d.tiles.filter((t) => t.t === 'sea').length }; })()")
         await page.click('.ed-side .modal-foot .btn.primary')
         await page.wait_for_selector('.setup-card .seg.maps button.wide.on', timeout=60000)
         card = await page.inner_text('.setup-card')
@@ -110,7 +124,7 @@ async def main():
         await page.click('text=開始戰役')
         await page.wait_for_function('window.__game && window.__game.state', timeout=120000)
         st = await page.evaluate("({ map: __game.state.map, def: !!__game.state.mapDef, hexes: __game.state.board.hexes.length, sea: !!(__game.state.rules && __game.state.rules.seafarers) })")
-        check('a campaign on the drawn map', st['map'].startswith('my-') and st['def'] and st['hexes'] == 30 and st['sea'], json.dumps(st))
+        check('a campaign on the drawn map, the sea between its islands', st['map'].startswith('my-') and st['def'] and st['hexes'] == want_hexes['n'] and want_hexes['sea'] > 20 and st['sea'], json.dumps([st, want_hexes]))
         await page.wait_for_timeout(3000)
         await page.screenshot(path=f'{SP}/editor-play.png')
         # after a reload, with the draft gone, the campaign still carries its map (saved now: when our
@@ -121,7 +135,34 @@ async def main():
         await page.click('[data-k="continue"]')
         await page.wait_for_function('window.__game && window.__game.state', timeout=120000)
         st2 = await page.evaluate("({ map: __game.state.map, hexes: __game.state.board.hexes.length })")
-        check('the campaign continues after a reload, the draft deleted', st2['map'] == st['map'] and st2['hexes'] == 30, json.dumps(st2))
+        check('the campaign continues after a reload, the draft deleted', st2['map'] == st['map'] and st2['hexes'] == want_hexes['n'], json.dumps(st2))
+
+        # the whole grid as land (no cap since 2026-11-20): a stroke a row, then in 3D
+        await page.goto('http://127.0.0.1:8765/dist/index.test.html')
+        await page.wait_for_selector('.menu-screen.home', timeout=90000)
+        await page.click('[data-k="workshop"]')
+        await page.wait_for_selector('.menu-screen.editor .ed-grid polygon', timeout=30000)
+        await page.click('.ed-tool[data-tool="l"]')
+        for r in range(11):
+            a = await cell(page, 0, r)
+            z = await cell(page, 12, r)
+            await page.mouse.move(*a)
+            await page.mouse.down()
+            await page.mouse.move(*z, steps=24)
+            await page.mouse.up()
+        await page.wait_for_timeout(500)
+        facts = await page.evaluate(FACTS)
+        msgs = await page.evaluate(MSGS)
+        check('the whole grid is land, and it can be played', facts[0] == 143 and not any(m.startswith('err') for m in msgs), f'{facts} {msgs}')
+        t0 = time.time()
+        await page.click('.ed-modes button[data-mode="view"]')
+        await page.wait_for_function("document.querySelector('.menu-screen.editor.viewing') && !document.querySelector('.loading')", timeout=180000)
+        built = time.time() - t0
+        await page.evaluate('(() => { const c = __mapView().camera; c.target.copy(c.goal); c.h = c.goalH; c.yaw = c.goalYaw; c.pitch = c.goalPitch; c.apply(); })()')
+        await page.wait_for_timeout(4500)
+        tokens = await page.evaluate("[...document.querySelectorAll('.map-labels .token')].length")
+        await page.screenshot(path=f'{SP}/editor-country.png')
+        check('the whole grid in 3D', tokens >= 130, f'{tokens} number tokens, built in {built:.1f} s')
         await ctx.close()
         # the workshop on a phone
         ctx = await b.new_context(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)

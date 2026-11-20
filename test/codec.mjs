@@ -22,8 +22,10 @@ let drawnMax = 0;
 // phase), then Seafarers games (scenario 1, 2, 3 and 9), then Seafarers for 5–6 players (each map
 // four times, the last of them with the special building phase)
 const SEA6 = ['sea-1-6', 'sea-2-6', 'sea-3-6', 'sea-9-6'];
-// and maps players made (published: every page makes the same map from the draft), two each
-const DRAWN = ['twin', 'archipelago'].map((k) => registerMap(draftToDef(DRAFTS[k], 'u-TEST' + (k === 'twin' ? '22' : '33'))));
+// and maps players made (published: every page makes the same map from the draft), two each: two
+// islands, an archipelago, and (2026-11-20, no cap) four continents for 5–6 players and one country,
+// each filling the editor's whole grid
+const DRAWN = ['twin', 'archipelago', 'continents', 'country'].map((k, i) => registerMap(draftToDef(DRAFTS[k], 'u-TEST' + (22 + i * 11))));
 // and last, games with a room's house rules (numbers dealt more like the dice fall, a higher hand
 // limit, the dice deck) on the standard island, the large island, Seafarers 1 and the new world
 const HOUSE = [undefined, 'base-6', 'sea-1', 'sea-9'];
@@ -32,11 +34,11 @@ const HOUSE = [undefined, 'base-6', 'sea-1', 'sea-9'];
 const PRESETS = ['port', 'order', 'farm', 'frontier', 'scholars'];
 let devMax = 0;
 let ruinsSeen = 0;
-for (let g = 0; g < 124; g++) {
-  const dev = g >= 116;
-  const house = g >= 108 && !dev;
+for (let g = 0; g < 128; g++) {
+  const dev = g >= 120;
+  const house = g >= 112 && !dev;
   const big = (g >= 40 && g < 52) || (house && g % 4 === 1);
-  const drawn = g >= 104 && g < 108 ? DRAWN[(g - 104) >> 1] : null;
+  const drawn = g >= 104 && g < 112 ? DRAWN[(g - 104) >> 1] : null;
   const sea = (g >= 52 && g < 104) || !!(drawn && drawn.rules && drawn.rules.seafarers) || (house && g % 4 >= 2);
   const sea6 = g >= 88 && g < 104;
   const players = Array.from({ length: dev ? (g % 4 === 3 ? 3 - (g % 2) : 4) : drawn ? drawn.players[1] : big || sea6 ? 5 + (g % 2) : g % 3 ? 4 : 3 }, (_, i) => ({ name: NAMES[i], color: '#c8372d', kind: 'ai', ai: { level: 'normal' }, bp: dev ? Object.values(PRESETS)[(g + i) % 5] : undefined }));

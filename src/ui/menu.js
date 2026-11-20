@@ -1,7 +1,7 @@
 // Title & campaign setup screen (sits over a live preview of the island you will play on).
 import { flagURL } from './flags.js';
 import { esc } from './text.js';
-import { mapDef, MAP_TABLE, developMap, DEV4 } from '../engine/maps.js';
+import { mapDef, MAP_TABLE, developMap, DEV4, OFFICIAL_BOARD } from '../engine/maps.js';
 import { BASIC, isCard, isSpecial, isWonder, BLUEPRINT_SIZE } from '../engine/develop.js';
 import { FIRST_BLUEPRINT, ownedBlueprint } from '../meta/collection.js';
 import { cards } from '../meta/store.js';
@@ -132,7 +132,7 @@ export function targetFor(s) {
 
 // what an official room plays: the standard game on the standard island
 export function officialSettings(s) {
-  return { ...s, mode: 'standard', map: 'base-4', turns: 'paired', numbers: 'balanced', vpAdj: 0, discard: 7, dice: 'random', mix: 'standard' };
+  return { ...s, mode: 'standard', map: 'base-4', turns: 'paired', numbers: OFFICIAL_BOARD.numbers, vpAdj: 0, discard: 7, dice: 'random', mix: OFFICIAL_BOARD.mix };
 }
 
 // the house rules in words, those that differ from the standard game only (for a room's terms)

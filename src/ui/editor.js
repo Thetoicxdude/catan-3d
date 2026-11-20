@@ -1,6 +1,6 @@
-// The map workshop: draw an island on a grid of hexes — sea, land drawn at random, or a terrain picked
-// hex by hex — choose how many play and the points to win, and the map is checked as it is drawn
-// (custom.js). 3D 預覽 shows the island on the 3D map; 試玩 opens a campaign on it. Drafts stay on this
+// The map workshop: draw an island on a grid of hexes — land drawn at random, or a terrain picked hex
+// by hex; what is left empty is sea — choose how many play and the points to win, and the map is
+// checked as it is drawn (custom.js). The left button draws with the brush, the right one clears. 3D 預覽 shows the island on the 3D map; 試玩 opens a campaign on it. Drafts stay on this
 // device and are saved as they are drawn.
 import { CELL_KINDS, LIMITS, checkDraft, normalizeDraft } from '../engine/custom.js';
 import { esc } from './text.js';
@@ -50,9 +50,9 @@ const corners = (x, y, s = S * 0.97) =>
   }).join(' ');
 
 // what can be drawn, its colour and the mark on its hex (the names and marks are keys: t())
+// (no sea: a hex left empty is sea, 2026-11-20)
 const TOOLS = [
   ['x', N_('清除'), null, ''],
-  ['s', N_('海'), '#2f6f93', ''],
   ['l', N_('隨機陸地'), '#cbb88c', '?'],
   ['f', N_('森林'), '#2f6b2f', N_('林§mark')],
   ['h', N_('丘陵'), '#b5532c', N_('丘§mark')],
@@ -74,17 +74,14 @@ const TEMPLATES = [
     'isles',
     N_('主島與小島'),
     () => {
-      const cells = [];
-      for (let r = 1; r <= 9; r++) for (let c = 1; c <= 11; c++) cells.push([c, r, 's']);
+      // (the sea between them comes by itself: the islands make it a map with ships)
       const land = rowsOf(3, [[2, 4], [1, 4], [1, 5], [1, 4], [2, 4]]);
       const isles = [
         [8, 2, 'l'], [9, 2, 'l'], [8, 3, 'g'],
         [9, 6, 'l'], [10, 6, 'l'], [9, 7, 'l'],
         [6, 8, 'l'], [7, 8, 'l'],
       ];
-      const at = new Map(cells.map((x) => [x[0] + ',' + x[1], x]));
-      for (const [c, r, k] of [...land, ...isles]) at.get(c + ',' + r)[2] = k;
-      return { kit: 4, start: 'main', bonus: 2, vp: 12, cells: [...at.values()] };
+      return { kit: 4, start: 'main', bonus: 2, vp: 12, cells: [...land, ...isles] };
     },
   ],
 ];
@@ -114,7 +111,7 @@ export function showEditor(app, opts) {
       <div class="modal-head"><h3>${t('地圖工坊')}</h3><div class="seg ed-modes"><button type="button" data-mode="edit" class="on">${t('編輯')}</button><button type="button" data-mode="view">${t('3D 預覽')}</button></div></div>
       <div class="ed-tools" role="toolbar" aria-label="${t('畫筆')}"></div>
       <div class="ed-grid"><svg viewBox="0 0 ${VIEW_W.toFixed(1)} ${VIEW_H.toFixed(1)}" role="img" aria-label="${t('地圖格子')}"></svg></div>
-      <p class="ed-hint">${t('選一種畫筆，點格子或按住拖曳連續畫。地圖外圍會自動當作海；隨機陸地每局抽一次地形。')}</p>
+      <p class="ed-hint">${t('選一種畫筆，點格子或按住拖曳連續畫；按右鍵（或選「清除」）擦掉。沒畫的格子就是海；隨機陸地每局抽一次地形。')}</p>
     </section>
     <section class="setup-card panel ed-side">
       <div class="modal-head"><h3>${t('地圖設定')}</h3></div>
@@ -175,16 +172,18 @@ export function showEditor(app, opts) {
           continue;
         }
         const [, , color, mark] = TOOL[k];
-        out.push(`<polygon class="ed-cell ${k === 's' ? 'sea' : 'land'}" data-c="${c}" data-r="${r}" points="${corners(x, y)}" fill="${color}"/>`);
+        out.push(`<polygon class="ed-cell land" data-c="${c}" data-r="${r}" points="${corners(x, y)}" fill="${color}"/>`);
         if (mark) out.push(`<text x="${x.toFixed(2)}" y="${(y + 3.6).toFixed(2)}" class="ed-mark${k === 'l' ? ' q' : ''}">${mark.includes('§') ? t(mark) : mark}</text>`);
       }
     }
     svg.innerHTML = out.join('');
   };
+  // (`erase`: the stroke is the right button's, which clears whatever the brush)
+  let erase = false;
   const put = (c, r) => {
     if (c < 0 || r < 0 || c >= LIMITS.cols || r >= LIMITS.rows) return false;
     const k = cellAt.get(c + ',' + r);
-    const want = tool === 'x' ? undefined : tool;
+    const want = erase || tool === 'x' ? undefined : tool;
     if (k === want) return false;
     draft.cells = draft.cells.filter(([a, b]) => a !== c || b !== r);
     if (want) draft.cells.push([c, r, want]);
@@ -222,6 +221,9 @@ export function showEditor(app, opts) {
   };
   svg.addEventListener('pointerdown', (ev) => {
     if (mode !== 'edit') return;
+    // (the left button or a finger draws, the right one clears; others nothing)
+    if (ev.button !== 0 && ev.button !== 2) return;
+    erase = ev.button === 2;
     drawing = true;
     dirty = false;
     try {
@@ -240,6 +242,8 @@ export function showEditor(app, opts) {
   };
   svg.addEventListener('pointerup', end);
   svg.addEventListener('pointercancel', end);
+  // (no menu for the right button over the grid: it clears)
+  svg.addEventListener('contextmenu', (ev) => ev.preventDefault());
 
   // ── settings, checks, actions ──
   const segOf = (opts2, on, pickIt) => {
@@ -351,7 +355,7 @@ export function showEditor(app, opts) {
     const facts = el(
       'div',
       'ed-facts',
-      `<div><b>${st.tiles}</b><span>${t('/ {n} 格', { n: LIMITS.tiles })}</span></div><div><b>${st.land}</b><span>${t('陸地')}</span></div><div><b>${st.islands}</b><span>${t('座島')}</span></div><div><b>${st.numbered}</b><span>${t('數字牌')}</span></div><div><b>${st.harbors}</b><span>${t('港口')}</span></div>` +
+      `<div><b>${st.land}</b><span>${t('陸地')}</span></div><div><b>${st.islands}</b><span>${t('座島')}</span></div><div><b>${st.numbered}</b><span>${t('數字牌')}</span></div><div><b>${st.harbors}</b><span>${t('港口')}</span></div>` +
         (pool.length ? `<p>${t('隨機陸地抽：{list}', { list: esc(poolText) })}</p>` : ''),
     );
     body.appendChild(facts);

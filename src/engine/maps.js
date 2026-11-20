@@ -440,6 +440,10 @@ export const developMap = (n) => (n >= 4 ? DEV4 : DEV3);
 
 export const MAPS = Object.fromEntries([BASE4, BASE6, SEA1, SEA2, SEA3, SEA9, SEA1_6, SEA2_6, SEA3_6, SEA9_6, DEV4, DEV3].map((d) => [d.id, d]));
 export const DEFAULT_MAP = BASE4.id;
+// How an official room deals its island (the standard one): the balanced numbers, more of the likely
+// ones (2026-11-20, the user: official rooms all use the high-probability numbers). The room's settings
+// (menu.js officialSettings) and the main page's picture of the next island (home.js) both use it.
+export const OFFICIAL_BOARD = { numbers: 'balanced', mix: 'rich' };
 // The maps a game can be started on, as the menus show them: by kind, the 3–4 player map beside the
 // 5–6 player one.
 export const MAP_TABLE = [

@@ -451,8 +451,8 @@ export function encodePublic(st) {
     s: st.seq,
     ph: st.phase === 'setup' ? 'S' : st.phase === 'over' ? 'O' : 'P',
     tv: st.targetVP,
-    v: st.vertices.map((b) => (b ? String.fromCharCode((b.t === 'c' ? 65 : 97) + b.p) : '.')).join(''),
-    e: st.edges.map((p) => (p < 0 ? '.' : String(p))).join(''),
+    v: packRuns(st.vertices.map((b) => (b ? String.fromCharCode((b.t === 'c' ? 65 : 97) + b.p) : '.')).join('')),
+    e: packRuns(st.edges.map((p) => (p < 0 ? '.' : String(p))).join('')),
     rb: st.board.robber,
     su: [st.setup.order.join(''), st.setup.i, st.setup.step === 'road' ? 'r' : 's', st.setup.last],
     cu: st.current,
@@ -480,7 +480,7 @@ export function encodePublic(st) {
   if (st.fog) pub.fg = GEO.def.tiles.map((t, i) => (t.t === 'fog' && st.board.hexes[i].terrain !== 'fog' ? `${i}${TER[st.board.hexes[i].terrain]}${st.board.hexes[i].number}` : '')).filter(Boolean).join(',');
   // Seafarers: the ships ('.' none, else the owner), the pirate, the ships built this turn, a ship moved
   if (st.ships) {
-    pub.sh = st.ships.map((p) => (p < 0 ? '.' : String(p))).join('');
+    pub.sh = packRuns(st.ships.map((p) => (p < 0 ? '.' : String(p))).join(''));
     pub.pi = st.board.pirate;
     pub.nw = st.newShips.join('.');
     pub.sm = st.shipMoved ? 1 : 0;
@@ -519,15 +519,27 @@ export function encodePrivate(st, seat) {
   return out;
 }
 
+// A string of the map's places (intersections, paths: '.' empty) with its runs of empty places
+// written short, '(n)' for n of '.' (n in base 36). (2026-11-20: maps players draw may fill the editor's
+// whole grid, some 330 intersections and 480 paths; only strings longer than any map before could
+// make are shortened, so the maps of before go out as they did.)
+const RUNS_FROM = 300;
+export function packRuns(s) {
+  return s.length > RUNS_FROM ? s.replace(/\.{4,}/g, (m) => '(' + m.length.toString(36) + ')') : s;
+}
+export function unpackRuns(s) {
+  return s.indexOf('(') < 0 ? s : s.replace(/\(([0-9a-z]+)\)/g, (_, n) => '.'.repeat(parseInt(n, 36)));
+}
+
 // Build a redacted view (same shape as makeView) for `seat` from public + private parts.
 export function decodeView(board, seats, pub, priv, seat) {
   const n = seats.length;
-  const vertices = [...pub.v].map((ch) => {
+  const vertices = [...unpackRuns(pub.v)].map((ch) => {
     if (ch === '.') return null;
     const c = ch.charCodeAt(0);
     return c >= 97 ? { p: c - 97, t: 's' } : { p: c - 65, t: 'c' };
   });
-  const edges = [...pub.e].map((ch) => (ch === '.' ? -1 : Number(ch)));
+  const edges = [...unpackRuns(pub.e)].map((ch) => (ch === '.' ? -1 : Number(ch)));
   let pending = null;
   if (pub.pd) {
     const [k, a, b] = pub.pd;
@@ -626,7 +638,7 @@ export function decodeView(board, seats, pub, priv, seat) {
     if (rules.turns) view.sub = pub.sb ? { k: pub.sb[0] === 's' ? 'sbp' : 'pair', lead: pub.sb[1], rest: [...String(pub.sb[2] || '')].map(Number) } : null;
   }
   if (pub.sh != null) {
-    view.ships = [...pub.sh].map((ch) => (ch === '.' ? -1 : Number(ch)));
+    view.ships = [...unpackRuns(pub.sh)].map((ch) => (ch === '.' ? -1 : Number(ch)));
     view.newShips = pub.nw ? String(pub.nw).split('.').map(Number) : [];
     view.shipMoved = !!pub.sm;
     view.board = { ...view.board, pirate: pub.pi };

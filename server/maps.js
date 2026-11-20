@@ -92,7 +92,7 @@ export async function handleMaps(request, url, store, hash, now = Date.now()) {
     draft.name = draft.name.replace(BAD_CHARS, '').trim() || '未命名的島嶼';
     const check = checkDraft(draft);
     if (check.errors.length) return json({ error: 'bad_map', message: check.errors[0] }, 400);
-    const out = await store.publishMap(hash, { draft: JSON.stringify(check.draft), cid: draftId(check.draft), name: check.draft.name, kit: check.draft.kit, tiles: check.stats.tiles }, now);
+    const out = await store.publishMap(hash, { draft: JSON.stringify(check.draft), cid: draftId(check.draft), name: check.draft.name, kit: check.draft.kit, tiles: check.stats.land }, now);
     return json(out, out.error === 'signed_out' ? 401 : out.error ? 429 : 200);
   }
   if (request.method === 'POST' && code && verb === 'rate') {

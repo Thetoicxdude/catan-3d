@@ -1,13 +1,15 @@
 // Maps players make (the map editor). A draft is what the author draws: hexes on the editor's grid
-// (sea, land drawn at random, or a terrain they picked) and a few choices — how many play, the
-// points to win, where the opening goes, the island bonus. The map definition (maps.js) is made from
+// (land drawn at random, or a terrain they picked; a hex left empty is sea) and a few choices — how
+// many play, the points to win, where the opening goes, the island bonus. The map definition (maps.js) is made from
 // it: what the draft does not say comes from the standard game in proportion (the terrain of the
 // random land, the number tokens, the harbors). The same draft always makes the same definition, on
 // every page and on the server, so a map is stored and shared as its draft.
 import { msg, N_ } from '../i18n/fill.js';
 import { buildGeometry } from './geometry.js';
 
-// a cell of the grid: sea, land drawn at random, or a terrain the author picked
+// a cell of the grid: land drawn at random, or a terrain the author picked. (Sea, `s`, is no longer
+// drawn, 2026-11-20: a cell left empty is sea, and a map with ships gets the sea it sails on by itself,
+// analyzeDraft. Drafts from before keep their sea cells out: normalizeDraft drops them.)
 export const CELL_KINDS = {
   s: 'sea',
   l: 'land',
@@ -19,8 +21,9 @@ export const CELL_KINDS = {
   d: 'desert',
   g: 'gold',
 };
-// the editor's grid (rows of hexes, odd rows half a hex east) and what a map may hold
-export const LIMITS = { cols: 13, rows: 11, tiles: 80, land: 60, name: 16, vp: [6, 18] };
+// the editor's grid (rows of hexes, odd rows half a hex east); the whole grid may be land (2026-11-20:
+// the 80 hexes and 60 of land a map could hold before were too few for a player's own country)
+export const LIMITS = { cols: 13, rows: 11, name: 16, vp: [6, 18] };
 
 const DIRS = [
   [1, 0],
@@ -77,7 +80,9 @@ export function normalizeDraft(raw) {
     if (!Array.isArray(cell)) continue;
     const [c, r, k] = cell;
     if (!Number.isInteger(c) || !Number.isInteger(r) || c < 0 || r < 0 || c >= LIMITS.cols || r >= LIMITS.rows || !CELL_KINDS[k]) continue;
-    at.set(r * LIMITS.cols + c, [c, r, k]);
+    // (a sea cell is the same as an empty one)
+    if (k === 's') at.delete(r * LIMITS.cols + c);
+    else at.set(r * LIMITS.cols + c, [c, r, k]);
   }
   const cells = [...at.keys()].sort((a, b) => a - b).map((i) => at.get(i));
   return { v: 1, name, kit, vp, start, bonus, ships, desert, cells };
@@ -112,19 +117,8 @@ function shares(total, weights) {
   return out;
 }
 
-// The draft's hexes in axial coordinates (centred), its land, islands and coast.
-export function analyzeDraft(draft) {
-  const d = normalizeDraft(draft);
-  const cells = d.cells;
-  const tiles = cells.map(([c, r, k]) => ({ q: c - (r - (r & 1)) / 2, r, k }));
-  if (tiles.length) {
-    const rs = tiles.map((t) => t.r);
-    const dr = Math.floor((Math.min(...rs) + Math.max(...rs)) / 2);
-    for (const t of tiles) t.r -= dr;
-    const xs = tiles.map((t) => t.q + t.r / 2);
-    const dq = Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
-    for (const t of tiles) t.q -= dq;
-  }
+// The islands of a list of hexes (axial): each land hex's island, and each island's size.
+function islandsOf(tiles) {
   const index = new Map(tiles.map((t, i) => [t.q + ',' + t.r, i]));
   const isLand = (i) => tiles[i].k !== 's';
   const island = new Array(tiles.length).fill(-1);
@@ -147,6 +141,43 @@ export function analyzeDraft(draft) {
       }
     }
   });
+  return { index, island, sizes };
+}
+const axial = ([c, r, k]) => ({ q: c - (r - (r & 1)) / 2, r, k });
+
+// The draft's hexes in axial coordinates (centred), its land, islands and coast. A map with ships
+// gets the sea they sail on: the empty cells of the land's rows and columns of the grid, and one more
+// row and column on each side, are sea hexes (between the islands, around them, the lakes); without
+// ships an empty cell is simply off the map (the edge of a map counts as sea).
+export function analyzeDraft(draft) {
+  const d = normalizeDraft(draft);
+  let cells = d.cells;
+  const gold = cells.some(([, , k]) => k === 'g');
+  // ships when the author asks for them, and always with more than one island or a gold field
+  const seafarers = d.ships || islandsOf(cells.map(axial)).sizes.length > 1 || gold;
+  if (seafarers && cells.length) {
+    const cs = cells.map((x) => x[0]);
+    const rs = cells.map((x) => x[1]);
+    const c0 = Math.max(0, Math.min(...cs) - 1);
+    const c1 = Math.min(LIMITS.cols - 1, Math.max(...cs) + 1);
+    const r0 = Math.max(0, Math.min(...rs) - 1);
+    const r1 = Math.min(LIMITS.rows - 1, Math.max(...rs) + 1);
+    const land = new Set(cells.map(([c, r]) => r * LIMITS.cols + c));
+    const sea = [];
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) if (!land.has(r * LIMITS.cols + c)) sea.push([c, r, 's']);
+    cells = [...cells, ...sea].sort((x, y) => x[1] * LIMITS.cols + x[0] - (y[1] * LIMITS.cols + y[0]));
+  }
+  const tiles = cells.map(axial);
+  if (tiles.length) {
+    const rs = tiles.map((t) => t.r);
+    const dr = Math.floor((Math.min(...rs) + Math.max(...rs)) / 2);
+    for (const t of tiles) t.r -= dr;
+    const xs = tiles.map((t) => t.q + t.r / 2);
+    const dq = Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
+    for (const t of tiles) t.q -= dq;
+  }
+  const { index, island, sizes } = islandsOf(tiles);
+  const isLand = (i) => tiles[i].k !== 's';
   // the coast: sides of land hexes facing sea or the edge of the map
   let coast = 0;
   tiles.forEach((t, i) => {
@@ -160,8 +191,6 @@ export function analyzeDraft(draft) {
   for (const t of tiles) count[t.k] = (count[t.k] || 0) + 1;
   const land = tiles.length - (count.s || 0);
   const largest = sizes.length ? sizes.indexOf(Math.max(...sizes)) : -1;
-  // ships when the author asks for them, and always with more than one island or a gold field
-  const seafarers = d.ships || sizes.length > 1 || !!count.g;
   return { draft: d, tiles, island, sizes, largest, coast, count, land, seafarers };
 }
 
@@ -267,10 +296,8 @@ export function checkDraft(draft) {
     pool: {},
   };
   if (!a.land) add(errors, 'errors', '先在格子上畫出陸地');
-  if (a.tiles.length > LIMITS.tiles) add(errors, 'errors', '地圖最多 {max} 格（現在 {n} 格）', { max: LIMITS.tiles, n: a.tiles.length });
-  if (a.land > LIMITS.land) add(errors, 'errors', '陸地最多 {max} 格（現在 {n} 格）', { max: LIMITS.land, n: a.land });
   let def = null;
-  if (a.land && a.tiles.length <= LIMITS.tiles) {
+  if (a.land) {
     def = draftToDef(d);
     stats.harbors = def.harbors.types.length;
     stats.pool = def.pool;

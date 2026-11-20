@@ -806,13 +806,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .ed-cell { stroke: rgba(10, 8, 4, 0.75); stroke-width: 0.7; }
 .ed-cell.off { fill: rgba(255, 255, 255, 0.03); stroke: rgba(199, 166, 96, 0.25); stroke-dasharray: 1.6 1.4; }
 .ed-cell.off:hover { fill: rgba(255, 255, 255, 0.1); }
-.ed-cell.sea { stroke: rgba(150, 200, 230, 0.35); }
 .ed-mark { font: 700 8px var(--font-display); fill: rgba(20, 14, 6, 0.82); text-anchor: middle; pointer-events: none; }
 .ed-mark.q { fill: rgba(60, 45, 25, 0.75); }
 .ed-hint { margin: 0; padding: 4px 16px 12px; color: var(--ink-faint); font-size: 12px; }
 .ed-side .modal-body { gap: 12px; }
 .ed-check { display: flex; align-items: center; gap: 6px; color: var(--ink); font-size: 13px; }
-.ed-facts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.ed-facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .ed-facts div { display: flex; flex-direction: column; align-items: center; padding: 6px 2px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(199, 166, 96, 0.15); }
 .ed-facts b { font-family: var(--font-num); font-size: 20px; color: var(--brass-hi); line-height: 1; }
 .ed-facts span { font-size: 11px; color: var(--ink-dim); margin-top: 3px; white-space: nowrap; }

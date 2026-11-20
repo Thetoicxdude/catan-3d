@@ -215,8 +215,6 @@ export const EN = {
 
   // ── the workshop's checks (engine/custom.js) ──
   '先在格子上畫出陸地': 'Draw some land on the grid first',
-  '地圖最多 {max} 格（現在 {n} 格）': 'A map has at most {max} tiles (this one has {n})',
-  '陸地最多 {max} 格（現在 {n} 格）': 'At most {max} land tiles (this map has {n})',
   '開局位置不夠：{p} 國各放 2 個村莊需要 {need} 個互不相鄰的位置，最大的島只放得下 {room} 個':
     'Not enough starting spots: {p} nations with 2 settlements each need {need} spots apart from each other; the largest island has room for {room}',
   '開局位置不夠：{p} 國各放 2 個村莊需要 {need} 個互不相鄰的位置，這張地圖只放得下 {room} 個':
@@ -780,7 +778,6 @@ export const EN = {
   '重新加入／觀戰': 'Rejoin / watch',
   // ── the map workshop (ui/editor.js) ──
   '清除': 'Erase',
-  '海': 'Sea',
   '隨機陸地': 'Random land',
   '林§mark': 'Fo',
   '丘§mark': 'Hi',
@@ -798,8 +795,8 @@ export const EN = {
   '3D 預覽': '3D preview',
   '畫筆': 'Brushes',
   '地圖格子': 'Map grid',
-  '選一種畫筆，點格子或按住拖曳連續畫。地圖外圍會自動當作海；隨機陸地每局抽一次地形。':
-    'Pick a brush, then tap a cell or drag to paint. Everything around the map counts as sea; random land draws its terrain anew each game.',
+  '選一種畫筆，點格子或按住拖曳連續畫；按右鍵（或選「清除」）擦掉。沒畫的格子就是海；隨機陸地每局抽一次地形。':
+    'Pick a brush, then tap a cell or drag to paint; the right mouse button (or Clear) erases. Cells left empty are sea; random land draws its terrain anew each game.',
   '地圖設定': 'Map settings',
   '無法儲存': "Can't save",
   '這台裝置不能儲存草稿（瀏覽器的儲存空間被關閉）': "This device can't save drafts (the browser's storage is turned off)",
@@ -817,7 +814,6 @@ export const EN = {
   '+1 分': '+1 VP',
   '+2 分': '+2 VP',
   '也抽沙漠（約 19 格 1 塊）': 'Deserts too (about 1 in 19)',
-  '/ {n} 格': '/ {n} tiles',
   '陸地': 'land',
   '座島': 'islands',
   '數字牌': 'numbers',
@@ -929,7 +925,7 @@ export const EN = {
   '加入配對': 'Find a match',
   '4 人對戰': '4 players',
   '10 分勝利': '10 VP to win',
-  '標準規則': 'Standard rules',
+  '高機率數字§tag': 'High-odds numbers',
   '秒': 'sec',
   '遊戲方式': 'Ways to play',
   '配對中': 'Matching',
