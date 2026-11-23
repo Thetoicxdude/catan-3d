@@ -512,6 +512,9 @@ html.ui3 .seat input[type="text"]:focus { outline: none; border-bottom: 1px soli
 html.ui3 .seat select { background: rgba(255, 250, 235, 0.5) !important; border: 1px solid rgba(74, 46, 24, 0.4) !important; color: var(--u3-ink) !important; }
 html.ui3 .setup-card input[type="text"], html.ui3 .setup-card input[type="number"], html.ui3 .setup-card select { background: rgba(255, 250, 235, 0.6); border: 1px solid rgba(74, 46, 24, 0.4); color: var(--u3-ink); }
 html.ui3 .setup-card .btn.ghost { color: var(--u3-ink-soft); }
+/* a ghost button that deletes: red ink on paper; asked once more (armed), filled red */
+html.ui3 :is(.modal, .pg-sheet, .setup-card) .btn.ghost.danger { color: var(--u3-red); }
+html.ui3 :is(.modal, .pg-sheet, .setup-card) .btn.ghost.danger.armed { background: var(--u3-red); border-color: #5e140a; color: #fff6e6; }
 html.ui3 .swatch { border-color: rgba(58, 36, 20, 0.7); box-shadow: 0 0 0 1px rgba(255, 250, 235, 0.5); }
 html.ui3 .swatch.on { box-shadow: 0 0 0 2px var(--u3-red), 0 0 10px rgba(142, 36, 22, 0.45); }
 
@@ -531,7 +534,9 @@ html.ui3 .ed-msgs .err { color: #8e2416; } html.ui3 .ed-msgs .warn { color: #7a5
 /* inside any sheet of paper: boxes and fields in light paper, numbers in red ink; the browser's own
    controls (check boxes, the lists of a select) drawn light, ticked in red */
 html.ui3 :is(.modal, .pg-sheet, .setup-card, .ed-board, .pass-screen) { color-scheme: light; accent-color: #8e2416; }
-html.ui3 :is(.modal, .pg-sheet, .setup-card, .ed-board, .pass-screen) :is(.resp, .offer-line, .res-pick, .ed-facts div, .ed-mine-row, .ed-msgs li) { background: rgba(255, 250, 235, 0.38); border-color: rgba(74, 46, 24, 0.25); }
+html.ui3 :is(.modal, .pg-sheet, .setup-card, .ed-board, .pass-screen) :is(.resp, .offer-line, .res-pick, .ed-facts div, .ed-mine-row, .ed-msgs li, .ed-publine) { background: rgba(255, 250, 235, 0.38); border-color: rgba(74, 46, 24, 0.25); }
+html.ui3 :is(.setup-card, .modal) p.ed-publine { border-left-color: var(--u3-red); }
+html.ui3 :is(.setup-card, .modal) p.ed-publine.changed { border-left-color: #b8741c; }
 html.ui3 :is(.modal, .pg-sheet, .setup-card, .ed-board, .pass-screen) :is(input[type="text"], input[type="number"], select, textarea) { background: rgba(255, 250, 235, 0.62); border: 1px solid rgba(74, 46, 24, 0.4); color: var(--u3-ink); }
 html.ui3 :is(.modal, .pg-sheet, .setup-card, .ed-board) .stepper button { background: var(--u3-wood); color: var(--u3-cream); border-color: #1c1108; }
 html.ui3 .room-terms { color: var(--u3-red); }

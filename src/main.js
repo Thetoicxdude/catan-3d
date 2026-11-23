@@ -22,7 +22,7 @@ import { installPress, installSegGlide } from './ui/motion.js';
 import { registerMap } from './engine/maps.js';
 import { checkDraft } from './engine/custom.js';
 import { showEditor, loadDrafts } from './ui/editor.js';
-import { mapsAvailable, publishMap, myPublished, hideMap, loadPublished, publishedCode, publishedDef, countPlay, CODE_RE } from './net/maps.js';
+import { mapsAvailable, publishMap, updateMap, deleteMap, myPublished, setListed, loadPublished, newerVersion, publishedCode, publishedDef, countPlay, CODE_RE } from './net/maps.js';
 import { openMapBrowser, showPublished, ratingStars } from './ui/maps-ui.js';
 import { currentUser, loadUser } from './net/account.js';
 import { openSignIn } from './ui/account-ui.js';
@@ -114,26 +114,33 @@ function myMaps() {
 }
 myMaps();
 // published maps opened lately (kept on this device with their drafts, so the campaign menu lists
-// them and a campaign set up on one keeps it after a reload)
+// them and a campaign set up on one keeps it after a reload): one version of each, the latest seen
 const SEEN_KEY = 'hexverse-maps-seen-v1';
-const seenMaps = new Map();
+const seenMaps = new Map(); // code → definition
 try {
   const list = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]');
   for (const m of Array.isArray(list) ? list : []) {
     if (!m || typeof m.code !== 'string' || !CODE_RE.test(m.code) || !m.draft) continue;
     const def = registerMap(publishedDef(m));
-    seenMaps.set(def.id, def);
+    seenMaps.delete(def.code);
+    seenMaps.set(def.code, def);
   }
 } catch {
   /* storage unavailable */
 }
+// (a newer version of a map replaces the one kept, and a campaign set up on the map moves to it)
 function rememberMap(def) {
-  seenMaps.delete(def.id);
-  seenMaps.set(def.id, def);
+  seenMaps.delete(def.code);
+  seenMaps.set(def.code, def);
   try {
-    localStorage.setItem(SEEN_KEY, JSON.stringify([...seenMaps.values()].slice(-8).map((d) => ({ code: d.code, author: d.author, draft: d.draft }))));
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...seenMaps.values()].slice(-8).map((d) => ({ code: d.code, rev: d.rev || 0, author: d.author, draft: d.draft }))));
   } catch {
     /* storage unavailable */
+  }
+  if (settings && publishedCode(settings.map) === def.code && settings.map !== def.id) {
+    settings.map = def.id;
+    fitSettings(settings);
+    saveSettings(settings);
   }
 }
 function menuMaps() {
@@ -471,6 +478,17 @@ function openSetup() {
     onBrowse: mapsAvailable() ? () => browseMaps() : null,
     customMaps: menuMaps(),
   });
+  // (a published map whose author has changed it since: the newest version set up instead)
+  const shown = menu;
+  const was = settings.map;
+  newerVersion(was).then((def) => {
+    if (!def || settings.map !== was) return;
+    rememberMap(def);
+    if (menu === shown) {
+      openSetup();
+      showPreview(true);
+    }
+  });
 }
 
 // the maps players published: choosing one sets the campaign up on it
@@ -487,21 +505,30 @@ function useMapForCampaign(def) {
   showPreview(true);
 }
 
-// publishing from the workshop: signed in first, then the map's code to share
-async function publishFlow(draft) {
-  await loadUser();
-  if (!currentUser()) {
-    openSignIn(menuDialogs(), () => publishFlow(draft));
-    return;
-  }
-  try {
-    const r = await publishMap(draft);
-    const def = await loadPublished(r.code);
-    rememberMap(def);
-    showPublished(menuDialogs(), r.code, r.again, toast);
-  } catch (e) {
-    toast(t('無法發布'), terr(e), 'cross');
-  }
+// publishing from the workshop: signed in first, then the map's code to share. `pub` (the published
+// map the draft was opened from: its code) makes it that map's new version. Resolves to what the draft
+// is now published as ({code, rev, cid}), {gone: true} when that map is no more, or null.
+function publishFlow(draft, pub) {
+  return new Promise((resolve) => {
+    const go = async () => {
+      try {
+        const r = pub ? await updateMap(pub.code, draft) : await publishMap(draft);
+        const def = await loadPublished(r.code, r.rev);
+        rememberMap(def);
+        showPublished(menuDialogs(), r.code, toast, { again: r.again, rev: r.rev, update: !!pub });
+        resolve({ code: r.code, rev: r.rev, cid: r.cid });
+      } catch (e) {
+        if (pub && e.code === 'not_found') {
+          toast(t('這張地圖已經刪除'), t('再按「發布」會發布成新的地圖'), 'cross');
+          resolve({ gone: true });
+          return;
+        }
+        toast(pub ? t('無法更新') : t('無法發布'), terr(e), 'cross');
+        resolve(null);
+      }
+    };
+    loadUser().then(() => (currentUser() ? go() : openSignIn(menuDialogs(), go)));
+  });
 }
 
 // the map workshop: drawing an island, seeing it on the 3D map, playing it
@@ -528,19 +555,33 @@ function openEditor() {
     onPreview: (def, area) => editorPreview(def, area),
     ...(mapsAvailable()
       ? {
-          onPublish: (draft) => publishFlow(draft),
+          onPublish: (draft, pub) => publishFlow(draft, pub),
+          // the player's maps ({maps, max}), null when signed out
           published: async () => {
             await loadUser();
             if (!currentUser()) return null;
-            return (await myPublished()).maps || [];
+            return myPublished();
           },
-          unpublish: async (code) => {
+          // a published map's draft at its newest version, to edit
+          openPublished: async (m) => (await loadPublished(m.code, m.rev)).draft,
+          setListed: async (code, listed) => {
             try {
-              await hideMap(code);
-              toast(t('已從列表移除'), t('地圖 {code} 不再出現在公開列表（代號還能用）', { code }), 'check');
+              await setListed(code, listed);
+              if (listed) toast(t('已放回列表'), t('地圖 {code} 又出現在公開列表', { code }), 'check');
+              else toast(t('已從列表移除'), t('地圖 {code} 不再出現在公開列表（代號還能用）', { code }), 'check');
               return true;
             } catch (e) {
-              toast(t('無法移除'), terr(e), 'cross');
+              toast(listed ? t('無法放回列表') : t('無法移除'), terr(e), 'cross');
+              return false;
+            }
+          },
+          remove: async (code) => {
+            try {
+              await deleteMap(code);
+              toast(t('地圖已刪除'), t('代號 {code} 不能再用來開新的對局；進行中的對局可以打完', { code }), 'check');
+              return true;
+            } catch (e) {
+              toast(t('無法刪除'), terr(e), 'cross');
               return false;
             }
           },

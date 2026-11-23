@@ -336,6 +336,7 @@ export class Accounts extends DurableObject {
     // their maps leave the list (games and links already made on them go on, without their name)
     // (the page shows the author's name in the reader's language: '已刪除的帳號' is one of its keys)
     this.run('UPDATE maps SET hidden = 1, sub = \'\', author = ? WHERE sub = ?', '已刪除的帳號', s.sub);
+    this.run('UPDATE map_revs SET sub = \'\', author = ? WHERE sub = ?', '已刪除的帳號', s.sub);
     const rated = this.sql.exec('SELECT code FROM ratings WHERE sub = ?', s.sub).toArray();
     this.run('DELETE FROM ratings WHERE sub = ?', s.sub);
     for (const r of rated)

@@ -104,14 +104,18 @@ export function openMapBrowser(dialogs, { onPick, toast, kit = 0 }) {
   load();
 }
 
-// What publishing gave: the map's code and the link that opens it.
-export function showPublished(dialogs, code, again, toast) {
+// What publishing gave: the map's code and the link that opens it (update: a new version of a map
+// published before, rev its number from 0; again: nothing new, the map already was this)
+export function showPublished(dialogs, code, toast, { again = false, rev = 0, update = false } = {}) {
   const link = mapLink(code);
-  const body = el(
-    'div',
-    'mb-pub',
-    `<p class="lead">${again ? t('這張地圖之前就發布過了，代號一樣：') : t('地圖已經發布到公開列表。朋友可以用代號或連結打開它，建房間時也能選它：')}</p><div class="code-box"><span class="lbl">${t('地圖代號')}</span><b class="num">${esc(code)}</b></div><p class="mb-link">${esc(link)}</p>`,
-  );
+  const lead = update
+    ? again
+      ? t('地圖 {code} 已經是這個樣子，沒有新的變更。', { code })
+      : t('地圖 {code} 更新成第 {n} 版：代號和連結不變，之後開的對局都用新的版本（進行中的對局照舊）。', { code, n: rev + 1 })
+    : again
+      ? t('這張地圖之前就發布過了，代號一樣：')
+      : t('地圖已經發布到公開列表。朋友可以用代號或連結打開它，建房間時也能選它：');
+  const body = el('div', 'mb-pub', `<p class="lead">${lead}</p><div class="code-box"><span class="lbl">${t('地圖代號')}</span><b class="num">${esc(code)}</b></div><p class="mb-link">${esc(link)}</p>`);
   const copy = (text, what) => {
     if (navigator.clipboard && navigator.clipboard.writeText)
       navigator.clipboard.writeText(text).then(
@@ -120,7 +124,12 @@ export function showPublished(dialogs, code, again, toast) {
       );
     else if (toast) toast(what, text, 'cards');
   };
-  dialogs.open({ kind: 'published', title: t('發布完成'), body, foot: [btn(t('複製代號'), '', () => copy(code, t('地圖代號 {code}', { code }))), btn(t('複製連結'), 'primary', () => copy(link, t('連結已複製，傳給朋友就能打開這張地圖')))] });
+  dialogs.open({
+    kind: 'published',
+    title: update ? t('地圖已更新') : t('發布完成'),
+    body,
+    foot: [btn(t('複製代號'), '', () => copy(code, t('地圖代號 {code}', { code }))), btn(t('複製連結'), 'primary', () => copy(link, t('連結已複製，傳給朋友就能打開這張地圖')))],
+  });
 }
 
 // Five stars for a published map (the game-over dialog): rated once, changeable.

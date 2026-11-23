@@ -16,7 +16,7 @@ import { PALETTE, AI_NAMES, clipName, localName, fitSettings, gameSetup, mapTabl
 import { deckLine } from '../ui/cards-ui.js';
 import { pop, reduced, leaveScreen, EASE } from '../ui/motion.js';
 import { mapDef, MAP_LIST, DEFAULT_MAP, isBuiltIn, knownMap } from '../engine/maps.js';
-import { mapsAvailable, publishedCode, loadPublished, cleanCode, CODE_RE } from './maps.js';
+import { mapsAvailable, publishedCode, parsePublished, loadPublished, newerVersion, cleanCode, CODE_RE } from './maps.js';
 import { openMapBrowser } from '../ui/maps-ui.js';
 import { t, tx, msg, list, terr } from '../i18n/index.js';
 import { developOpen } from '../meta/features.js';
@@ -265,6 +265,11 @@ export class HostSession {
       if (!isBuiltIn(s.map) && !(publishedCode(s.map) && mapsAvailable())) {
         s.map = DEFAULT_MAP;
         fitSettings(s);
+      }
+      // (a published map whose author has changed it since this page took it: the newest version)
+      if (!this.official && publishedCode(s.map)) {
+        const was = s.map;
+        newerVersion(was).then((def) => def && this.settings.map === was && this.setLayout(def.id, this.seats.length, this.settings.turns));
       }
       this.seats = [{ kind: 'host', name: cleanName(s.name, t('曙光王國')), color: s.color }];
       const n = this.official ? 3 : s.opponents;
@@ -1173,11 +1178,12 @@ export class ClientSession {
     this.lob = seats;
     const seat = seats.findIndex((s) => s.peer === me);
     this.seat = seat;
-    // a map players published: fetched by its code before anything is drawn on it
-    const code = publishedCode(pr.mp || (pr.bd && pr.bd.mp));
-    if (code && !knownMap('u-' + code) && !this.mapErr) {
+    // a map players published: the version the room plays, fetched before anything is drawn on it
+    const mpId = pr.mp || (pr.bd && pr.bd.mp);
+    const pp = parsePublished(mpId);
+    if (pp && !knownMap(mpId) && !this.mapErr) {
       try {
-        await loadPublished(code);
+        await loadPublished(pp.code, pp.rev);
       } catch (e) {
         if (!this.mapErr) {
           this.mapErr = true;

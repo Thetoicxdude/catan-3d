@@ -148,7 +148,8 @@ if (process.env.API && process.env.KEYS) {
   const deck = { own: ['granary', 'market', 'guild', 'nope'], coins: 250, shards: 40, rev: 5 };
   assert.deepEqual((await call('/api/cards', { cards: deck })).body, { ok: true, owner: none.owner });
   const kept = (await call('/api/cards')).body.cards;
-  assert.deepEqual([kept.own, kept.coins, kept.shards, kept.rev], [['granary', 'market', 'guild'], 250, 40, 5], 'kept, put right');
+  // (put right: an unknown card dropped, the starter cards always owned)
+  assert.deepEqual([kept.own, kept.coins, kept.shards, kept.rev], [['aqueduct', 'granary', 'market', 'guild'], 250, 40, 5], 'kept, put right');
   const stale = (await call('/api/cards', { cards: { ...deck, coins: 9999, rev: 4 } })).body;
   assert.equal(stale.stale, true);
   assert.equal(stale.cards.coins, 250, 'an older copy is refused');
@@ -184,7 +185,9 @@ if (process.env.API && process.env.KEYS) {
   assert.equal(pubd.status, 200, JSON.stringify(pubd.body));
   const code = pubd.body.code;
   assert.match(code, /^[A-HJ-NP-Z2-9]{6}$/);
-  assert.deepEqual((await author('/api/maps', { draft: JSON.parse(JSON.stringify(DRAFTS.twin)) })).body, { code, again: true }, 'the same draft keeps its code');
+  assert.equal(pubd.body.rev, 0);
+  const twice = (await author('/api/maps', { draft: JSON.parse(JSON.stringify(DRAFTS.twin)) })).body;
+  assert.deepEqual([twice.code, twice.rev, twice.again], [code, 0, true], 'the same draft keeps its code');
   const bad = await author('/api/maps', { draft: { cells: [] } });
   assert.equal(bad.status, 400);
   assert.equal(bad.body.message, '先在格子上畫出陸地');
@@ -206,15 +209,46 @@ if (process.env.API && process.env.KEYS) {
   assert.deepEqual((await fan(`/api/maps/${code}/rate`, { stars: 4 })).body, { ok: true, mine: 4, rating: 4, votes: 1 });
   assert.deepEqual((await fan(`/api/maps/${code}/rate`, { stars: 2 })).body, { ok: true, mine: 2, rating: 2, votes: 1 });
   await fan(`/api/maps/${code}/play`, {});
-  const mine = (await author('/api/maps?mine=1')).body.maps;
-  assert.deepEqual(mine.map((m) => [m.code, m.plays, m.rating, m.votes]), [[code, 1, 2, 1]]);
-  // only the author takes it off the list; the code still opens it
+  const mine = (await author('/api/maps?mine=1')).body;
+  assert.deepEqual(mine.maps.map((m) => [m.code, m.plays, m.rating, m.votes, m.rev, m.listed]), [[code, 1, 2, 1, 0, true]]);
+  assert.equal(mine.max, 5);
+  // a new version: the same code, the next revision; the first still opens by its revision
+  const v2 = { ...DRAFTS.twin, name: 'Twin, better' };
+  assert.equal((await fan('/api/maps/' + code, { draft: v2 })).status, 403, 'only the author');
+  const up = await author('/api/maps/' + code, { draft: v2 });
+  assert.equal(up.status, 200, JSON.stringify(up.body));
+  assert.deepEqual([up.body.code, up.body.rev], [code, 1]);
+  const newest = await (await fetch(api + '/api/maps/' + code)).json();
+  assert.deepEqual([newest.map.rev, newest.map.name, newest.map.votes], [1, 'Twin, better', 1], 'the newest version (the cached copy here dropped), ratings kept');
+  const first = await (await fetch(api + '/api/maps/' + code + '?rev=0')).json();
+  assert.deepEqual([first.map.rev, first.map.draft.name], [0, DRAFTS.twin.name]);
+  assert.equal((await fetch(api + '/api/maps/' + code + '?rev=2')).status, 404);
+  assert.equal((await fetch(api + '/api/maps/' + code + '?rev=x')).status, 404);
+  assert.ok((await author('/api/maps/' + code, { draft: v2 })).body.again, 'nothing new');
+  // only the author takes it off the list, and back; the code opens it either way
   assert.equal((await fan(`/api/maps/${code}/hide`, {})).status, 403);
   assert.equal((await author(`/api/maps/${code}/hide`, {})).status, 200);
   const after = await (await fetch(api + '/api/maps?sort=new&t=' + Date.now() + 1)).json();
   assert.ok(!after.maps.some((m) => m.code === code), 'off the list');
-  assert.equal((await author('/api/maps?mine=1')).body.maps.length, 0);
+  assert.deepEqual((await author('/api/maps?mine=1')).body.maps.map((m) => m.listed), [false], 'still the account\'s map');
   assert.equal((await fetch(api + '/api/maps/' + code + '?t=' + Date.now())).status, 200, 'the code keeps working');
+  assert.deepEqual((await author(`/api/maps/${code}/hide`, { hidden: false })).body, { ok: true, listed: true });
+  // five maps an account; deleting one frees a place, its code no longer opens it
+  const more = [];
+  for (const k of ['ring', 'strip', 'archipelago', 'fixed']) {
+    const r = await author('/api/maps', { draft: DRAFTS[k] });
+    assert.equal(r.status, 200, k + ' ' + JSON.stringify(r.body));
+    more.push(r.body.code);
+  }
+  const full = await author('/api/maps', { draft: DRAFTS.country });
+  assert.deepEqual([full.status, full.body.error], [403, 'full']);
+  assert.equal(full.body.message, '每個帳號最多 5 張地圖：在「我的地圖」刪掉一張，或編輯已發布的地圖');
+  assert.equal((await fan(`/api/maps/${more[0]}/delete`, {})).status, 403);
+  assert.deepEqual((await author(`/api/maps/${more[0]}/delete`, {})).body, { ok: true });
+  assert.equal((await fetch(api + '/api/maps/' + more[0] + '?t=' + Date.now())).status, 404);
+  assert.equal((await fetch(api + '/api/maps/' + more[0] + '?rev=0')).status, 200, 'a room playing it can still fetch it');
+  assert.equal((await author('/api/maps?mine=1')).body.maps.length, 4);
+  assert.equal((await author('/api/maps', { draft: DRAFTS.country })).status, 200);
   // a player who leaves takes their name and ratings along
   await fan('/api/forget', {});
   await author('/api/forget', {});

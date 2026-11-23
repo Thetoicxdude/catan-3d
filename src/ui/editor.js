@@ -1,18 +1,30 @@
 // The map workshop: draw an island on a grid of hexes — land drawn at random, or a terrain picked hex
 // by hex; what is left empty is sea — choose how many play and the points to win, and the map is
-// checked as it is drawn (custom.js). The left button draws with the brush, the right one clears. 3D 預覽 shows the island on the 3D map; 試玩 opens a campaign on it. Drafts stay on this
-// device and are saved as they are drawn.
-import { CELL_KINDS, LIMITS, checkDraft, normalizeDraft } from '../engine/custom.js';
+// checked as it is drawn (custom.js). The left button draws with the brush, the right one clears. 3D
+// 預覽 shows the island on the 3D map; 試玩 opens a campaign on it. Drafts stay on this device and are
+// saved as they are drawn. On the self-hosted site a map is published under a code; a published map
+// opened from 我的地圖 (編輯) is a draft linked to it (`pub`), and publishing that draft makes the
+// map's new version (更新) under the same code.
+import { CELL_KINDS, LIMITS, checkDraft, normalizeDraft, draftId } from '../engine/custom.js';
 import { esc } from './text.js';
-import { t, tx, N_, list } from '../i18n/index.js';
+import { t, tx, N_, list, terr } from '../i18n/index.js';
 
 const STORE = 'hexverse-drafts-v1';
 
 // ── drafts on this device ──
+// (pub: the published map a draft edits: its code, the version it began from, that version's content id)
+const linkOf = (p) => (p && /^[A-HJ-NP-Z2-9]{6}$/.test(p.code) && Number.isInteger(p.rev) && p.rev >= 0 && typeof p.cid === 'string' ? { code: p.code, rev: p.rev, cid: p.cid } : null);
 export function loadDrafts() {
   try {
     const list = JSON.parse(localStorage.getItem(STORE) || '[]');
-    return Array.isArray(list) ? list.filter((x) => x && typeof x.key === 'string' && x.draft).map((x) => ({ key: x.key, at: x.at || 0, draft: normalizeDraft(x.draft) })) : [];
+    return Array.isArray(list)
+      ? list
+          .filter((x) => x && typeof x.key === 'string' && x.draft)
+          .map((x) => {
+            const pub = linkOf(x.pub);
+            return { key: x.key, at: x.at || 0, draft: normalizeDraft(x.draft), ...(pub ? { pub } : {}) };
+          })
+      : [];
   } catch {
     return [];
   }
@@ -25,10 +37,14 @@ function storeDrafts(list) {
     return false;
   }
 }
-export function saveDraft(key, draft) {
+export function saveDraft(key, draft, pub = null) {
   const list = loadDrafts().filter((x) => x.key !== key);
-  list.unshift({ key, at: Date.now(), draft: normalizeDraft(draft) });
+  list.unshift({ key, at: Date.now(), draft: normalizeDraft(draft), ...(linkOf(pub) ? { pub: linkOf(pub) } : {}) });
   return storeDrafts(list);
+}
+// the drafts linked to a published map no longer are (it was deleted)
+function unlinkDrafts(code) {
+  storeDrafts(loadDrafts().map((x) => (x.pub && x.pub.code === code ? { key: x.key, at: x.at, draft: x.draft } : x)));
 }
 export function deleteDraft(key) {
   storeDrafts(loadDrafts().filter((x) => x.key !== key));
@@ -95,12 +111,14 @@ function el(tag, cls, html) {
 
 // opts: onBack(), onPlay(def), onPreview(def, area) → Promise (draws the island on the 3D map, framed
 // in `area`, the part of the screen left free), onPreviewEnd(), dialogs (confirmations), toast; on the
-// self-hosted site also onPublish(draft), published() → Promise of the player's published maps (null:
-// signed out) and unpublish(code) → Promise<boolean>
+// self-hosted site also onPublish(draft, pub) → Promise of {code, rev, cid} (what the draft is now
+// published as), {gone} or null; published() → Promise of the player's maps {maps, max} (null: signed
+// out); openPublished(map) → Promise of its draft; setListed(code, listed), remove(code) → Promise<boolean>
 export function showEditor(app, opts) {
   const drafts = loadDrafts();
   let key = drafts[0] ? drafts[0].key : newKey();
   let draft = drafts[0] ? drafts[0].draft : normalizeDraft(TEMPLATES[1][2]());
+  let pub = drafts[0] ? drafts[0].pub || null : null;
   let tool = 'l';
   let mode = 'edit';
   let check = checkDraft(draft);
@@ -129,7 +147,7 @@ export function showEditor(app, opts) {
   const persist = () => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      if (!saveDraft(key, draft) && opts.toast) opts.toast(t('無法儲存'), t('這台裝置不能儲存草稿（瀏覽器的儲存空間被關閉）'), 'cross');
+      if (!saveDraft(key, draft, pub) && opts.toast) opts.toast(t('無法儲存'), t('這台裝置不能儲存草稿（瀏覽器的儲存空間被關閉）'), 'cross');
     }, 400);
   };
   const changed = (redrawSide = true) => {
@@ -259,6 +277,11 @@ export function showEditor(app, opts) {
   const renderSide = () => {
     const st = check.stats;
     body.innerHTML = '';
+    // (a draft of a published map: which, and whether it has changes not published yet)
+    if (pub) {
+      const same = draftId(check.draft) === pub.cid;
+      body.appendChild(el('p', 'ed-publine' + (same ? '' : ' changed'), t('已發布的地圖 <b>{code}</b>・第 {n} 版', { code: esc(pub.code), n: pub.rev + 1 }) + (same ? '' : t('・有還沒發布的變更'))));
+    }
     const g = el('div', 'form-grid');
     g.appendChild(el('label', '', t('名稱')));
     const nm = el('input');
@@ -382,9 +405,7 @@ export function showEditor(app, opts) {
       const tpl = TEMPLATES.find((x) => x[0] === sel.value);
       if (!tpl) return;
       // a new draft: the one being drawn stays in 我的地圖
-      key = newKey();
-      draft = normalizeDraft({ name: t('新的島嶼'), ...tpl[2]() });
-      changed();
+      openDraft({ key: newKey(), draft: normalizeDraft({ name: t('新的島嶼'), ...tpl[2]() }) });
     });
     tg.appendChild(sel);
     body.appendChild(tg);
@@ -403,91 +424,189 @@ export function showEditor(app, opts) {
     play.addEventListener('click', () => {
       if (!check.def) return;
       clearTimeout(saveTimer);
-      saveDraft(key, draft);
+      saveDraft(key, draft, pub);
       opts.onPlay(check.def);
     });
     foot.append(back, mine);
-    // publishing (the self-hosted site): the map gets a code others can open it by
+    // publishing (the self-hosted site): the map gets a code others can open it by; a draft opened from
+    // a published map makes its new version (the same code)
     if (opts.onPublish) {
-      const pub = el('button', 'btn', t('發布'));
-      pub.type = 'button';
-      pub.disabled = !check.def;
-      pub.title = check.def ? t('發布到公開地圖列表，拿到一個代號') : check.errors[0] || '';
-      pub.addEventListener('click', () => check.def && opts.onPublish(check.draft));
-      foot.appendChild(pub);
+      const same = !!pub && draftId(check.draft) === pub.cid;
+      const b = el('button', 'btn', pub ? (same ? t('已發布') : t('更新')) : t('發布'));
+      b.type = 'button';
+      b.disabled = !check.def || same;
+      b.title = !check.def ? check.errors[0] || '' : pub ? (same ? t('和已發布的版本一樣，還沒有新的變更') : t('把變更發布成地圖 {code} 的新版本，代號不變', { code: pub.code })) : t('發布到公開地圖列表，拿到一個代號');
+      b.addEventListener('click', async () => {
+        if (!check.def) return;
+        const k = key;
+        const sent = check.draft;
+        b.disabled = true;
+        const r = await opts.onPublish(sent, pub);
+        if (r && k === key) {
+          // (this draft is now that map; with the published one gone, a draft of its own again)
+          pub = r.gone ? null : { code: r.code, rev: r.rev, cid: r.cid };
+          clearTimeout(saveTimer);
+          saveDraft(key, draft, pub);
+        }
+        if (scr.isConnected) renderSide();
+      });
+      foot.appendChild(b);
     }
     foot.appendChild(play);
   };
 
-  // ── my maps: the drafts on this device ──
+  // ── my maps: the drafts on this device, and (the self-hosted site) the maps published ──
+  // (the draft left is saved first, unless it was just deleted)
+  const openDraft = (it, keep = true) => {
+    clearTimeout(saveTimer);
+    if (keep) saveDraft(key, draft, pub);
+    key = it.key;
+    draft = it.draft;
+    pub = it.pub || null;
+    changed();
+  };
+  const button = (label, cls, fn) => {
+    const b = el('button', 'btn' + (cls ? ' ' + cls : ''), label);
+    b.type = 'button';
+    b.addEventListener('click', fn);
+    return b;
+  };
   const showMine = () => {
     const list = loadDrafts();
     const box = el('div', 'ed-mine');
+    box.appendChild(el('div', 'row-label', t('這台裝置上的草稿')));
     if (!list.length) box.appendChild(el('p', 'lead', t('還沒有儲存的地圖。')));
     for (const it of list) {
       const c = checkDraft(it.draft);
       const row = el('div', 'ed-mine-row' + (it.key === key ? ' on' : ''));
-      row.innerHTML = `<div class="nm"><b>${esc(tx(it.draft.name))}</b><span>${t('{p} 人・{n} 格・', { p: it.draft.kit === 6 ? '5–6' : '3–4', n: c.stats.tiles })}${c.errors.length ? t('還不能玩') : t('{n} 分', { n: it.draft.vp })}</span></div>`;
-      const open = el('button', 'btn', it.key === key ? t('編輯中') : t('開啟'));
-      open.type = 'button';
-      open.disabled = it.key === key;
-      open.addEventListener('click', () => {
-        key = it.key;
-        draft = it.draft;
-        changed();
+      const linked = it.pub ? t('已發布 {code}・', { code: esc(it.pub.code) }) : '';
+      row.innerHTML = `<div class="nm"><b>${esc(tx(it.draft.name))}</b><span>${linked}${t('{p} 人・{n} 格・', { p: it.draft.kit === 6 ? '5–6' : '3–4', n: c.stats.tiles })}${c.errors.length ? t('還不能玩') : t('{n} 分', { n: it.draft.vp })}</span></div>`;
+      const go = button(it.key === key ? t('編輯中') : t('開啟'), '', () => {
+        openDraft(it);
         opts.dialogs.close(true);
       });
-      const del = el('button', 'btn ghost', t('刪除'));
-      del.type = 'button';
-      del.addEventListener('click', () => {
+      go.disabled = it.key === key;
+      const del = button(t('刪除'), 'ghost', () => {
         deleteDraft(it.key);
         if (it.key === key) {
           const rest = loadDrafts();
-          key = rest[0] ? rest[0].key : newKey();
-          draft = rest[0] ? rest[0].draft : normalizeDraft({ name: t('新的島嶼'), ...TEMPLATES[1][2]() });
-          changed();
+          if (rest[0]) openDraft(rest[0], false);
+          else openDraft({ key: newKey(), draft: normalizeDraft({ name: t('新的島嶼'), ...TEMPLATES[1][2]() }) }, false);
         }
         showMine();
       });
-      row.append(open, del);
+      if (it.pub) del.title = t('只刪掉這台裝置上的草稿：已發布的地圖還在，可以再從「已發布」編輯');
+      row.append(go, del);
       box.appendChild(row);
     }
-    // the maps this player has published (on the site's server)
+    // the maps this player has published (on the site's server): at most `max`; each edited here
     if (opts.published) {
-      const pubBox = el('div', 'ed-mine ed-pubs', t('<div class="row-label">已發布</div><p class="lead">載入中…</p>'));
+      const pubBox = el('div', 'ed-mine ed-pubs');
+      const head = el('div', 'row-label', t('已發布'));
+      const wait = el('p', 'lead', t('載入中…'));
+      pubBox.append(head, wait);
       box.appendChild(pubBox);
       opts
         .published()
-        .then((maps) => {
+        .then((d) => {
           if (!box.isConnected) return;
-          pubBox.querySelector('p').remove();
-          if (!maps) pubBox.appendChild(el('p', 'lead', t('登入後可以發布地圖，發布的地圖會列在這裡。')));
-          else if (!maps.length) pubBox.appendChild(el('p', 'lead', t('還沒有發布過地圖。')));
-          for (const m of maps || []) {
-            const row = el('div', 'ed-mine-row');
-            row.innerHTML = `<div class="nm"><b>${esc(tx(m.name))}</b><span>${t('代號 {code}・{n} 局・', { code: esc(m.code), n: m.plays })}${m.votes ? `★ ${m.rating.toFixed(1)} (${m.votes})` : t('還沒有評分')}</span></div>`;
-            const hide = el('button', 'btn ghost', t('從列表移除'));
-            hide.type = 'button';
-            hide.addEventListener('click', async () => {
-              hide.disabled = true;
-              if (await opts.unpublish(m.code)) row.remove();
-              else hide.disabled = false;
+          wait.remove();
+          if (!d) {
+            pubBox.appendChild(el('p', 'lead', t('登入後可以發布地圖，發布的地圖會列在這裡。')));
+            return;
+          }
+          const maps = d.maps || [];
+          const max = d.max || 5;
+          const count = () => {
+            const n = pubBox.querySelectorAll('.ed-mine-row').length;
+            head.innerHTML = t('已發布 <b>{n}/{max}</b>', { n, max });
+            note.textContent = n >= max ? t('已經有 {max} 張：要發布新的地圖，先刪掉一張。', { max }) : t('每個帳號最多 {max} 張。要改地圖就按「編輯」，改好按「更新」，代號不變。', { max });
+          };
+          const note = el('p', 'ed-pubnote');
+          pubBox.appendChild(note);
+          if (!maps.length) pubBox.appendChild(el('p', 'lead', t('還沒有發布過地圖。')));
+          for (const m of maps) {
+            const row = el('div', 'ed-mine-row ed-pub-row' + (pub && pub.code === m.code ? ' on' : ''));
+            const info = () => {
+              row.querySelector('.nm span').innerHTML =
+                t('代號 {code}・第 {n} 版・', { code: esc(m.code), n: m.rev + 1 }) + (m.listed ? t('公開') : t('不公開')) + t('・{n} 局・', { n: m.plays }) + (m.votes ? `★ ${m.rating.toFixed(1)} (${m.votes})` : t('還沒有評分'));
+            };
+            row.innerHTML = `<div class="nm"><b>${esc(tx(m.name))}</b><span></span></div>`;
+            info();
+            const acts = el('div', 'ed-pub-acts');
+            // edit: the draft of this map on this device (the one with changes not published yet, when it
+            // began from this version), else the map as published
+            const edit = button(t('編輯'), '', async () => {
+              edit.disabled = true;
+              try {
+                const have = loadDrafts().find((x) => x.pub && x.pub.code === m.code);
+                if (have && have.pub.rev === m.rev) openDraft(have);
+                else {
+                  const d2 = await opts.openPublished(m);
+                  openDraft({ key: have ? have.key : newKey(), draft: normalizeDraft(d2), pub: { code: m.code, rev: m.rev, cid: m.cid } });
+                }
+                opts.dialogs.close(true);
+              } catch (e) {
+                edit.disabled = false;
+                if (opts.toast) opts.toast(t('打不開這張地圖'), terr(e), 'cross');
+              }
             });
-            row.appendChild(hide);
+            const shown = button(m.listed ? t('從列表移除') : t('放回列表'), 'ghost', async () => {
+              shown.disabled = true;
+              if (await opts.setListed(m.code, !m.listed)) {
+                m.listed = !m.listed;
+                shown.textContent = m.listed ? t('從列表移除') : t('放回列表');
+                info();
+              }
+              shown.disabled = false;
+            });
+            // (deleting asks once more on the button itself)
+            let armed = null;
+            const del = button(t('刪除'), 'ghost danger', async () => {
+              if (!armed) {
+                del.classList.add('armed');
+                del.textContent = t('確定刪除？');
+                armed = setTimeout(() => {
+                  armed = null;
+                  del.classList.remove('armed');
+                  del.textContent = t('刪除');
+                }, 4000);
+                return;
+              }
+              clearTimeout(armed);
+              del.disabled = true;
+              if (await opts.remove(m.code)) {
+                unlinkDrafts(m.code);
+                if (pub && pub.code === m.code) {
+                  pub = null;
+                  clearTimeout(saveTimer);
+                  saveDraft(key, draft, pub);
+                  renderSide();
+                }
+                row.remove();
+                count();
+              } else {
+                armed = null;
+                del.disabled = false;
+                del.classList.remove('armed');
+                del.textContent = t('刪除');
+              }
+            });
+            del.title = t('刪掉這張地圖：代號不能再開新的對局，空出一個位置');
+            acts.append(edit, shown, del);
+            row.appendChild(acts);
             pubBox.appendChild(row);
           }
+          count();
         })
         .catch(() => {
-          const p = pubBox.querySelector('p');
-          if (p) p.textContent = t('無法載入已發布的地圖');
+          if (box.isConnected) wait.textContent = t('無法載入已發布的地圖');
         });
     }
     const fresh = el('button', 'btn', t('新地圖'));
     fresh.type = 'button';
     fresh.addEventListener('click', () => {
-      key = newKey();
-      draft = normalizeDraft({ name: t('新的島嶼'), ...TEMPLATES[1][2]() });
-      changed();
+      openDraft({ key: newKey(), draft: normalizeDraft({ name: t('新的島嶼'), ...TEMPLATES[1][2]() }) });
       opts.dialogs.close(true);
     });
     opts.dialogs.open({ kind: 'mine', title: t('我的地圖'), body: box, foot: [fresh], cls: 'ed-mine-dlg' });
@@ -515,7 +634,7 @@ export function showEditor(app, opts) {
 
   const close = (back) => {
     clearTimeout(saveTimer);
-    saveDraft(key, draft);
+    saveDraft(key, draft, pub);
     scr.remove();
     if (back) opts.onBack();
   };

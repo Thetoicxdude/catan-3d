@@ -872,7 +872,20 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .mb-rate-stars button { background: none; border: 0; padding: 0 2px; font-size: 24px; line-height: 1; color: rgba(240, 194, 74, 0.3); cursor: pointer; }
 .mb-rate-stars button.on, .mb-rate-stars button:hover { color: #f0c24a; }
 .ed-pubs { margin-top: 12px; }
+.ed-mine > .row-label { margin: 0; }
+.ed-mine > .row-label b { font-family: var(--font-num); letter-spacing: 0.06em; }
+.ed-pubnote { margin: 0 0 2px; font-size: 12px; color: var(--ink-dim); }
+.ed-mine-row.ed-pub-row { grid-template-columns: minmax(0, 1fr) auto; }
+.ed-pub-acts { display: flex; gap: 6px; }
+/* (off the list / back on it: one width, so the rows' buttons line up) */
+.ed-pub-acts .btn.ghost:not(.danger) { min-width: 8em; }
+/* the workshop: the draft is a published map's (its code and version; changes not published yet) */
+.ed-publine { margin: 0 0 10px; padding: 6px 9px; font-size: 13px; border-left: 3px solid var(--brass); background: rgba(0, 0, 0, 0.22); }
+.ed-publine b { font-family: var(--font-num); letter-spacing: 0.12em; color: var(--brass-hi); }
+.ed-publine.changed { border-left-color: #d39b2a; }
 @media (max-width: 760px) {
   .mb-row { grid-template-columns: minmax(0, 1fr) auto; }
   .mb-row .mb-stars, .mb-row code { display: none; }
+  .ed-mine-row.ed-pub-row { grid-template-columns: minmax(0, 1fr); }
+  .ed-pub-acts { justify-content: flex-end; }
 }
