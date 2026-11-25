@@ -1,5 +1,6 @@
-// Placement markers that read on any terrain and from any camera angle: small white dots with a dark
-// outline on every intersection that can be built on (the one under the pointer becomes a ring),
+// Placement markers that read on any terrain and from any camera angle: small gold coins with a dark
+// outline on every intersection that can be built on (the one under the pointer becomes a ring in the
+// player's colour),
 // outlined stripes with a centre dot (road spots) and target rings around number tokens (robber).
 // Drawn on top of everything, about the same size on screen at every zoom but never wider than the
 // room between neighbouring spots, so they never hide the map.
@@ -41,7 +42,28 @@ function textures() {
     g.strokeStyle = INK;
     g.stroke();
   });
+  // (an intersection to build on: a gold coin with a dark rim and a highlight, 2026-11-25; the
+  // white dot stays for a road's middle, which takes the player's colour under the pointer)
   TEX.dot = canvasTex((g) => {
+    const gr = g.createRadialGradient(54, 50, 4, 64, 64, 40);
+    gr.addColorStop(0, '#fff6d2');
+    gr.addColorStop(0.45, '#f1c866');
+    gr.addColorStop(1, '#a8741f');
+    g.beginPath();
+    g.arc(64, 64, 36, 0, Math.PI * 2);
+    g.fillStyle = gr;
+    g.fill();
+    g.lineWidth = 16;
+    g.strokeStyle = INK;
+    g.stroke();
+    g.beginPath();
+    g.arc(64, 64, 27, Math.PI * 1.1, Math.PI * 1.75);
+    g.lineWidth = 6;
+    g.lineCap = 'round';
+    g.strokeStyle = 'rgba(255,255,255,0.85)';
+    g.stroke();
+  });
+  TEX.wdot = canvasTex((g) => {
     g.beginPath();
     g.arc(64, 64, 36, 0, Math.PI * 2);
     g.fillStyle = '#ffffff';
@@ -242,7 +264,7 @@ export class Markers {
         this.items.set(id, { objs: [s], spot: s, base: 12, ring: true });
       } else if (kind === 'edge') {
         const r = this.ribbon(id);
-        const d = this.sprite(T.dot, 41);
+        const d = this.sprite(T.wdot, 41);
         d.position.copy(this.pieces.edgeMid(id)).add(new THREE.Vector3(0, 0.7, 0));
         this.items.set(id, { objs: [r, d], ribbon: r, spot: d, base: 12 });
       } else if (kind === 'hex') {

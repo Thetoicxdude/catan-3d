@@ -162,7 +162,7 @@
 
 /* ── loading and handing over the device ── */
 .loading { background: radial-gradient(ellipse at center, #16283a 0%, #070d12 75%); }
-.loading > div:first-child { font-weight: 900; font-size: 20px; letter-spacing: 0.4em; background: var(--gold-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.loading .ld-text, .loading.fatal > div:first-child { font-weight: 900; font-size: 20px; letter-spacing: 0.4em; background: var(--gold-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .loading .bar { width: 240px; height: 8px; padding: 1px; border: 1px solid #8a6a3e; border-radius: 6px; background: #0b0805; }
 .loading .bar i { border-radius: 4px; background: var(--gold-face); }
 .pass-screen { background: radial-gradient(ellipse at center, rgba(14, 26, 36, 0.9), rgba(5, 8, 11, 0.96)); }

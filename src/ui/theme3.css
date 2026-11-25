@@ -147,6 +147,13 @@ html.ui3 .banner {
   color: #fbe7c8; font-family: var(--font-display); font-weight: 700; letter-spacing: 0.06em; text-shadow: 0 1px 1px rgba(40, 4, 2, 0.85);
   filter: none;
 }
+/* (its ends: the cloth folded back into swallow tails, a shade darker, behind the band) */
+html.ui3 .banner::before {
+  content: ""; position: absolute; left: -18px; right: -18px; top: 6px; bottom: -6px; pointer-events: none;
+  background: linear-gradient(180deg, #8a2617 0%, #5f150b 100%);
+  clip-path: polygon(0 0, 18px 0, 18px 100%, 0 100%, 8px 50%, 0 0, 100% 0, calc(100% - 8px) 50%, 100% 100%, calc(100% - 18px) 100%, calc(100% - 18px) 0, 100% 0);
+}
+html.ui3 .banner.wait::before { background: linear-gradient(180deg, #2a5a3c 0%, #1b4029 100%); }
 html.ui3 .banner .msg b { color: #ffd98f; }
 html.ui3 .banner.wait { background: var(--u3-threads), var(--u3-cloth-green); box-shadow: inset 0 0 0 1px rgba(6, 30, 14, 0.6), inset 0 1px 0 rgba(200, 240, 200, 0.25), 0 5px 12px rgba(0, 0, 0, 0.45); color: #e6f0d8; text-shadow: 0 1px 1px rgba(4, 24, 10, 0.85); }
 html.ui3 .banner.urgent { background: var(--u3-threads), var(--u3-cloth); border-color: transparent; }
@@ -284,19 +291,27 @@ html.ui3 .act {
   width: 70px; min-height: 74px; padding: 4px 2px 3px; margin: 0 1px; gap: 4px; justify-content: flex-start;
   background: none; border: 0; border-radius: 6px; box-shadow: none; color: var(--u3-cream);
 }
-/* the medallion: a dark face in a brass ring */
+/* the medallion: a dark face in a polished brass ring (the light runs round the metal) */
 html.ui3 .act::before {
-  content: ""; position: absolute; top: 4px; left: 50%; width: 44px; height: 44px; margin-left: -22px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle at 50% 38%, #3d2a18 0%, #1e1309 72%);
-  box-shadow: 0 0 0 2px #c9a35a, 0 0 0 3px #3e270d, inset 0 2px 5px rgba(0, 0, 0, 0.85), inset 0 -1px 0 rgba(255, 220, 160, 0.15), 0 3px 4px rgba(0, 0, 0, 0.6);
+  content: ""; position: absolute; top: 3px; left: 50%; width: 46px; height: 46px; margin-left: -23px; border-radius: 50%; pointer-events: none; box-sizing: border-box;
+  border: 3px solid transparent;
+  background: radial-gradient(circle at 50% 36%, #4a3320 0%, #26170a 70%) padding-box,
+    conic-gradient(from 200deg, #7d5418, #f7e1a0 12%, #c08d3e 26%, #5d3c14 42%, #b98a44 58%, #fff0c4 72%, #a77328 86%, #7d5418) border-box;
+  box-shadow: 0 0 0 1px #2a1808, inset 0 2px 6px rgba(0, 0, 0, 0.85), inset 0 -1px 0 rgba(255, 220, 160, 0.18), 0 3px 5px rgba(0, 0, 0, 0.6);
 }
+/* (the pictograms in gilt: the badges' shared gradient, ui/badges.js) */
 html.ui3 .act svg, html.ui3 .act .gi, html.ui3 .act .ico { position: relative; z-index: 1; width: 25px; height: 25px; margin-top: 10px; color: var(--u3-gilt); filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.8)); }
+html.ui3 .act:not(.primary) .gi path { fill: url(#bdg-gilt); }
 html.ui3 .act .lbl { margin-top: 8px; font-family: var(--font-display); font-weight: 700; font-size: 12.5px; letter-spacing: 0.04em; color: var(--u3-cream); text-shadow: 0 1px 1px #000; }
 html.ui3 .act .key { top: 1px; left: 2px; font-size: 9.5px; color: rgba(226, 196, 128, 0.5); }
 html.ui3 .act:hover:not(.off) { background: none; border-color: transparent; }
-html.ui3 .act:hover:not(.off)::before { box-shadow: 0 0 0 2px #f2d48c, 0 0 0 3px #3e270d, inset 0 2px 5px rgba(0, 0, 0, 0.85), 0 0 12px rgba(255, 210, 120, 0.55), 0 3px 4px rgba(0, 0, 0, 0.6); }
+html.ui3 .act:hover:not(.off)::before { box-shadow: 0 0 0 1px #2a1808, inset 0 2px 6px rgba(0, 0, 0, 0.85), 0 0 12px rgba(255, 210, 120, 0.6), 0 3px 5px rgba(0, 0, 0, 0.6); }
 html.ui3 .act.on { background: none; box-shadow: none; }
-html.ui3 .act.on::before { background: radial-gradient(circle at 50% 38%, #5a3d1c 0%, #2a1a0b 72%); box-shadow: 0 0 0 2px #fbe2a2, 0 0 0 3px #3e270d, 0 0 16px rgba(255, 214, 130, 0.7), inset 0 2px 5px rgba(0, 0, 0, 0.7); }
+html.ui3 .act.on::before {
+  background: radial-gradient(circle at 50% 36%, #6a4820 0%, #2e1c0b 72%) padding-box,
+    conic-gradient(from 200deg, #9a6c22, #fff3c8 12%, #e0ad55 26%, #7a5218 42%, #d9a95a 58%, #fff6d8 72%, #c48d36 86%, #9a6c22) border-box;
+  box-shadow: 0 0 0 1px #2a1808, 0 0 16px rgba(255, 214, 130, 0.75), inset 0 2px 5px rgba(0, 0, 0, 0.7);
+}
 html.ui3 .act.off { opacity: 0.42; }
 /* the order to give now: a red wax seal */
 html.ui3 .act.primary { background: none; color: var(--u3-cream); }
@@ -450,6 +465,10 @@ html.ui3 .standing .tot { color: var(--u3-ink); }
 html.ui3 .standing.win { padding: 6px 8px; margin-bottom: 4px; background: rgba(142, 36, 22, 0.07); border: 3px double rgba(74, 46, 24, 0.6); }
 html.ui3 .standing.win .rk { color: #ffeccc; text-shadow: 0 1px 1px rgba(60, 6, 2, 0.9); background: var(--u3-wax); -webkit-mask-image: var(--u3-seal-mask); mask-image: var(--u3-seal-mask); width: 32px; height: 32px; font-size: 17px; }
 html.ui3 .standing.win .tot { color: var(--u3-red); }
+/* the winner's crest on paper (styles.css .over-hero): the rays in ochre ink, your win's ribbon the
+   cloth of the turn banner */
+html.ui3 .oh-rays { background: repeating-conic-gradient(rgba(186, 122, 34, 0.42) 0deg 6deg, rgba(186, 122, 34, 0) 6deg 20deg); }
+html.ui3 .over-hero.win .oh-ribbon { background: var(--u3-cloth); }
 html.ui3 .hist i { background: linear-gradient(180deg, #b8402a, #6c160c); box-shadow: inset 0 0 0 1px rgba(40, 4, 2, 0.25); }
 html.ui3 .hist span { color: var(--u3-ink-soft); }
 html.ui3 .hist b { color: var(--u3-ink); }
@@ -624,3 +643,11 @@ html.ui3 .hm-medal .emblem { background: radial-gradient(circle at 50% 38%, #3d2
   html.ui3 .title-block h1 span { margin-top: 6px; }
   html.ui3 .title-block p { font-size: 13px; }
 }
+
+/* ───────── loading: the map table at night, the crest lit by a lamp, a brass bar ───────── */
+html.ui3 .loading { background: radial-gradient(ellipse at 50% 44%, #3a2716 0%, #1d130b 56%, #0d0805 100%); }
+html.ui3 .loading .bar {
+  width: 260px; height: 12px; padding: 2px; border: 0; border-radius: 7px; background: linear-gradient(180deg, #120b05, #2a1c0f);
+  box-shadow: 0 0 0 1.5px #b8893f, 0 0 0 3px #3a2412, 0 3px 8px rgba(0, 0, 0, 0.6), inset 0 2px 3px rgba(0, 0, 0, 0.8);
+}
+html.ui3 .loading .bar i { border-radius: 5px; background: linear-gradient(180deg, #fff3c8 0%, #f0c35a 40%, #b47b29 75%, #8a5a1c 100%); }

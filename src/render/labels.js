@@ -94,8 +94,23 @@ export class Labels {
       // pixels from the width on screen of `ground` world units there, `size` being its width at
       // scale 1; below fadePx it fades away
       if (o.ground) {
-        const px = o.px(screenWidth(camera, it.pos, o.ground, w, h));
+        const groundPx = screenWidth(camera, it.pos, o.ground, w, h);
+        const px = o.px(groundPx);
         s = px / o.size;
+        // (a label for the map seen from afar: farHex [full, gone], the ground's width on screen below
+        // which it is fully seen and above which it is gone)
+        if (o.farHex) {
+          const [full, gone] = o.farHex;
+          const k = Math.min(1, Math.max(0, (gone - groundPx) / (gone - full)));
+          alpha *= k * k * (3 - 2 * k);
+          if (alpha <= 0.01) {
+            if (it.visible) {
+              box.style.display = 'none';
+              it.visible = false;
+            }
+            continue;
+          }
+        }
         if (o.fadePx) {
           const [lo, hi] = o.fadePx;
           const k = Math.min(1, Math.max(0, (px - lo) / (hi - lo)));

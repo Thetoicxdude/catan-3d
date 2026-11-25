@@ -14,6 +14,7 @@ import { Markers } from './markers.js';
 import { Labels, screenWidth } from './labels.js';
 import { FogCover } from './fog.js';
 import { DevelopLayer } from './develop.js';
+import { MapBadges, badgePx, FAR_HEX } from './badges.js';
 import { devPrewarm } from './devmesh.js';
 import { GLSL_NOISE } from './noise.js';
 import { fpsMode, refreshInterval, refreshesPerFrame, pixelRatioCap, Governor } from './pace.js';
@@ -43,6 +44,8 @@ const harborPx = (hexPx) => {
   return px;
 };
 const HARBOR_FIT = { ground: HEX_W, px: harborPx, size: 80, fadePx: [26, 34] };
+// a building's badge (64 px at scale 1, render/badges.js): seen only while the provinces are small
+const badgeFit = (mult) => ({ ground: HEX_W, px: (hexPx) => badgePx(hexPx) * mult, size: 64, farHex: FAR_HEX });
 
 // (Seafarers, the fog islands) the hexes nobody has explored yet, and a key that changes with every
 // discovery
@@ -732,6 +735,10 @@ export class MapView {
       const it = this.labels.add(el, a.pos, { ...HARBOR_FIT });
       this.harborLabels.push({ it, el, shore: a.shore });
     }
+    // the buildings' badges, for the map seen from afar
+    this.badges = new MapBadges(this.labels, (x, z) => this.terrain.heightAt(x, z), badgeFit);
+    this.badges.setPlayers(this.players);
+    this.badges.setMe(this.viewer == null ? -1 : this.viewer);
     this.buildNationLabels();
   }
 
@@ -787,6 +794,7 @@ export class MapView {
     this.territory = new Territory(players, this.terrain);
     this.terrain.uniforms.uTerritory.value = this.territory.fillTex;
     this.terrain.uniforms.uBorder.value = this.territory.borderTex;
+    if (this.badges) this.badges.setPlayers(players);
     this.buildNationLabels();
     this.setInteraction(null);
     this.sync(state, [], false);
@@ -982,13 +990,24 @@ export class MapView {
     if (this.robberLabel) this.labels.remove(this.robberLabel);
     for (const hl of this.harborLabels) this.labels.remove(hl.it);
     if (this.developLayer) this.developLayer.dispose();
+    if (this.badges) this.badges.dispose();
     this.buildLabels(state);
     // the pieces already on the board come back without popping in
     this.pieces.sync(state, false);
+    this.badges.sync(state);
     this.setInteraction(this.interaction);
     this.shadowDirty = 3;
     this.rebuilds = (this.rebuilds || 0) + 1;
     this.rebuildMs = Math.round(performance.now() - t0);
+  }
+
+  // the player this page plays (in a hot seat, the one at the device): their buildings' badges have a
+  // gold rim
+  setViewer(p) {
+    this.viewer = p;
+    if (!this.badges) return;
+    this.badges.setMe(p);
+    if (this.lastState) this.badges.sync(this.lastState);
   }
 
   // ── state sync ──
@@ -1000,6 +1019,8 @@ export class MapView {
       this.fog.set(hiddenFog(state.board));
     }
     const changed = this.pieces.sync(state, animate);
+    this.lastState = state;
+    if (this.badges) this.badges.sync(state);
     // The territories are worked out in a task of their own, a moment later: in the same task as the
     // move itself, the panels and the rest of this update, they made one long stall of the page (and
     // a frame or two missed) after every road and building. Moves that come quicker than that are

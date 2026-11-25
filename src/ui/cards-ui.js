@@ -18,6 +18,7 @@ import { cards as collection, commit, onCards } from '../meta/store.js';
 import { DIR_COLOR, BUILDING_TEXT, buildingName, blueprintName, pointsText } from './develop-ui.js';
 import { buildingIcon, icon, resIcon, RES_NAMES } from './icons.js';
 import { fly, burst, count, pop, stamp, shake, fadeIn, whenShown, EASE, reduced } from './motion.js';
+import { badgeSvg } from './badges.js';
 import { sfx } from './sfx.js';
 import { t, N_, list } from '../i18n/index.js';
 
@@ -657,6 +658,37 @@ export function shopPage(host, opts = {}) {
   render();
 }
 
+// Each mission's badge (ui/badges.js), as in a game's achievements: its shape the subject (a whole
+// game a round pin, a special building a diamond, a wonder a rosette, the dice and the robber a rounded
+// square), its pictogram the task; blue enamel while under way, green with a gold rim when its reward
+// waits, grey once taken (2026-11-25, the art pass).
+const MISSION_BADGE = {
+  welcome: ['circle', 'scroll-unfurled'],
+  plot: ['diamond', 'windmill'],
+  devgame: ['circle', 'checkered-flag'],
+  devwin: ['circle', 'laurel-crown'],
+  build2: ['diamond', 'hammer-nails'],
+  level2: ['diamond', 'upgrade'],
+  wonder: ['rosette', 'crane'],
+  wonderdone: ['rosette', 'greek-temple'],
+  defend: ['rosette', 'checked-shield'],
+  build3: ['diamond', 'hammer-nails'],
+  discard7: ['square', 'rolling-dices'],
+  robbed: ['square', 'hooded-figure'],
+  devgames3: ['circle', 'checkered-flag'],
+  stages2: ['rosette', 'crane'],
+  build4: ['diamond', 'hammer-nails'],
+  army: ['circle', 'mounted-knight'],
+  online: ['circle', 'meeple-group'],
+  games10: ['circle', 'checkered-flag'],
+  wins5: ['circle', 'laurels-trophy'],
+};
+function missionBadge(id, s) {
+  const [shape, glyph] = MISSION_BADGE[id] || ['circle', 'scroll-unfurled'];
+  const ready = s.done && !s.got;
+  return `<span class="ms-ico${ready ? ' ready' : ''}" aria-hidden="true">${badgeSvg(shape, glyph, s.done ? '#3b8a47' : '#2c5e8f', { gold: ready, dim: s.got })}</span>`;
+}
+
 // opts: settings and save (a card won goes into the blueprint in use when it has room)
 export function missionsPage(host, opts = {}) {
   const { settings, save } = opts;
@@ -685,6 +717,7 @@ export function missionsPage(host, opts = {}) {
       if (typeof was[m.id] === 'number' && was[m.id] < s.n) grow.push([m.id, Math.min(100, Math.round((100 * was[m.id]) / s.goal)), pct]);
       // (the bar is as long as the track, slid back by what is still to do)
       return `<div class="ms-row${s.done ? ' done' : ''}${s.got ? ' got' : ''}" data-m="${m.id}">
+        ${missionBadge(m.id, s)}
         <div class="ms-text"><b>${esc(t(m.text))}</b><span class="ms-bar" aria-hidden="true"><i style="translate:${pct - 100}% 0"></i></span><small class="num">${s.n}/${s.goal}</small></div>
         <div class="ms-reward">${reward}</div>
         <div class="ms-act">${s.got ? `<span class="ms-got">${esc(t('已領取'))}</span>` : s.done ? `<button type="button" class="btn primary" data-claim="${m.id}">${esc(t('領取'))}</button>` : ''}</div>

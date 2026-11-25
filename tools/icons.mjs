@@ -26,6 +26,8 @@ const USED = [
   // the buildings of 2026-11-18: the directions' twelve, the neutral thirteen
   'barn', 'plow', 'sickle', 'camel', 'harbor-dock', 'wheelbarrow', 'village', 'capitol', 'throne-king', 'teacher', 'feather', 'book-pile',
   'wooden-crate', 'abacus', 'bread', 'anvil', 'hills', 'telescope', 'watchtower', 'temple-gate', 'trowel', 'checked-shield', 'toolbox', 'vertical-banner', 'obelisk',
+  // the art of 2026-11-25: the winner's crest at the end of a campaign, the missions' badges
+  'crown', 'checkered-flag', 'upgrade',
 ];
 
 const src = JSON.parse(readFileSync(process.argv[2], 'utf8'));

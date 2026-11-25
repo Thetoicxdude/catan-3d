@@ -20,7 +20,8 @@ import {
 } from '../engine/engine.js';
 import { developOn, plotSpots, plotCost, specialWhy, specialHosts, hostWhy, slotsAt, wonderSpots, wonderWhy, wonderOf, wonderDone, stageCost, isWonder, hasBuilt, BUILDINGS, BUILDING_NAMES, PLOT_COST, BLUEPRINT_SIZE, hasBasic, specialsOf, NO_CARD, payFor, STORE_MAX, CARAVAN_GIVE } from '../engine/develop.js';
 import { BUILDING_TEXT, DEVELOP_TEXT, DIR_COLOR, nationStrip, pointsText } from './develop-ui.js';
-import { resCard, resIcon, costTokens, icon, dieFace, RES_NAMES, RES_EN, buildingIcon } from './icons.js';
+import { resCard, resIcon, costTokens, icon, dieFace, RES_NAMES, RES_EN, buildingIcon, buildingGlyph } from './icons.js';
+import { badgeSvg, ensureBadgeDefs } from './badges.js';
 import { Fx } from './fx.js';
 import { sfx } from './sfx.js';
 import { shake, pop, reduced, EASE } from './motion.js';
@@ -52,6 +53,12 @@ const BUILD_ROWS = [
   ['moveShip', '6', 'moveShip'],
   ['develop', '5', 'develop'],
 ];
+// each build row's badge (ui/badges.js), in the player's own colour: the shape it has on the map
+const ROW_BADGE = { road: ['square', 'stone-path'], settlement: ['circle', 'house'], city: ['hex', 'castle'], dev: ['square', 'card-draw'], ship: ['tri', 'sailboat'], moveShip: ['tri', 'ship-wheel'], develop: ['square', 'windmill'] };
+const rowBadge = (k, color) => {
+  const [shape, glyph] = ROW_BADGE[k];
+  return badgeSvg(shape, glyph, color, { mine: true });
+};
 const TERRAIN_HEX = { forest: '#2f6b2f', hills: '#b5532c', pasture: '#8fcf4f', fields: '#e8c547', mountains: '#8d8d96', desert: '#d9c48e', gold: '#f0b62a', fog: '#7d8790' };
 // (the map table: washes of colour on the parchment, which shows through as the sea)
 const TERRAIN_WASH = { forest: '#7f9c66', hills: '#cf8a5e', pasture: '#b5cd84', fields: '#e8cd78', mountains: '#aeaba2', desert: '#eadbb0', gold: '#e9bd52', fog: '#c2bcae' };
@@ -84,6 +91,8 @@ export class Hud {
   constructor(root, handlers) {
     this.root = root;
     this.h = handlers;
+    // (the badges' shared gradients: the orders' gilt pictograms and the dice are filled with them)
+    ensureBadgeDefs();
     this.prevRes = null;
     this.logCount = 0;
     // cards still flying towards the hand are not counted yet: the number ticks up on arrival
@@ -650,6 +659,20 @@ export class Hud {
   renderActions(ctx) {
     const { view: v, me } = ctx;
     const pl = me >= 0 ? v.players[me] : null;
+    // (the build rows' badges in this player's colour: a friend at this device has another)
+    const myColor = (ctx.players && ctx.players[me] && ctx.players[me].color) || '#9a8a70';
+    if (myColor !== this.rowColor) {
+      this.rowColor = myColor;
+      for (const [k] of BUILD_ROWS) {
+        const ico = this.btns[k] && this.btns[k].querySelector('.bm-ico');
+        if (!ico) continue;
+        const key = ico.querySelector('.key');
+        ico.classList.add('bdgi');
+        ico.innerHTML = `<span class="bdg">${rowBadge(k, myColor)}</span>`;
+        if (key) ico.appendChild(key);
+      }
+      this.bpSig = null;
+    }
     const myTurn = pl && v.phase === 'play' && v.current === me && !ctx.locked;
     const free = myTurn && !v.pending && !v.trade;
     const set = (k, enabled, title, extra = {}) => {
@@ -837,7 +860,9 @@ export class Hud {
         row.dataset.k = key;
         row.style.setProperty('--dc', DIR_COLOR[BUILDINGS[k].dir]);
         row.setAttribute('role', 'menuitem');
-        row.innerHTML = `<span class="bm-ico">${buildingIcon(k, 24)}</span><b class="bm-name">${t(BUILDING_NAMES[k])}</b><span class="bm-cost"></span><small class="bm-sub"></small><small class="bm-left"></small>`;
+        const col = this.rowColor || '#9a8a70';
+        const bdg = badgeSvg(isWonder(k) ? 'rosette' : 'diamond', buildingGlyph(k), col, { mine: true, gold: isWonder(k) });
+        row.innerHTML = `<span class="bm-ico bdgi"><span class="bdg">${bdg}</span></span><b class="bm-name">${t(BUILDING_NAMES[k])}</b><span class="bm-cost"></span><small class="bm-sub"></small><small class="bm-left"></small>`;
         row.addEventListener('click', () => {
           if (row.classList.contains('off')) {
             this.refuse(row);

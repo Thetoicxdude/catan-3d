@@ -45,6 +45,14 @@
 .robber-badge.drop::after, .token .rob.drop::after { animation-delay: 0.7s; }
 @keyframes robring { 0%, 100% { transform: scale(1); opacity: 0; } 50% { transform: scale(1.3); opacity: 1; } }
 @keyframes robdrop { 0% { translate: 0 -40px; scale: 1.6; opacity: 0; } 60% { translate: 0 2px; scale: 0.95; opacity: 1; } 100% { translate: 0 0; scale: 1; } }
+/* a building's badge for the map seen from afar (render/badges.js; ui/badges.js draws the pins): 64 px,
+   scaled by its wrapper; your own with a gold glow. A settlement's special buildings hang under it. */
+.mbadge { position: relative; width: 64px; height: 64px; }
+.mbadge > .bdg-svg { display: block; width: 64px; height: 64px; overflow: visible; filter: drop-shadow(0 1.5px 1.5px rgba(0, 0, 0, 0.6)); }
+.mbadge.mine > .bdg-svg { filter: drop-shadow(0 0 4px rgba(255, 214, 120, 0.95)) drop-shadow(0 1.5px 1px rgba(0, 0, 0, 0.55)); }
+.mbadge .mb-ann { position: absolute; left: 50%; top: 46px; display: flex; gap: 1px; translate: -50% 0; }
+.mbadge .mb-an { display: block; width: 30px; height: 30px; }
+.mbadge .mb-an > .bdg-svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6)); }
 .province-name {
   font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.28em;
   color: #4a3826; text-shadow: 0 0 6px rgba(244, 233, 205, 0.95), 0 0 2px rgba(244, 233, 205, 1);

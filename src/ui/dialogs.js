@@ -7,6 +7,7 @@ import { flagURL } from './flags.js';
 import { esc, cardsHtml, DEV_INFO, rulesHtml } from './text.js';
 import { t, isZh, getLang, N_ } from '../i18n/index.js';
 import { reduced } from './motion.js';
+import { badgeSvg } from './badges.js';
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -519,7 +520,18 @@ export class Dialogs {
       .sort((a, b) => (b.p.id === v.winner) - (a.p.id === v.winner) || b.tot - a.tot);
     const body = el('div');
     const win = ctx.players[v.winner];
-    body.innerHTML = `<p class="lead" style="font-size:15px">${v.winner === ctx.me ? t('<b>你統一了這座島！</b>') : t('<b style="color:{color}">{name}</b> 在第 {turn} 回合達成 {vp} 分，贏得戰役。', { color: win.color, name: esc(win.name), turn: v.turn, vp: v.targetVP })}</p>`;
+    // the winner's crest under a ribbon, in light (your win) or quietly (another's): a rosette in the
+    // winner's colour with a crown, gold-rimmed (ui/badges.js); a few stars twinkle round it
+    const mine = v.winner === ctx.me;
+    const stars = mine ? '<i class="oh-star s1"></i><i class="oh-star s2"></i><i class="oh-star s3"></i><i class="oh-star s4"></i><i class="oh-star s5"></i>' : '';
+    body.appendChild(
+      el(
+        'div',
+        'over-hero' + (mine ? ' win' : ''),
+        `<span class="oh-rays" aria-hidden="true"></span>${stars}<span class="oh-crest">${badgeSvg('rosette', 'crown', win.color, { gold: true })}</span><div class="oh-ribbon"><b>${mine ? t('勝利') : t('戰役結束')}</b></div>`,
+      ),
+    );
+    body.insertAdjacentHTML('beforeend', `<p class="lead" style="font-size:15px">${v.winner === ctx.me ? t('<b>你統一了這座島！</b>') : t('<b style="color:{color}">{name}</b> 在第 {turn} 回合達成 {vp} 分，贏得戰役。', { color: win.color, name: esc(win.name), turn: v.turn, vp: v.targetVP })}</p>`);
     const st = el('div', 'standings');
     rows.forEach((r, i) => {
       const P = ctx.players[r.p.id];

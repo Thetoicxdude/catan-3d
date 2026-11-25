@@ -208,6 +208,12 @@ async def main():
         await page.click('.bm-row[data-k="dev"]')
         await page.wait_for_selector('.fx-dev', timeout=10000)
         await page.wait_for_timeout(400)
+        # (the menu fades back in 0.15 s, but on the software renderer the frames come late: waited for,
+        # well inside the card's 2.2 s on screen)
+        try:
+            await page.wait_for_function("() => +getComputedStyle(document.querySelector('.build-menu')).opacity < 0.5", timeout=1400, polling=100)
+        except Exception:
+            pass
         shown = await page.evaluate("() => ({ reveal: !!document.querySelector('.fx-reveal'), dim: document.querySelectorAll('.fx-dim').length, menu: +getComputedStyle(document.querySelector('.build-menu')).opacity })")
         await page.screenshot(path=f'{SP}/ui9-dev.png')
         await page.mouse.click(683, 330)

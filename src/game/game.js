@@ -178,6 +178,7 @@ export class Game {
   // switched: the same campaign carries on on this page in another role (the host changed): the
   // camera stays and nothing is announced again. clockLeft: what was left of the turn clock.
   start({ switched = false, clockLeft = null } = {}) {
+    if (this.map.setViewer) this.map.setViewer(this.viewer);
     this.map.sync(this.view(), [], false);
     if (!switched) {
       // the whole land in view, clear of the panels, north up (a wide map on an upright phone turned a
@@ -708,6 +709,7 @@ export class Game {
     el.innerHTML = `<div class="panel"><h2>${t('輪到 {name}', { name: esc(P.name) })}</h2><p style="margin:0;color:var(--ink-dim)">${t('請把裝置交給這位玩家。其他人的手牌會保持隱藏。')}</p><button class="btn primary" type="button">${t('我是 {name}，繼續', { name: esc(P.name) })}</button></div>`;
     el.querySelector('button').addEventListener('click', () => {
       this.viewer = p;
+      if (this.map.setViewer) this.map.setViewer(p);
       this.passTo = null;
       el.remove();
       this.passEl = null;
@@ -1005,7 +1007,7 @@ export class Game {
         onCancel: cancel,
       },
       banner: { html: t('選擇<b>{what}</b>要附在哪一座聚落旁', { what: name }), buttons: [{ label: t('取消'), onClick: cancel }] },
-      hint: { text: t('點選白色圓點：符合條件、還有空位的聚落（右鍵或 Esc 取消）') },
+      hint: { text: t('點選金色圓點：符合條件、還有空位的聚落（右鍵或 Esc 取消）') },
     };
   }
 
@@ -1183,7 +1185,7 @@ export class Game {
           // (Seafarers without a fixed home island: any island; the islands chosen become the home islands)
           const anyIsle = v.ships && GEO.def.isleBonus && !(GEO.def.setup && GEO.def.setup.group);
           banner = { html: `${t('開局第 {n} 輪：選擇<b>村莊</b>的位置', { n: round })}${round === 2 ? t('（此村莊旁的地形會給你開局資源）') : anyIsle ? t('（任何一座島都可以，開局所在的島就是你的本島）') : ''}` };
-          hint = { text: t('點選白色圓點放置村莊') };
+          hint = { text: t('點選金色圓點放置村莊') };
         } else if (v.ships) {
           // (Seafarers) a road, or a ship from a settlement on the coast
           const roads = legalRoadEdges(v, me);
@@ -1333,7 +1335,7 @@ export class Game {
           },
         };
         banner = { html: t('選擇<b>{what}</b>的位置', { what: name }), buttons: [{ label: t('取消'), onClick: () => inter.onCancel() }] };
-        hint = { text: this.mode === 'road' || this.mode === 'ship' ? t('點選白色條紋建造{what}（右鍵或 Esc 取消）', { what: low(name) }) : t('點選白色圓點建造{what}（右鍵或 Esc 取消）', { what: low(name) }) };
+        hint = { text: this.mode === 'road' || this.mode === 'ship' ? t('點選白色條紋建造{what}（右鍵或 Esc 取消）', { what: low(name) }) : t('點選金色圓點建造{what}（右鍵或 Esc 取消）', { what: low(name) }) };
       } else banner = null;
     } else if (v.sub) {
       banner = { html: (v.sub.k === 'pair' ? cap(t('{who} 是第二位，接著 {lead} 行動', { who: P(v.current), lead: P(v.sub.lead) })) : t('特別建造：{who} 正在建造', { who: P(v.current) })) + (me < 0 ? t('（觀戰中）') : ''), wait: true };

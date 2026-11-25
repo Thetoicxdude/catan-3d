@@ -15,6 +15,7 @@ import { Dialogs } from './ui/dialogs.js';
 import { HostSession, ClientSession, MatchSession, showOnlineEntry, rememberedRoom, forgetRoom } from './net/online.js';
 import { getRoom, wrap, selfHosted } from './net/room.js';
 import { icon } from './ui/icons.js';
+import { crest } from './ui/emblems.js';
 import { esc } from './ui/text.js';
 import { reportResult } from './net/account.js';
 import { setSfx } from './ui/sfx.js';
@@ -201,7 +202,9 @@ function loading(on, text = t('測繪島嶼地形'), p = null) {
       el = document.createElement('div');
       el.className = 'loading';
       el.setAttribute('role', 'status');
-      el.innerHTML = `<div class="ld-text"></div><div class="bar"><i></i></div>`;
+      // the game's crest, its island's tiles lit one after another as the map is surveyed (CSS),
+      // the step under it and a brass bar
+      el.innerHTML = `<div class="ld-crest" aria-hidden="true">${crest()}</div><div class="ld-text"></div><div class="bar"><i></i></div>`;
       app.appendChild(el);
     }
     el.querySelector('.ld-text').textContent = text;

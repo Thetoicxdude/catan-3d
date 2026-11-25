@@ -10,6 +10,9 @@ html:lang(en) .ol-head > span,
 html:lang(en) .hm-sub,
 html:lang(en) .row-label { letter-spacing: 0.08em !important; }
 
+/* the end of a campaign's ribbon (styles.css .over-hero): in capitals, a little apart */
+html:lang(en) .oh-ribbon > b { text-transform: uppercase; letter-spacing: 0.12em !important; margin-right: -0.12em; font-size: 20px; }
+
 /* the captions that are the title again in English */
 html:lang(en) .title-block .eyebrow,
 html:lang(en) .ol-head small { display: none; }

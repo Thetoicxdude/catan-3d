@@ -105,7 +105,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .turn-box .t1 { font-family: var(--font-num); font-size: 13px; letter-spacing: 0.12em; color: var(--ink-dim); text-transform: uppercase; }
 .turn-box .t2 { font-family: var(--font-display); font-weight: 700; font-size: 14px; white-space: nowrap; }
 .dice { display: flex; gap: 5px; align-items: center; padding: 0 6px; }
-.die rect { fill: #f3ead6; stroke: #5b4731; stroke-width: 1.2; }
+.die { filter: drop-shadow(0 1.5px 1px rgba(0, 0, 0, 0.55)); }
+.die rect { fill: #f3ead6; fill: url(#bdg-die); stroke: #5b4731; stroke-width: 1.2; }
 .die g { fill: #2b2118; }
 .dice.red .die g { fill: #b3261e; }
 .dice.rolling .die { animation: diceroll 0.55s cubic-bezier(.3,.7,.4,1); }
@@ -269,6 +270,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .bm-row.off .bm-ico, .bm-row.off .bm-name { opacity: 0.48; }
 .bm-row[hidden] { display: none; }
 .bm-ico { grid-area: ico; position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 0, 0, 0.32); border: 1px solid var(--brass-lo); color: var(--brass-hi); }
+/* (a badge in the player's colour instead of a medallion: ui/badges.js) */
+/* (a badge, ui/badges.js, in place of the round icon: none of the themes' medallion behind it) */
+.bm-ico.bdgi, html .bm-row .bm-ico.bdgi { background: none; border: 0; box-shadow: none; }
+.bm-ico.bdgi .bdg { width: 38px; height: 38px; }
+.bm-row.off .bm-ico.bdgi .bdg { filter: grayscale(0.8); }
 .bm-ico .key { position: absolute; right: -5px; bottom: -4px; min-width: 16px; height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 8px; display: grid; place-items: center; font-style: normal; font-family: var(--font-num); font-weight: 700; font-size: 11px; line-height: 1; color: #1f170b; background: var(--brass); }
 .bm-name { grid-area: name; font-family: var(--font-display); font-weight: 700; font-size: 15.5px; line-height: 1.2; }
 .bm-sub { grid-area: sub; font-size: 12px; line-height: 1.35; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -501,6 +507,27 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .loading { animation: m-fade 0.16s ease-out backwards; }
 .loading.leaving { pointer-events: none; }
 .loading.det .bar i { width: 100%; animation: none; transform-origin: 0 50%; transform: scaleX(0.02); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+/* the game's crest (emblems.js crest: a gold rim, the sea, seven tiles), a warm light behind it, its
+   tiles lit one after another round the island as it is surveyed */
+.loading .ld-crest { position: relative; width: 108px; height: 108px; margin-bottom: 6px; isolation: isolate; }
+.loading .ld-crest::before {
+  content: ""; position: absolute; z-index: -1; inset: -46px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 200, 104, 0.32) 0%, rgba(255, 200, 104, 0.1) 42%, rgba(255, 200, 104, 0) 68%);
+  animation: ld-glow 2.8s ease-in-out infinite alternate;
+}
+@keyframes ld-glow { from { opacity: 0.55; } to { opacity: 1; } }
+.loading .ld-crest > svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.6)); }
+.loading .ld-crest polygon:nth-of-type(n + 3) { animation: ld-tile 2.1s ease-in-out infinite both; }
+.loading .ld-crest polygon:nth-of-type(4) { animation-delay: 0.3s; }
+.loading .ld-crest polygon:nth-of-type(5) { animation-delay: 0.6s; }
+.loading .ld-crest polygon:nth-of-type(6) { animation-delay: 0.9s; }
+.loading .ld-crest polygon:nth-of-type(7) { animation-delay: 1.2s; }
+.loading .ld-crest polygon:nth-of-type(8) { animation-delay: 1.5s; }
+.loading .ld-crest polygon:nth-of-type(9) { animation-delay: 1.8s; }
+@keyframes ld-tile { 0%, 100% { opacity: 0.4; } 22%, 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .loading .ld-crest::before, .loading .ld-crest polygon { animation: none; }
+}
 
 /* background download of the realistic asset pack */
 /* the performance read-out (設定 → 效能資訊) */
@@ -535,6 +562,62 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .cost-table .vp { font-family: var(--font-num); color: var(--brass-hi); }
 
 /* game over */
+/* The end of a campaign (dialogs.js gameOver): the winner's crest, a rosette in their colour with a
+   crown (ui/badges.js), over a cloth ribbon saying 勝利 or 戰役結束. The ribbon is the title: the
+   header keeps only the close button (the dialog's aria-label still names it). Your own win: gold rays
+   turn slowly behind the crest and a few stars twinkle; another's: the rays faint and still, the
+   ribbon a dark sepia. */
+.modal[data-kind="over"] .modal-head { position: absolute; z-index: 3; top: 8px; right: 10px; padding: 0; border: 0; background: none; box-shadow: none; }
+.modal[data-kind="over"] .modal-head h3 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.over-hero { position: relative; display: grid; justify-items: center; padding: 6px 0 2px; margin-bottom: 12px; isolation: isolate; }
+.oh-crest { position: relative; z-index: 1; display: block; width: 96px; height: 96px; filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.45)); }
+.oh-crest > .bdg-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.over-hero.win .oh-crest { filter: drop-shadow(0 0 10px rgba(255, 206, 104, 0.9)) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.4)); animation: oh-crest 0.65s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+@keyframes oh-crest { from { opacity: 0; scale: 0.35; rotate: -24deg; } }
+.oh-rays {
+  position: absolute; z-index: 0; left: 50%; top: 54px; width: 260px; height: 260px; margin: -130px 0 0 -130px; border-radius: 50%; pointer-events: none;
+  background: repeating-conic-gradient(rgba(255, 212, 116, 0.5) 0deg 6deg, rgba(255, 212, 116, 0) 6deg 20deg);
+  -webkit-mask: radial-gradient(circle, #000 20%, rgba(0, 0, 0, 0.55) 40%, transparent 70%); mask: radial-gradient(circle, #000 20%, rgba(0, 0, 0, 0.55) 40%, transparent 70%);
+  opacity: 0.3;
+}
+.over-hero.win .oh-rays { opacity: 1; animation: oh-spin 48s linear infinite, oh-in 0.9s ease-out both; }
+@keyframes oh-spin { to { rotate: 360deg; } }
+@keyframes oh-in { from { opacity: 0; } }
+.oh-ribbon {
+  position: relative; z-index: 2; margin-top: -16px; min-width: 168px; padding: 7px 34px 8px; text-align: center; color: #fff1d6;
+  background: linear-gradient(180deg, #b73d27 0%, #8e2616 58%, #6c1a0d 100%);
+  box-shadow: 0 4px 7px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 214, 184, 0.4), inset 0 -2px 0 rgba(0, 0, 0, 0.22);
+}
+/* the swallow tails, a shade darker, folded back behind the band (only outside it: a pseudo-element
+   paints over its own element's background) */
+.oh-ribbon::before {
+  content: ""; position: absolute; left: -20px; right: -20px; top: 7px; bottom: -7px; pointer-events: none;
+  background: linear-gradient(180deg, #8a2617 0%, #5a140a 100%);
+  clip-path: polygon(0 0, 20px 0, 20px 100%, 0 100%, 9px 50%, 0 0, 100% 0, calc(100% - 9px) 50%, 100% 100%, calc(100% - 20px) 100%, calc(100% - 20px) 0, 100% 0);
+}
+.oh-ribbon > b { font-family: var(--font-display); font-weight: 900; font-size: 22px; letter-spacing: 0.32em; margin-right: -0.32em; white-space: nowrap; text-shadow: 0 1px 1px rgba(40, 4, 2, 0.85); }
+.over-hero:not(.win) .oh-ribbon { background: linear-gradient(180deg, #6b5640 0%, #4b3a28 58%, #35281b 100%); }
+.over-hero:not(.win) .oh-ribbon::before { background: linear-gradient(180deg, #4b3a28 0%, #2a1f14 100%); }
+.over-hero.win .oh-ribbon { animation: oh-ribbon 0.5s 0.25s cubic-bezier(0.2, 1.3, 0.4, 1) both; }
+@keyframes oh-ribbon { from { opacity: 0; scale: 0.6 1; } }
+/* four-pointed stars round the crest */
+.oh-star {
+  position: absolute; z-index: 1; width: 16px; height: 16px; pointer-events: none;
+  background: radial-gradient(circle, #fffbe8 0%, #ffd77a 45%, #e2a336 100%);
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  animation: oh-twinkle 2.6s ease-in-out infinite both;
+}
+.oh-star.s1 { left: calc(50% - 84px); top: 10px; }
+.oh-star.s2 { left: calc(50% + 66px); top: 2px; width: 11px; height: 11px; animation-delay: 0.7s; }
+.oh-star.s3 { left: calc(50% + 86px); top: 62px; width: 19px; height: 19px; animation-delay: 1.3s; }
+.oh-star.s4 { left: calc(50% - 104px); top: 66px; width: 11px; height: 11px; animation-delay: 1.9s; }
+.oh-star.s5 { left: calc(50% - 46px); top: -6px; width: 9px; height: 9px; animation-delay: 1s; }
+@keyframes oh-twinkle { 0%, 100% { opacity: 0; scale: 0.3; rotate: -20deg; } 45% { opacity: 1; scale: 1; rotate: 0deg; } 70% { opacity: 0.8; scale: 0.85; } }
+@media (prefers-reduced-motion: reduce) {
+  .over-hero .oh-crest, .over-hero .oh-rays, .over-hero .oh-ribbon { animation: none; }
+  .oh-star { animation: none; opacity: 0.9; }
+}
+
 .standings { display: flex; flex-direction: column; gap: 6px; }
 .standing { display: grid; grid-template-columns: 22px 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; background: rgba(0, 0, 0, 0.22); border: 1px solid rgba(199, 166, 96, 0.14); }
 .standing.win { border-color: var(--brass-hi); background: linear-gradient(90deg, rgba(199, 166, 96, 0.22), rgba(0, 0, 0, 0.2)); }
@@ -889,3 +972,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .ed-mine-row.ed-pub-row { grid-template-columns: minmax(0, 1fr); }
   .ed-pub-acts { justify-content: flex-end; }
 }
+
+/* ───── badges (ui/badges.js): an enamel pin in a nation's colour; a shape for each kind of thing ───── */
+.bdg { display: inline-block; width: 1em; height: 1em; vertical-align: -0.15em; flex: none; }
+.bdg > .bdg-svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55)); }
+.bdg.mine > .bdg-svg { filter: drop-shadow(0 0 2.5px rgba(255, 214, 120, 0.9)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }

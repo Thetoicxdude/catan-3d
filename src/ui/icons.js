@@ -191,8 +191,10 @@ const BUILDING_FIGURE = {
   guildHall: 'vertical-banner',
   monument: 'obelisk',
 };
+// (the Game Icons name a building is drawn with)
+export const buildingGlyph = (k) => BUILDING_FIGURE[k] || 'greek-temple';
 export function buildingIcon(k, size = 20) {
-  return gameIcon(BUILDING_FIGURE[k] || 'greek-temple', size, 'ico gi');
+  return gameIcon(buildingGlyph(k), size, 'ico gi');
 }
 
 export function icon(name, size = 20) {
